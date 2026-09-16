@@ -15,14 +15,14 @@ from functools import cached_property
 from types import ModuleType
 from typing import Any, Callable
 
-from causalab.causal.causal_model import CausalModel, derive_checker
+from causalab.causal.causal_model import CausalModel
 
 
 @dataclass
 class Task:
     """Unified task interface. All pipeline steps consume this.
 
-    Variable properties (periods, embeddings, output_tokens) live on the
+    Variable properties (periods, embeddings, the ``ScoringSpec``) live on the
     CausalModel. The Task adds experiment-specific concerns: which variable to
     intervene on and the prompt template.
     """
@@ -30,32 +30,19 @@ class Task:
     # --- Required fields ---
     name: str
     causal_model: CausalModel
-    # ``checker`` is the single source of truth for "did the model output match
-    # the expected answer" (``checker({"string": generated}, expected) -> bool``).
-    # Every task ships one in its ``checker.py`` (loaded by ``load_task``); base
-    # accuracy and string-comparison intervention scoring both call it. There is
-    # no strict-equality fallback — a task without a checker fails to load (#167).
+    # ``checker`` is "did the model output match the expected answer"
+    # (``checker({"string": generated}, expected) -> bool``): the task's
+    # ``ScoringSpec.grader()`` over its ``answer_variable``, derived from the one
+    # declaration on the causal model — never a bespoke module that wins
+    # over it. There is no strict-equality fallback — a task whose causal model
+    # declares no scoring fails to load.
     checker: Callable[[dict, str], bool]
     intervention_variable: str | None = None
 
     # --- Experiment-specific ---
     template: str | list[str] | None = None
     validate: Callable | None = None
-    predict_class: Callable | None = field(default=None, repr=False)
-    class_token_ids: Callable | None = field(default=None, repr=False)
     _example_to_class_override: Callable | None = field(default=None, repr=False)
-
-    # --- Scoring convention (optional, config-selected) ---
-    # ``score_answer`` overrides the per-example expected answer used by
-    # ``compute_base_accuracy``; ``None`` falls back to ``ex["input"]["raw_output"]``.
-    # ``_score_modes`` holds the task's named alternatives (from its
-    # ``SCORE_MODES`` export); ``apply_score_mode`` switches between them.
-    score_answer: Callable[[dict], str | list[str]] | None = field(
-        default=None, repr=False
-    )
-    _score_modes: dict[str, dict[str, Callable]] | None = field(
-        default=None, repr=False
-    )
 
     # --- Derived from CausalModel ---
 
@@ -90,38 +77,6 @@ class Task:
             for i, v in enumerate(self.intervention_values)
         }
 
-    def apply_score_mode(self, score_by: str | None) -> None:
-        """Switch this task's scoring convention to the ``score_by`` mode.
-
-        A task declares its alternatives by exporting ``SCORE_MODES`` in its
-        ``causal_models.py`` — a ``{mode_name: overrides}`` map where each
-        ``overrides`` dict may carry ``"answer"`` (per-example expected-answer
-        fn for base accuracy), ``"predict_class"``, and ``"class_token_ids"``.
-        The default mode is conventionally an *empty* override dict (e.g.
-        MCQA's ``"letter"``), which leaves the module-level exports in place.
-
-        ``score_by=None`` is a no-op (tasks without alternative modes never
-        set it). A non-``None`` ``score_by`` that names no declared mode
-        raises, so a typo in a config fails loudly instead of silently
-        falling back to the default convention.
-        """
-        if score_by is None:
-            return
-        modes = self._score_modes or {}
-        if score_by not in modes:
-            raise ValueError(
-                f"Task {self.name!r} has no score mode {score_by!r}. "
-                f"Available: {sorted(modes) or '(none)'}. "
-                f"Declare it in SCORE_MODES in the task's causal_models.py."
-            )
-        overrides = modes[score_by]
-        if "answer" in overrides:
-            self.score_answer = overrides["answer"]
-        if "predict_class" in overrides:
-            self.predict_class = overrides["predict_class"]
-        if "class_token_ids" in overrides:
-            self.class_token_ids = overrides["class_token_ids"]
-
     def create_token_positions(self, pipeline):
         """Create token positions, passing the task's template automatically."""
         tp_mod = load_task_token_positions(self.name)
@@ -149,10 +104,9 @@ def _task_package_candidates(task_name: str) -> list[str]:
 
     Always includes the shipped ``causalab.tasks.<name>``; appends the
     session-local ``tasks.<name>`` only when ``CAUSALAB_SESSION_CODE`` is set
-    (see ``causalab/runner/README.md`` "Session-local code injection"). Single
+    (see ``causalab/tasks/README.md`` "Local task packages"). Single
     source of the shipped-first precedence + the session-local gate, so every
-    resolver (:func:`_import_task_module`, :func:`load_task_checker`) agrees and
-    can't drift.
+    resolver (:func:`_import_task_module`) agrees and can't drift.
     """
     candidates = [f"causalab.tasks.{task_name}"]
     if os.environ.get("CAUSALAB_SESSION_CODE"):
@@ -179,8 +133,8 @@ def _import_task_module(task_name: str, submodule: str) -> ModuleType:
 
     Resolves the task *package* first — shipped ``causalab.tasks.<name>`` takes
     precedence; a session-local ``tasks.<name>`` is the fallback when
-    ``CAUSALAB_SESSION_CODE`` is set (see ``causalab/runner/README.md``
-    "Session-local code injection"). Resolution is by
+    ``CAUSALAB_SESSION_CODE`` is set (see ``causalab/tasks/README.md``
+    "Local task packages"). Resolution is by
     :func:`_task_package_exists` (``find_spec``, no execution), so the fallback
     fires only when the shipped task genuinely does not exist — a broken import
     *inside* a task module surfaces as its own error at import time rather than
@@ -200,8 +154,8 @@ def _import_task_module(task_name: str, submodule: str) -> ModuleType:
             return importlib.import_module(f"{pkg}.{submodule}")
     raise ModuleNotFoundError(
         f"No task package {task_name!r} found. Tried: {', '.join(candidates)}. "
-        f"For session-local tasks, see causalab/runner/README.md "
-        f"'Session-local code injection'."
+        f"For session-local tasks, see causalab/tasks/README.md "
+        f"'Local task packages'."
     )
 
 
@@ -218,7 +172,7 @@ def _resolve_model_export(mod: ModuleType, canonical: str):
     export uses UPPER_SNAKE. Its lowercase alias (``canonical.lower()`` —
     ``causal_model``, ``create_causal_model``) is the name earlier task
     templates historically scaffolded, accepted so a task following the template
-    verbatim loads without having to export both names (#256). The canonical
+    verbatim loads without having to export both names. The canonical
     name wins when both are present. ``None`` if neither is defined.
     """
     val = getattr(mod, canonical, None)
@@ -232,7 +186,7 @@ def _has_model_export(mod: ModuleType, canonical: str) -> bool:
 
     The case-tolerant counterpart of ``hasattr(mod, canonical)`` — used by the
     runner's factory probe (``resolve_task``) so it agrees with :func:`load_task`
-    on what counts as a factory/singleton (#256).
+    on what counts as a factory/singleton.
     """
     return _resolve_model_export(mod, canonical) is not None
 
@@ -253,7 +207,7 @@ def load_task(
 
     # --- Model: singleton or factory ---
     # Each export is read by its canonical UPPER_SNAKE name or the lowercase
-    # alias earlier task templates historically scaffolded (#256), via
+    # alias earlier task templates historically scaffolded, via
     # _resolve_model_export.
     create_factory = _resolve_model_export(mod, "CREATE_CAUSAL_MODEL")
     singleton = _resolve_model_export(mod, "CAUSAL_MODEL")
@@ -317,11 +271,8 @@ def load_task(
             else _optional(mod, "TEMPLATE")
         ),
         validate=_optional(mod, "VALIDATE"),
-        predict_class=_optional(mod, "PREDICT_CLASS"),
-        class_token_ids=_optional(mod, "CLASS_TOKEN_IDS"),
         _example_to_class_override=example_to_class_override,
-        _score_modes=_optional(mod, "SCORE_MODES"),
-        checker=_resolve_checker(causal_model, task_name, intervention_variable),
+        checker=_grader(causal_model, task_name),
     )
 
 
@@ -350,96 +301,32 @@ def load_task_token_positions(task_name: str) -> ModuleType:
     return _import_task_module(task_name, "token_positions")
 
 
-def load_task_checker(task_name: str) -> Callable[[dict, str], bool] | None:
-    """Load a task's *bespoke* output checker (the ``checker`` fn in ``checker.py``).
+def _grader(causal_model: CausalModel, task_name: str) -> Callable[[dict, str], bool]:
+    """A task's string grader: its causal model's ``ScoringSpec.grader()``.
 
-    A ``checker.py`` exporting ``checker(neural_output, causal_output) -> bool``
-    is now **optional**: it is the genuinely-custom override, taking precedence
-    over the checker :func:`causalab.causal.causal_model.derive_checker` derives
-    from the model's ``output_tokens`` declaration (#291 phase 3, see
-    :func:`_resolve_checker`). Returns the ``checker`` function when the task
-    ships one, or ``None`` when it ships no ``checker.py`` (then the caller
-    derives the checker from ``output_tokens``). A ``checker.py`` that exists but
-    defines no ``checker`` function is still an authoring error and raises.
+    The one string-match authority is the spec the causal model
+    declares (:class:`causalab.causal.scoring.ScoringSpec`), keyed on the
+    spec's ``answer_variable`` — the variable the graded string
+    (``raw_output``) is a form of — and not on any ``TARGET_VARIABLE`` or later
+    ``resolve_task`` override: the answer the model is graded against is the
+    same regardless of which variable a config localizes on. MCQA is why the
+    two are distinct: its interchange targets ``answer_position`` while the
+    model emits the ``answer`` letter.
 
-    Resolves shipped ``causalab.tasks.<name>`` first, then a session-local
-    ``tasks.<name>`` (same shipped-first precedence as :func:`_import_task_module`,
-    via :func:`_task_package_candidates`). An ``ImportError`` *inside* the checker
-    module (a real broken import) propagates as-is — only the absence of the
-    ``checker`` submodule is treated as "no bespoke checker".
+    There is no bespoke override beside the spec: a task that needs a custom
+    matcher declares it *inside* the spec as ``full_string_checker``, where it
+    is digested with everything else. Raises ``ValueError`` when the causal
+    model declares no scoring — the task then has no way to grade its output.
     """
-    for pkg in _task_package_candidates(task_name):
-        if not _task_package_exists(pkg):
-            continue
-        module_name = f"{pkg}.checker"
-        try:
-            mod = importlib.import_module(module_name)
-        except ModuleNotFoundError as e:
-            # The task package exists, so a missing ``<pkg>.checker`` is an
-            # absent checker.py (no bespoke checker → derive). A different
-            # missing name is a broken import *inside* checker.py — propagate it.
-            if e.name == module_name:
-                break
-            raise
-        checker = getattr(mod, "checker", None)
-        if checker is None:
-            raise ValueError(
-                f"Task {task_name!r}'s checker.py defines no `checker` function "
-                f"(expected checker(neural_output, causal_output) -> bool)."
-            )
-        return checker
-    return None
-
-
-def _resolve_checker(
-    causal_model: CausalModel,
-    task_name: str,
-    intervention_variable: str | None,
-) -> Callable[[dict, str], bool]:
-    """Resolve a task's output checker — bespoke ``checker.py`` or derived.
-
-    A task's shipped ``checker.py`` wins when present: it is the genuinely-custom
-    override. Otherwise, when the causal model declares ``output_tokens`` for
-    ``intervention_variable`` (the task's ``TARGET_VARIABLE``), the checker is
-    *derived* from that declaration via
-    :func:`causalab.causal.causal_model.derive_checker` — the one string-match
-    authority — using the variable's forms and its ``match_modes`` entry (default
-    ``"exact"``). Most tasks therefore ship no ``checker.py`` and rely on the
-    derived checker (#291 phase 3). ``derive_checker`` lives in ``causal/`` so
-    this loader depends strictly downward (``tasks/`` must not import
-    ``methods/``).
-
-    The checker is keyed on the *module-default* ``intervention_variable``
-    (``TARGET_VARIABLE``), not any later ``resolve_task`` override: the answer the
-    model is graded against (``raw_output``) is the same regardless of which
-    variable a config localizes on, and ``derive_checker`` falls back to a
-    literal match when ``causal_output`` is a surface string rather than a
-    declared value (e.g. MCQA's letter vs. its ``answer_position`` keys).
-
-    Raises ``ValueError`` when a task offers neither a ``checker.py`` nor an
-    ``output_tokens`` declaration for its target variable — it then has no way to
-    grade its output.
-    """
-    bespoke = load_task_checker(task_name)
-    if bespoke is not None:
-        return bespoke
-    output_tokens = causal_model.output_tokens
-    if (
-        intervention_variable
-        and output_tokens
-        and output_tokens.get(intervention_variable)
-    ):
-        match_mode = (causal_model.match_modes or {}).get(
-            intervention_variable, "exact"
+    spec = causal_model.scoring
+    if spec is None:
+        raise ValueError(
+            f"Task {task_name!r} cannot grade its output: its causal model declares "
+            f"no scoring. Pass scoring=ScoringSpec(forms=...) to the CausalModel "
+            f"(see causalab.causal.scoring and causalab.causal.causal_model."
+            f"build_output_tokens)."
         )
-        return derive_checker(output_tokens[intervention_variable], match_mode)
-    raise ValueError(
-        f"Task {task_name!r} cannot grade its output: it ships no checker.py and "
-        f"declares no output_tokens for its target variable "
-        f"{intervention_variable!r}. Declare output_tokens on the CausalModel "
-        f"(see causalab.causal.causal_model.build_output_tokens) or ship a "
-        f"checker.py exporting checker(neural_output, causal_output) -> bool."
-    )
+    return spec.grader()
 
 
 def resolve_task(
@@ -518,8 +405,4 @@ def resolve_task(
     # but the underlying loaders accept them at runtime (task-specific shims).
     task = load_task(task_name, task_cfg=task_cfg_raw)  # pyright: ignore[reportArgumentType]
     task.intervention_variable = target_variable
-    # Apply the optional scoring-convention override (e.g. MCQA letter→value).
-    # ``score_by`` is absent for tasks that don't declare alternatives, in
-    # which case this is a no-op.
-    task.apply_score_mode(task_config.get("score_by"))
     return task, task_cfg_raw

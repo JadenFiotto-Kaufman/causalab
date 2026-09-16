@@ -21,3 +21,14 @@ repos:
     # Run the formatter.
     - id: ruff-format
       types_or: [ python, pyi ]
+
+- repo: local
+  hooks:
+    # The Rust core (crates/). fmt only: it is instant and needs no build.
+    # clippy and `cargo test` compile the workspace and run in the CI test job.
+    - id: cargo-fmt
+      name: cargo fmt --check
+      entry: cargo fmt --all -- --check
+      language: system
+      files: \.rs$
+      pass_filenames: false

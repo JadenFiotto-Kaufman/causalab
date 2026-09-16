@@ -5,9 +5,16 @@ residual's *current* sine/cosine coefficients and radius before patching —
 so it cannot be a constant ``add_scaled`` vector, and an ``affine`` edit
 would need an unauthorable 4096x4096 matrix param. It is exactly what the
 spec's local-only ``pytorch_fn`` mechanism exists for: the generated
-steering documents carry ``{"pytorch_fn": {"qualname":
-"tests.golden._steering.apply_target_<n>"}}`` and route only to local
-engines (``pytorch_fn_local``).
+steering documents declare ``apply_target_<n>`` in their ``code`` section
+(§2.8.1) and their write is ``{"pytorch_fn": {"code": "steer_fn"}}``,
+routing only to local engines (``pytorch_fn_local``).
+
+The declaration is what puts *this file's bytes* in those documents'
+digests. It also shows the boundary of the static half of §5 rule 24:
+``apply_target_<n>`` is built by :func:`_make` at import time, so there is no
+``def`` of that name to read a signature from, and the argument and
+undeclared-read checks stand down while the source hash still covers the
+function.
 
 The probe weights are process-local state set by the golden test after it
 fits the probes (``configure``); the documents are generated per run and

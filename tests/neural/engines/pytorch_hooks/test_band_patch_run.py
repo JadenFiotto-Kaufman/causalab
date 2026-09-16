@@ -1,9 +1,8 @@
 """Layer-band patching as one document (spec §2.9 ``intervened_models``).
 
-The claim the research pipeline's method guides made — *"the current protocol
-sweep language cannot make one start-layer value expand into five or ten
-dependent writes. Author one explicit protocol document for each band"* — is
-half right. The premise holds: a sweep expands one axis into **independent**
+A natural claim about band patching — the sweep language cannot make one
+start-layer value expand into five or ten dependent writes, so each band
+needs its own explicit specification — is half right. The premise holds: a sweep expands one axis into **independent**
 points, and a band is one forward with several dependent writes. The conclusion
 does not: ``intervened_models`` names the *set* of writes in force for one
 forward, so N bands over one table of per-layer writes are N entries in one
@@ -31,6 +30,7 @@ from causalab.cli import main
 from causalab.protocol.loader import load
 from causalab.protocol.plan import plan_point
 from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
+from causalab.tasks import TASKS_ROOT
 
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
 from tests.protocol._env import FIXTURES
@@ -50,7 +50,7 @@ PRESET = REPO / "causalab/configs/protocols/attention_band_patch.json"
 @pytest.fixture(scope="module")
 def env() -> ResolutionEnv:
     return ResolutionEnv(
-        datasets=FileDatasets(root=FIXTURES / "data"),
+        datasets=FileDatasets(root=FIXTURES / "data", fallback_roots=(TASKS_ROOT,)),
         artifacts=FileArtifacts(root=FIXTURES / "artifacts"),
     )
 
@@ -86,68 +86,75 @@ def _band_doc(bands: dict[str, list[int]]) -> dict:
     """A band document over tiny-random's two attention layers."""
     layers = sorted({layer for span in bands.values() for layer in span})
     return {
-        "version": "1",
-        "description": "attention-output bands as intervened_models",
+        "header": {
+            "protocol_version": "3",
+            "description": "attention-output bands as intervened_models",
+        },
         "model": {"key": TINY_LLAMA, "revision": "main", "dtype": "fp32"},
         "data": {
-            "base": {"dataset": "weekdays/train", "field": "input"},
+            "base": {"dataset": "weekdays/data#train", "field": "input"},
             "counterfactual": {
-                "dataset": "weekdays/train",
+                "dataset": "weekdays/data#train",
                 "field": "counterfactual_inputs[0]",
             },
         },
-        "positions": {"tap": {"index": -1}},
-        "sites": {
-            **{f"a{i}": {"component": "attention_output", "layer": i} for i in layers},
-            "lm_head": {"component": "lm_head"},
-        },
-        "reads": {
-            **{
-                f"v_a{i}": {
-                    "site": f"a{i}",
-                    "pos": "tap",
-                    "model": "original",
-                    "input": "counterfactual",
-                }
+        "method": {
+            "positions": {"tap": {"index": -1}},
+            "sites": {
+                **{
+                    f"a{i}": {"component": "attention_output", "layers": [i]}
+                    for i in layers
+                },
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                **{
+                    f"v_a{i}": {
+                        "site": f"a{i}",
+                        "pos": "tap",
+                        "model": "original",
+                        "input": "counterfactual",
+                    }
+                    for i in layers
+                },
+                **{
+                    f"logits_{name}": {
+                        "site": "lm_head",
+                        "pos": -1,
+                        "model": name,
+                        "input": "base",
+                    }
+                    for name in bands
+                },
+            },
+            "writes": {
+                f"w{i}": {"site": f"a{i}", "pos": "tap", "do": {"swap": f"v_a{i}"}}
                 for i in layers
             },
-            **{
-                f"logits_{name}": {
-                    "site": "lm_head",
-                    "pos": -1,
-                    "model": name,
-                    "input": "base",
+            "intervened_models": {
+                name: {"input": "base", "writes": [f"w{i}" for i in span]}
+                for name, span in bands.items()
+            },
+            "metrics": {
+                f"iia_{name}": {
+                    "kind": "logit_diff",
+                    "of": f"logits_{name}",
+                    "a": "cf_answer",
+                    "b": "base_answer",
+                    "token_form": "space_prefixed",
                 }
                 for name in bands
             },
+            "save": [
+                {
+                    "value": f"iia_{name}",
+                    "model": name,
+                    "input": "base",
+                    "file_path": f"iia_{name}.json",
+                }
+                for name in bands
+            ],
         },
-        "writes": {
-            f"w{i}": {"site": f"a{i}", "pos": "tap", "do": {"swap": f"v_a{i}"}}
-            for i in layers
-        },
-        "intervened_models": {
-            name: {"input": "base", "writes": [f"w{i}" for i in span]}
-            for name, span in bands.items()
-        },
-        "metrics": {
-            f"iia_{name}": {
-                "kind": "logit_diff",
-                "of": f"logits_{name}",
-                "a": "cf_answer",
-                "b": "base_answer",
-                "token_form": "space_prefixed",
-            }
-            for name in bands
-        },
-        "save": [
-            {
-                "value": f"iia_{name}",
-                "model": name,
-                "input": "base",
-                "file_path": f"iia_{name}.json",
-            }
-            for name in bands
-        ],
     }
 
 
@@ -192,5 +199,5 @@ def test_a_wider_band_is_a_different_intervention(tmp_path: Path) -> None:
     out = _run(tmp_path, _band_doc({"narrow": [0], "wide": [0, 1]}))
     narrow = list(table_frame(out / "iia_narrow.json")["value"])
     wide = list(table_frame(out / "iia_wide.json")["value"])
-    assert len(narrow) == len(wide) == 4  # the weekdays/train fixture rows
+    assert len(narrow) == len(wide) == 2  # the weekdays/data#train fixture rows
     assert narrow != wide

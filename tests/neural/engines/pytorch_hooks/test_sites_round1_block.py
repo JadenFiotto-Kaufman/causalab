@@ -1,6 +1,6 @@
-"""Round-1 block components: the four new taps, and per-layer stream dispatch.
+"""Block components: the four norm and input taps, and per-layer stream dispatch.
 
-PR2 of the hookpoint-vocabulary stack. Four components join the vocabulary —
+Four components join the vocabulary —
 ``input_ids``, ``attention_input_norm``, ``block_mid``, ``mlp_input_norm`` — and
 ``attention_output`` learns that the mixer is a *per-layer* fact.
 
@@ -45,7 +45,7 @@ TEXT = "the quick brown fox jumps"
 def _spec(component: str, layer: int | None = None, **kw: object) -> SiteSpec:
     if component in LAYERLESS_COMPONENTS:
         return SiteSpec(component=component, **kw)
-    return SiteSpec(component=component, layer=0 if layer is None else layer, **kw)
+    return SiteSpec(component=component, layers=(0 if layer is None else layer,), **kw)
 
 
 def _capture(
@@ -198,7 +198,7 @@ def test_a_block_carrying_both_mixer_kinds_refuses_instead_of_guessing(
 ):
     """A hypothetical block with both children must not resolve silently.
 
-    No family in the round-1 box map ships one, so this is a guard rather than
+    No family in the box map ships one, so this is a guard rather than
     a regression — but `stream_at` answers by probing children, and a fixed
     probe order would call such a block "full_attention" without a word. Every
     per-layer tap would then attach to one of its two mixers and go on
@@ -259,7 +259,7 @@ def test_attention_probs_at_a_deltanet_layer_refuses_on_the_architecture(
     qwen35moe_bundle,
 ):
     """A Gated DeltaNet block computes no attention matrix, so this is not a
-    missing feature — it stays false after PR4 lands ``attention_probs``."""
+    missing feature — it stays false now that ``attention_probs`` is served."""
     with pytest.raises(ProtocolError) as excinfo:
         resolve_site(qwen35moe_bundle, _spec("attention_probs", 0))
     message = str(excinfo.value)
@@ -269,8 +269,8 @@ def test_attention_probs_at_a_deltanet_layer_refuses_on_the_architecture(
 
 def test_attention_probs_at_a_full_attention_layer_resolves(qwen35moe_bundle):
     """The other half of the ordering. This test used to assert
-    ``NotImplementedError`` — a roadmap statement, which PR4 discharged by
-    implementing the component. What must survive is the *asymmetry*: at layer 3
+    ``NotImplementedError`` — a roadmap statement, discharged by implementing
+    the component. What must survive is the *asymmetry*: at layer 3
     the tensor exists and the tap resolves, while at a DeltaNet layer it refuses
     for a reason that is permanent (the test above)."""
     site = resolve_site(qwen35moe_bundle, _spec("attention_probs", 3))
@@ -401,7 +401,7 @@ _BS = shapes.bs(integral=True)
 
 
 def test_a_featureless_tap_round_trips_and_returns_a_view():
-    """§6.2 review point 2: ``to_contract`` must return a view, so an in-place
+    """The view property: ``to_contract`` must return a view, so an in-place
     edit reaches native storage. ``unsqueeze`` does; ``reshape`` might not."""
     native = torch.arange(12).reshape(3, 4)
     contract = to_contract(native, _BS, batch_size=3)
@@ -478,7 +478,7 @@ def test_the_llama_residual_algebra_holds_too(llama_bundle):
 def _read_doc(component: str, layer: int | None = None, featurizer: bool = False):
     site: dict = {"component": component}
     if layer is not None:
-        site["layer"] = layer
+        site["layers"] = layer
     read: dict = {
         "site": "tap",
         "pos": {"index": 1},
@@ -486,22 +486,24 @@ def _read_doc(component: str, layer: int | None = None, featurizer: bool = False
         "input": "base",
     }
     doc: dict = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": site},
-        "reads": {"r": read},
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
+        "method": {
+            "sites": {"tap": site},
+            "reads": {"r": read},
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
+        },
     }
     if featurizer:
-        doc["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
+        doc["method"]["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
         read["featurizer"] = "f"
     return doc
 

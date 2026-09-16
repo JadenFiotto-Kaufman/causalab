@@ -19,7 +19,9 @@ What each group of tests is for:
   write with an identity payload moves them by exactly 0.0. Without the second
   half, a "write works" test passes for a write that silently no-ops.
 * **refusals** — the family and architecture boundaries, asserted on the
-  *message* rather than the exception type.
+  *message* rather than the exception type. GPT-2's fused ``c_attn`` is no
+  longer one of them: the per-family tap table addresses its three
+  logical blocks (``test_family_tap_table.py`` has the oracle equivalence).
 * **head bounds** — the §2.2 defect, on the components that introduce it: three
   of these four live in KV-head space.
 """
@@ -90,7 +92,7 @@ def _capture(
     out: dict[str, torch.Tensor] = {}
     handles = []
     for component in components:
-        site = resolve_site(bundle, SiteSpec(component=component, layer=layer))
+        site = resolve_site(bundle, SiteSpec(component=component, layers=(layer,)))
 
         def hook(_m, _i, output, *, _name=component, _site=site):
             out[_name] = (
@@ -132,7 +134,7 @@ def _native(bundle: ModelBundle, layer: int, attribute: str) -> torch.Tensor:
 def test_the_tap_is_the_module_its_name_claims(qwen35moe_bundle, component: str):
     attribute, _, _ = QWEN_TAPS[component]
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component=component, layer=FULL_ATTENTION_LAYER)
+        qwen35moe_bundle, SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,))
     )
     assert site.module is getattr(
         _mixer(qwen35moe_bundle, FULL_ATTENTION_LAYER), attribute
@@ -163,11 +165,11 @@ def test_the_pre_rope_taps_keep_their_head_axis_only_where_the_module_does(
     allowed to say about a shape the protocol table owns."""
     on_qwen = resolve_site(
         qwen35moe_bundle,
-        SiteSpec(component="attention_query_pre_rope", layer=FULL_ATTENTION_LAYER),
+        SiteSpec(component="attention_query_pre_rope", layers=(FULL_ATTENTION_LAYER,)),
     ).shape
     on_llama = resolve_site(
         llama_bundle,
-        SiteSpec(component="attention_query_pre_rope", layer=LLAMA_LAYER),
+        SiteSpec(component="attention_query_pre_rope", layers=(LLAMA_LAYER,)),
     ).shape
     assert on_qwen.flat_inner is False and on_qwen.native_rank == 4
     assert on_llama.flat_inner is True and on_llama.native_rank == 3
@@ -178,7 +180,9 @@ def test_the_pre_rope_taps_keep_their_head_axis_only_where_the_module_does(
 @pytest.mark.parametrize("component", sorted(LLAMA_TAPS))
 def test_a_family_without_q_norm_taps_the_bare_projection(llama_bundle, component: str):
     attribute, native_shape, width = LLAMA_TAPS[component]
-    site = resolve_site(llama_bundle, SiteSpec(component=component, layer=LLAMA_LAYER))
+    site = resolve_site(
+        llama_bundle, SiteSpec(component=component, layers=(LLAMA_LAYER,))
+    )
     assert site.module is getattr(_mixer(llama_bundle, LLAMA_LAYER), attribute)
     assert tuple(_native(llama_bundle, LLAMA_LAYER, attribute).shape) == native_shape
     assert component_width(llama_bundle.info, component) == width
@@ -292,7 +296,7 @@ def _capture_component(bundle: ModelBundle, layer: int, component: str) -> torch
     does not (``attention_premix`` is the o-projection's *input*)."""
     encoded = bundle.tokenizer(TEXT, return_tensors="pt")
     batch = encoded["input_ids"].shape[0]
-    site = resolve_site(bundle, SiteSpec(component=component, layer=layer))
+    site = resolve_site(bundle, SiteSpec(component=component, layers=(layer,)))
     seen: dict[str, torch.Tensor] = {}
 
     def out_hook(_m, _i, output):
@@ -320,50 +324,52 @@ def _capture_component(bundle: ModelBundle, layer: int, component: str) -> torch
 
 
 def _write_doc(component: str, layer: int, *, head: int | None = None) -> dict:
-    site: dict = {"component": component, "layer": layer}
+    site: dict = {"component": component, "layers": [layer]}
     if head is not None:
         site["head"] = head
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {"tap": site, "lm_head": {"component": "lm_head"}},
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {"tap": site, "lm_head": {"component": "lm_head"}},
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
             },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -394,7 +400,7 @@ def test_swapping_a_tap_with_its_own_value_moves_nothing(
     into a projection it shares with ``q``, and disturbing ``q`` would show up
     here as a nonzero delta."""
     doc = _write_doc(component, FULL_ATTENTION_LAYER)
-    doc["reads"]["v_cf"]["input"] = "base"  # swap the tap with itself
+    doc["method"]["reads"]["v_cf"]["input"] = "base"  # swap the tap with itself
     executor = executor_for(
         doc,
         qwen35moe_bundle,
@@ -433,7 +439,7 @@ def test_a_deltanet_layer_refuses_with_the_architectural_reason(
     all, so this is permanent and true of the architecture."""
     with pytest.raises(ProtocolError) as excinfo:
         resolve_site(
-            qwen35moe_bundle, SiteSpec(component=component, layer=DELTANET_LAYER)
+            qwen35moe_bundle, SiteSpec(component=component, layers=(DELTANET_LAYER,))
         )
     assert "full-attention mixer" in str(excinfo.value)
     assert "linear_attention" in str(excinfo.value)
@@ -445,24 +451,55 @@ def test_the_gate_refuses_on_a_family_that_computes_none(llama_bundle):
     with pytest.raises(ProtocolError) as excinfo:
         resolve_site(
             llama_bundle,
-            SiteSpec(component="attention_gate", layer=LLAMA_LAYER),
+            SiteSpec(component="attention_gate", layers=(LLAMA_LAYER,)),
         )
     message = str(excinfo.value)
     assert "computes no output gate" in message
     assert "Qwen3.5/3.6" in message
 
 
-@pytest.mark.parametrize("component", INTERIOR)
-def test_gpt2_refuses_all_four_and_says_why(component: str):
-    """D4: GPT-2 fuses q, k and v into one ``c_attn``, so none of these is a
-    module boundary. Splitting it is the declarative family table (F5) and buys
-    nothing for the Qwen3.6 target."""
+#: 📐 measured on tiny-gpt2: H 4, d 8, one fused ``c_attn``
+#: emitting ``(1, s, 96)`` = ``[q | k | v]`` as three 32-wide column blocks.
+GPT2_BLOCKS: dict[str, int] = {
+    "attention_query_pre_rope": 0,
+    "attention_key_pre_rope": 1,
+    "attention_value_states": 2,
+}
+
+
+@pytest.mark.parametrize("component", sorted(GPT2_BLOCKS))
+def test_gpt2_addresses_the_fused_projection_as_logical_blocks(component: str):
+    """GPT-2 fuses q, k and v into one ``c_attn``, and
+    the per-family tap table says which ``H·d`` block of its output each one is
+    — so the same logical site resolves here as on a split-projection family,
+    to ``c_attn``'s output with a fused-blocks packing. The oracle equivalence
+    (values and writes) is ``test_family_tap_table.py``'s."""
     bundle = load_model(TINY_GPT2)
-    with pytest.raises(NotImplementedError) as excinfo:
-        resolve_site(bundle, SiteSpec(component=component, layer=LLAMA_LAYER))
-    message = str(excinfo.value)
-    assert "c_attn" in message
-    assert "follow-up F5" in message
+    site = resolve_site(bundle, SiteSpec(component=component, layers=(LLAMA_LAYER,)))
+    attn = _mixer(bundle, LLAMA_LAYER)
+    assert site.module is attn.c_attn and site.kind == "out"
+    assert site.shape.fused_index == GPT2_BLOCKS[component]
+    assert [a.kind for a in site.shape.axes] == [
+        "batch",
+        "position",
+        "fused",
+        "head",
+        "feature",
+    ]
+    assert site.shape.width == component_width(bundle.info, component) == 32
+
+
+def test_gpt2_refuses_the_gate_by_name():
+    """The one interior component GPT-2 really lacks: no gate on any family
+    but Qwen3.5/3.6's, and the row says so for ``gpt2`` — the same text the
+    llama refusal carries (snapshot entry 24)."""
+    bundle = load_model(TINY_GPT2)
+    with pytest.raises(ProtocolError) as excinfo:
+        resolve_site(
+            bundle, SiteSpec(component="attention_gate", layers=(LLAMA_LAYER,))
+        )
+    assert "computes no output gate" in str(excinfo.value)
+    assert excinfo.value.reason == "component_unavailable"
 
 
 # --------------------------------------------------------------------------- #
@@ -497,7 +534,7 @@ def test_a_query_space_head_on_a_kv_space_component_is_refused(
     with pytest.raises(ProtocolError, match="which has 4 heads"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component=component, layer=FULL_ATTENTION_LAYER, head=5),
+            SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,), head=5),
         )
 
 
@@ -510,7 +547,7 @@ def test_a_head_slice_is_one_heads_worth_of_the_contract(
     info = qwen35moe_bundle.info
     site = resolve_site(
         qwen35moe_bundle,
-        SiteSpec(component=component, layer=FULL_ATTENTION_LAYER, head=1),
+        SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,), head=1),
     )
     assert site.feature_slice == slice(info.head_dim, 2 * info.head_dim)
     whole = _capture(qwen35moe_bundle, FULL_ATTENTION_LAYER, (component,))[component]

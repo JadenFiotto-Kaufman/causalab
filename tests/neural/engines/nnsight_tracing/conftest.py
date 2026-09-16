@@ -62,7 +62,7 @@ def trace_qwen() -> NnsightBundle:
 
 @pytest.fixture(scope="session")
 def trace_qwen_default_impl() -> NnsightBundle:
-    """The D5 path: no pin, so the checkpoint's own default (sdpa) — what the
+    """The default-implementation path: no pin, so the checkpoint's own default (sdpa) — what the
     engine's loader gives a real document, and what the on-demand switch is
     tested against."""
     return load_trace_model(TINY_QWEN35_MOE)

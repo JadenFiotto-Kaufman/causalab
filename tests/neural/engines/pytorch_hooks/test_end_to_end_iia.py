@@ -1,8 +1,8 @@
 """The task-driven end-to-end IIA pin: task package → serialized table →
 interchange document → one IIA number per layer, through the real CLI.
 
-This is the anchor the protocol refactor retired with `test_walking_skeleton.py`
-(``docs/test_migration.md``, "Task-driven end-to-end IIA pins"): the only test
+This is the anchor the protocol refactor retired with `test_walking_skeleton.py`:
+the only test
 that runs the whole chain a real analysis runs — a task's own causal model and
 counterfactual generator, its answer declaration, position resolution against
 real prompts, a cross-model swap, and scoring — rather than hand-written
@@ -88,7 +88,7 @@ def _run(out: Path, layer: int) -> int:
             "--set",
             "model.dtype=fp32",
             "--set",
-            f"sites.target.layer={layer}",
+            f"sites.target.layers={layer}",
         ]
     )
 
@@ -140,29 +140,41 @@ def test_answer_space_is_first_token_distinct(tokenizer):
     assert not collisions, f"answers share a first token: {collisions}"
 
 
-def test_committed_table_is_reproducible_from_its_manifest():
-    """The table is a *build product*: its manifest records the parameters, and
-    rebuilding from them has to give back the same bytes — that is what makes
-    the content digest in the document's canonical form (§7) meaningful."""
-    manifest = json.loads(
-        (FIXTURES / "data" / "weekdays" / "task_n4_s0.manifest.json").read_text()
-    )
+#: The command line that built the committed fixture table — the recipe lives
+#: here, beside the test that rebuilds it, not in a file beside the table
+#: (spec §2.2: nothing sits beside a table).
+TABLE_RECIPE = {
+    "task": "natural_domains_arithmetic",
+    "n": 4,
+    "seed": 0,
+    "split": "all",
+    "target_variables": ["result"],
+    "task_cfg": {"domain_type": "weekdays"},
+}
+
+
+def test_committed_table_is_reproducible_from_its_recipe():
+    """The table is a *build product*: rebuilding it from the command line
+    that built it has to give back the same bytes — that is what makes the
+    content digest in the document's canonical form (§7) meaningful."""
     argv = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "build_task_dataset.py"),
         "--task",
-        manifest["task"],
+        TABLE_RECIPE["task"],
         "--n",
-        str(manifest["n"]),
+        str(TABLE_RECIPE["n"]),
         "--seed",
-        str(manifest["seed"]),
+        str(TABLE_RECIPE["seed"]),
+        "--split",
+        TABLE_RECIPE["split"],
         "--out",
         str(FIXTURES / "data" / f"{TABLE_REF}.json"),
         "--check",
     ]
-    for variable in manifest["target_variables"]:
+    for variable in TABLE_RECIPE["target_variables"]:
         argv += ["--target-variable", variable]
-    for key, value in manifest["task_cfg"].items():
+    for key, value in TABLE_RECIPE["task_cfg"].items():
         argv += ["--set", f"{key}={value}"]
     result = subprocess.run(argv, capture_output=True, text=True, cwd=REPO_ROOT)
     assert result.returncode == 0, result.stdout + result.stderr

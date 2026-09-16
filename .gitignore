@@ -47,10 +47,23 @@ agent_logs/
 .vscode/settings.json
 .env
 
-worktrees/
+# Any worktree checkout parked inside the repo — `.worktrees/`, `worktrees/`,
+# `.claude/worktrees/`, `<name>-worktree/` — is a sibling clone, never content.
+*worktree*/
 
 # Generated files
 /figures/*.pdf
 **/output/*.html
 **/output/*.png
 test_run_logs/
+
+# `uv build` output — the standalone-install recipe builds a wheel locally
+# (docs/standalone_install.md); it is never committed.
+dist/
+
+# The Rust core of causalab/io/fastersafetensors (crates/): build output and
+# the extension maturin drops into the source tree on an editable install.
+/target/
+*.so
+# `*.lock` above would swallow the Cargo lockfile, which is committed
+!/Cargo.lock

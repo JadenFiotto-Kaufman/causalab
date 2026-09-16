@@ -1,18 +1,17 @@
-"""The attention interior on the nnsight engine (engine plan §7, phase N5).
+"""The attention interior on the nnsight engine.
 
-The same treatment the module-boundary vocabulary got, extended to round 2's
-attention components: the same documents through both engines, agreeing to
+The same treatment the module-boundary vocabulary got, extended to the
+attention-interior components: the same documents through both engines, agreeing to
 fp32-eager-CPU tolerance. Two genuinely independent implementations — the
 reference engine's ``TorchFunctionMode`` softmax tap vs this engine's
-``.source`` address navigation — agreeing is the strongest check the phase
-has: a wrong address (``attn_weights_0``, the pre-mask tensor, say) produces
+``.source`` address navigation — agreeing is the strongest check there
+is: a wrong address (``attn_weights_0``, the pre-mask tensor, say) produces
 plausible numbers of the right shape, and only the comparison catches it.
 
-Plus what parity alone cannot pin: the identity checks ported from the
-verification probes (``softmax(scores) == pattern`` exactly; rows sum to 1;
+Plus what parity alone cannot pin: the identity checks (``softmax(scores) == pattern`` exactly; rows sum to 1;
 ``z·σ(gate) == premix``), the causal writes (a targeted knockout moves the
 logits, a uniform shift is a softmax-invariance no-op), the in-forward
-ordering discipline the ``.source`` interiors demand, and the D5 on-demand
+ordering discipline the ``.source`` interiors demand, and the on-demand
 implementation switch.
 """
 
@@ -43,67 +42,71 @@ CF_TEXT = "a slow green turtle sleeps"
 
 
 def _read_doc(component: str, *, pos: object = -1, head: int | None = None) -> dict:
-    site: dict = {"component": component, "layer": LAYER}
+    site: dict = {"component": component, "layers": [LAYER]}
     if head is not None:
         site["head"] = head
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {"tap": site},
-        "reads": {
-            "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": site},
+            "reads": {
+                "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
 def _write_doc(component: str, do: dict, *, pos: object = "all") -> dict:
     """Patch one interior site and read the last-position logits."""
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=True),
-        "sites": {
-            "tap": {"component": component, "layer": LAYER},
-            "head": {"component": "lm_head"},
-        },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": pos,
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {
+                "tap": {"component": component, "layers": [LAYER]},
+                "head": {"component": "lm_head"},
             },
-            "logits": {
-                "site": "head",
-                "pos": -1,
-                "model": "patched",
-                "input": "base",
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": pos,
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "logits": {
+                    "site": "head",
+                    "pos": -1,
+                    "model": "patched",
+                    "input": "base",
+                },
             },
+            "writes": {"patch": {"site": "tap", "pos": pos, "do": do}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "writes": {"patch": {"site": "tap", "pos": pos, "do": do}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "logits",
-                "model": "patched",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
 
 
 # --------------------------------------------------------------------------- #
-# reads: the whole round-2 attention surface, both engines
+# reads: the whole attention-interior surface, both engines
 # --------------------------------------------------------------------------- #
 
 #: (component, pos, head). The two pattern-shaped components have no contract
@@ -146,7 +149,7 @@ def test_llama_interior_read_parity(hooks_llama, trace_llama, component):
     (No gate and no q/k norms here — the table's ops are the ones both
     forwards share.)"""
     doc = _read_doc(component, pos="all" if component == "attention_scores" else -1)
-    doc["sites"]["tap"]["layer"] = 1
+    doc["method"]["sites"]["tap"]["layers"] = 1
     hooked = _executor(PointExecutor, doc, hooks_llama, with_cf=False).read_value("r")
     traced = _executor(TracePointExecutor, doc, trace_llama, with_cf=False).read_value(
         "r"
@@ -231,7 +234,7 @@ def test_interior_write_parity(hooks_qwen, trace_qwen, component, pos):
 
 def _clean_logits(trace_qwen) -> torch.Tensor:
     doc = _read_doc("attention_z")  # placeholder site, replaced below
-    doc["sites"]["tap"] = {"component": "lm_head"}
+    doc["method"]["sites"]["tap"] = {"component": "lm_head"}
     return _executor(TracePointExecutor, doc, trace_qwen, with_cf=False).read_value("r")
 
 
@@ -257,8 +260,8 @@ def test_a_targeted_knockout_on_the_scores_moves_the_logits(trace_qwen):
     from tests.neural.engines.pytorch_hooks._drive import bundle_loader
 
     doc = _write_doc("attention_scores", {"add_scaled": {"op": "knock", "alpha": 1.0}})
-    del doc["reads"]["v_cf"]
-    doc["params"] = {"knock": {"file_path": "k.safetensors"}}
+    del doc["method"]["reads"]["v_cf"]
+    doc["method"]["params"] = {"knock": {"file_path": "k.safetensors"}}
     mask = torch.zeros_like(_traced_read(trace_qwen, "attention_scores", pos="all"))
     mask[:, 0, :, 0] = -1e4
     assert (
@@ -276,7 +279,7 @@ def test_a_uniform_shift_of_the_scores_is_a_no_op(trace_qwen):
     same constant to every score changes nothing — ported as a pin so a
     knockout recipe stays targeted."""
     doc = _write_doc("attention_scores", {"add_scaled": {"op": -10000.0, "alpha": 1.0}})
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     assert _moved(trace_qwen, doc) < 1e-3
 
 
@@ -286,29 +289,31 @@ def test_a_read_of_a_written_slot_sees_the_written_value(trace_qwen):
     hook-registration order — the two engines have to agree here or the same
     document would mean different things."""
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=True),
-        "sites": {"tap": {"component": "attention_query", "layer": LAYER}},
-        "reads": {
-            "src": {
-                "site": "tap",
-                "pos": -1,
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {"tap": {"component": "attention_query", "layers": [LAYER]}},
+            "reads": {
+                "src": {
+                    "site": "tap",
+                    "pos": -1,
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "obs": {"site": "tap", "pos": -1, "model": "patched", "input": "base"},
             },
-            "obs": {"site": "tap", "pos": -1, "model": "patched", "input": "base"},
+            "writes": {"p": {"site": "tap", "pos": -1, "do": {"swap": "src"}}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["p"]}},
+            "save": [
+                {
+                    "value": "obs",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "o.safetensors",
+                }
+            ],
         },
-        "writes": {"p": {"site": "tap", "pos": -1, "do": {"swap": "src"}}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["p"]}},
-        "save": [
-            {
-                "value": "obs",
-                "model": "patched",
-                "input": "base",
-                "file_path": "o.safetensors",
-            }
-        ],
     }
     executor = _executor(TracePointExecutor, doc, trace_qwen, with_cf=True)
     src, obs = executor.read_value("src"), executor.read_value("obs")
@@ -328,21 +333,27 @@ def test_several_interior_reads_share_one_trace_in_forward_order(
     if the (layer, COMPONENT_RANK) sort key already walks the forward. Pinned
     as a test rather than assumed."""
     doc = _read_doc("attention_query", pos=-1)
-    doc["sites"]["z_site"] = {"component": "attention_z", "layer": LAYER}
-    doc["sites"]["scores_site"] = {"component": "attention_scores", "layer": LAYER}
-    doc["sites"]["out_site"] = {"component": "attention_output", "layer": LAYER}
+    doc["method"]["sites"]["z_site"] = {"component": "attention_z", "layers": [LAYER]}
+    doc["method"]["sites"]["scores_site"] = {
+        "component": "attention_scores",
+        "layers": [LAYER],
+    }
+    doc["method"]["sites"]["out_site"] = {
+        "component": "attention_output",
+        "layers": [LAYER],
+    }
     for name, site in (
         ("r_z", "z_site"),
         ("r_scores", "scores_site"),
         ("r_out", "out_site"),
     ):
-        doc["reads"][name] = {
+        doc["method"]["reads"][name] = {
             "site": site,
             "pos": "all" if name == "r_scores" else -1,
             "model": "original",
             "input": "base",
         }
-        doc["save"].append(
+        doc["method"]["save"].append(
             {
                 "value": name,
                 "model": "original",
@@ -365,7 +376,7 @@ def test_several_interior_reads_share_one_trace_in_forward_order(
 
 def test_a_delta_on_the_pattern_refuses_identically(hooks_qwen, trace_qwen):
     doc = _write_doc("attention_probs", {"add_scaled": {"op": -1.0, "alpha": 1.0}})
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     assert _refusal(PointExecutor, doc, hooks_qwen) == _refusal(
         TracePointExecutor, doc, trace_qwen
     )
@@ -380,13 +391,13 @@ def test_a_positioned_read_of_the_scores_refuses_identically(hooks_qwen, trace_q
 
 def test_the_interior_at_a_deltanet_layer_refuses_architecturally(trace_qwen):
     doc = _read_doc("attention_scores", pos="all")
-    doc["sites"]["tap"]["layer"] = 0  # DeltaNet on this fixture
+    doc["method"]["sites"]["tap"]["layers"] = 0  # DeltaNet on this fixture
     with pytest.raises(ProtocolError, match="full-attention mixer"):
         _executor(TracePointExecutor, doc, trace_qwen, with_cf=False).run_all()
 
 
 # --------------------------------------------------------------------------- #
-# D5: the on-demand implementation switch
+# the on-demand implementation switch
 # --------------------------------------------------------------------------- #
 
 
@@ -421,8 +432,8 @@ def test_the_switch_serves_the_scores_from_an_sdpa_loaded_model(
 
 def test_a_group_that_needs_no_switch_applies_none(trace_qwen_default_impl):
     """`attention_z` is the interface's own return and exists under every
-    implementation — a document reading only it never forces eager (the D5
-    payoff)."""
+    implementation — a document reading only it never forces eager (the
+    switch's payoff)."""
     executor = _executor(
         TracePointExecutor,
         _read_doc("attention_z", pos=-1),

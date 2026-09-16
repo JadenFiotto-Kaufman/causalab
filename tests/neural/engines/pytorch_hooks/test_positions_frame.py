@@ -61,6 +61,8 @@ def test_variable_window_covers_the_value(tokenizer):
 
 
 def test_ambiguous_variable_occurrence_refuses(tokenizer):
+    """Several occurrences is the ``ambiguous`` cardinality (spec §2.3): the
+    refusal carries its reason code rather than being a bare P2."""
     text = "day after day after day"
     batch = encode(tokenizer, [text])
     with pytest.raises(ProtocolError) as err:
@@ -72,6 +74,23 @@ def test_ambiguous_variable_occurrence_refuses(tokenizer):
             field="input",
         )
     assert "occurs" in str(err.value)
+    assert err.value.reason == "alignment_ambiguous"
+
+
+def test_absent_variable_occurrence_refuses_as_missing(tokenizer):
+    """Zero occurrences is the ``absent`` cardinality — ``alignment_missing``."""
+    text = "one two three"
+    batch = encode(tokenizer, [text])
+    with pytest.raises(ProtocolError) as err:
+        resolve_position(
+            PositionSpec(variable="word"),
+            batch,
+            0,
+            dataset_row={"input": text, "word": "four"},
+            field="input",
+        )
+    assert "occurs 0 times" in str(err.value)
+    assert err.value.reason == "alignment_missing"
 
 
 def test_scope_indexes_inside_the_variable_window(tokenizer):
@@ -371,9 +390,39 @@ def test_a_plain_text_still_encodes(tokenizer):
     assert int(batch.input_ids[0, start + 1]) != tokenizer.bos_token_id
 
 
-def test_prefix_lengths_are_zero_in_v1(tokenizer):
+def test_prefix_lengths_are_zero_in_the_plain_frame(tokenizer):
     """The spec's `n >= 0 is rebased past any chat prefix` rule is an identity
-    today, and §2.3 now says so. Pinned here so the claim and the code cannot
-    drift apart silently — a real `chat` field must change both."""
+    for a plain document — one with no `segments` section — and §2.3 says so.
+    Pinned here so the claim and the code cannot drift apart silently: the one
+    thing that makes it non-zero is `segments.frame: chat` (§2.2.1,
+    `framing.encode_framed`, `test_location_ledger.py`), never `encode` itself."""
     batch = encode(tokenizer, ["one two three", "four five"])
     assert batch.prefix_lengths == (0, 0)
+    assert batch.segments == ()
+
+
+def test_a_segment_anchor_resolves_inside_the_located_span(tokenizer):
+    """A declared segment is located by the frame as char spans on the batch
+    (spec §2.2.1) and resolved here through the same offset mapping a
+    variable uses — `index` inside it, `relative_to` beside it."""
+    text = "one two three four"
+    span = (text.index("two"), text.index("two") + len("two three"))
+    batch = encode(tokenizer, [text], segments=[{"middle": (span,)}])
+    run = resolve_position(
+        PositionSpec(index=-1, scope="middle", anchor_source="segment"), batch, 0
+    )
+    assert len(run) == 1
+    assert "three" in tokenizer.decode(batch.input_ids[0, run])
+    after = resolve_position(
+        PositionSpec(index=1, relative_to="middle", anchor_source="segment"), batch, 0
+    )
+    assert "four" in tokenizer.decode(batch.input_ids[0, after])
+
+
+def test_an_absent_segment_refuses_as_missing(tokenizer):
+    batch = encode(tokenizer, ["one two"], segments=[{"gone": ()}])
+    with pytest.raises(ProtocolError) as err:
+        resolve_position(
+            PositionSpec(index=0, scope="gone", anchor_source="segment"), batch, 0
+        )
+    assert err.value.reason == "alignment_missing"

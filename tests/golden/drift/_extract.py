@@ -17,6 +17,7 @@ Keys:
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,40 @@ DOCS = ("drift_interchange_im.json", "drift_locate_scan_im.json")
 ACCURACY_GATE = 0.9  # the old tier's baseline gate, kept verbatim
 PINS = Path(__file__).parent / "drift_goldens.json"
 
-_META_COLUMNS = {"value", "example", "point", "produced_by", "metric", "name"}
+#: Columns that are never a sweep axis: the value, the row keys, the
+#: provenance stamp, the record identity every row repeats
+#: (``unit`` / ``estimand_version``, spec §2.10) — constant over a table, so
+#: grouping by them would only lengthen every label — the eligibility
+#: record (``eligible`` on every row, ``reason_code`` on an excluded row
+#: alone; spec §2.10 "Eligibility"), which is a per-row fact about the
+#: value, not a coordinate, and the windowed-read columns
+#: (``MetricTable.add_windowed`` — one row per (example, position): ``step``
+#: is the position the value scored, ``matched`` whether the example
+#: addressed anything; outputs.py), per-row facts about the value in the same
+#: way — except that ``step`` is a coordinate of the measurement (the position
+#: scored), not of the sweep: folded into the coordinate's mean by default so
+#: the label grammar stays the sweep's; the first windowed drift document
+#: decides whether it belongs in the label instead. ``point`` and ``name``
+#: are retained as tolerated names the current
+#: writer never emits — a superset is harmless, the census only asks that
+#: every written non-coordinate column is named here. Spelled as literals
+#: rather than imported from ``causalab.neural.shared.outputs`` (torch-side);
+#: test_extract_labels.py couples the spelling to the writer's, over a
+#: ``MetricTable`` round trip of every writer column.
+_META_COLUMNS = {
+    "value",
+    "example_id",
+    "point",
+    "produced_by",
+    "metric",
+    "name",
+    "unit",
+    "estimand_version",
+    "eligible",
+    "reason_code",
+    "step",
+    "matched",
+}
 
 
 def run_drift_documents(out_root: Path, device: str) -> dict[str, Path]:
@@ -87,12 +121,26 @@ def extract_values(dirs: dict[str, Path]) -> dict[str, Any]:
     _tensor_stats(point / "acts_mid.safetensors", "interchange", values)
 
     scan = _frame(dirs["drift_locate_scan_im.json"] / "iia.json")
-    axes = [c for c in scan.columns if c not in _META_COLUMNS]
-    for coords, group in scan.groupby(axes):
-        coords = coords if isinstance(coords, tuple) else (coords,)
-        label = ",".join(f"{a}={c}" for a, c in zip(axes, coords))
-        values[f"scan.iia.{label}.mean"] = float(group["value"].mean())
+    for label, mean in _scan_labels(scan).items():
+        values[f"scan.iia.{label}.mean"] = mean
     return values
+
+
+def _scan_labels(frame: pd.DataFrame) -> dict[str, float]:
+    """``{axis-label: mean}`` over one scan table: the sweep axes are the
+    columns not in :data:`_META_COLUMNS`, one label per coordinate tuple
+    (``a=c`` joined by commas — a list of keys groups to tuples, one axis
+    or many), the mean of ``value`` over its rows. pandas skips an excluded
+    row's null, so the mean is over the eligible rows *when there are any*;
+    a coordinate whose rows are all excluded keeps its label (the axis value
+    is not null) with a ``NaN`` mean, which :func:`compare` names as a
+    mismatch rather than passing against any pin."""
+    axes = [c for c in frame.columns if c not in _META_COLUMNS]
+    labels: dict[str, float] = {}
+    for coords, group in frame.groupby(axes):
+        label = ",".join(f"{a}={c}" for a, c in zip(axes, coords))
+        labels[label] = float(group["value"].mean())
+    return labels
 
 
 def load_pins(path: Path) -> dict[str, Any]:
@@ -114,6 +162,12 @@ def compare(
             if want != got:
                 problems.append(f"{key}: shape {got} != pinned {want}")
         else:
+            # `nan > tol` is False, so a non-finite side would pass against
+            # any value on the other — a coordinate with every row excluded
+            # (a NaN mean) must be a mismatch, on either side
+            if not math.isfinite(float(got)) or not math.isfinite(float(want)):
+                problems.append(f"{key}: not finite (run {got!r}, pinned {want!r})")
+                continue
             tol = float(tolerance.get(key, default))
             if abs(float(got) - float(want)) > tol:
                 problems.append(f"{key}: {got:.6g} != pinned {want:.6g} (tol {tol})")

@@ -8,8 +8,8 @@ column header:
 .. code-block:: json
 
     [
-      {"example": 0, "sites.target.layer": 18, "value": 0.83},
-      {"example": 1, "sites.target.layer": 18, "value": 0.91}
+      {"example_id": "0", "sites.target.layers": 18, "value": 0.83},
+      {"example_id": "1", "sites.target.layers": 18, "value": 0.91}
     ]
 
 Labels repeat on every row. That is the deliberate trade — a file ``jq`` and a

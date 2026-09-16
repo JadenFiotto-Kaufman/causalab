@@ -77,6 +77,7 @@ __all__ = [
     "bs",
     "bsh",
     "bs_flat_heads",
+    "bs_fused_blocks",
     "bs_fused_heads",
     "bshd",
     "bhsd",
@@ -262,7 +263,7 @@ class FeatureShape:
         rather than something to ignore.
 
         This is the fix for the bound that used to read ``info.num_heads``
-        regardless of component: three of round 2's boxes live in KV-head space,
+        regardless of component: three of the attention-interior boxes live in KV-head space,
         where that bound is too wide by the GQA ratio and the over-wide slice is
         empty rather than out of range — a read of nothing and a write that
         changes nothing.
@@ -370,7 +371,7 @@ class FeatureShape:
 
 
 # --------------------------------------------------------------------------- #
-# constructors — the five layout strings, plus the shapes round 2 introduces.
+# constructors — the five layout strings, plus the attention-interior shapes.
 # Named so that a tap table reads as data, and so that the string vocabulary
 # they replace stays greppable.
 # --------------------------------------------------------------------------- #
@@ -485,7 +486,7 @@ def chunked_state(
     """``(batch, chunk, heads, k_dim·v_dim)`` — a recurrent state, once per
     kernel chunk.
 
-    The DeltaNet state (round N7): its position axis is the **chunk index**
+    The DeltaNet state: its position axis is the **chunk index**
     of the serving kernel (one fire per 64-token prefill chunk), not a token
     position — the axis' name says so, and the executor resolves positions on
     it against the fire count rather than the sequence. Each state is a
@@ -578,6 +579,31 @@ def bs_fused_heads(
             _POSITION,
             Axis("head", heads),
             Axis("fused", splits),
+            Axis("feature", head_dim),
+        ),
+        fused_index=index,
+        note=note,
+    )
+
+
+def bs_fused_blocks(
+    splits: int, index: int, heads: int, head_dim: int, *, note: str | None = None
+) -> FeatureShape:
+    """``(batch, position, splits*heads*head_dim)``, naming one split — the
+    splits as contiguous **blocks**, each head-major inside.
+
+    📐 GPT-2's fused ``c_attn`` emits ``[q | k | v]`` as three ``H·d``-wide
+    column blocks (``.split(split_size, dim=2)``, ``split_size = H·d``), so
+    ``attention_query_pre_rope`` there is split 0 of 3 — the fused axis sits
+    *outside* the head axis, where :func:`bs_fused_heads` (Qwen3.5's
+    ``[q_h | gate_h]`` per head) has it inside.
+    """
+    return FeatureShape(
+        axes=(
+            _BATCH,
+            _POSITION,
+            Axis("fused", splits),
+            Axis("head", heads),
             Axis("feature", head_dim),
         ),
         fused_index=index,

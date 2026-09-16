@@ -38,32 +38,36 @@ METHODS = str(REPO / "causalab/configs/protocols")  # absolute: the workflow is 
 #: Its ``file_path`` names the script step's run tree, which is what makes the
 #: edge a derived dependency (§3) — nothing about it is script-specific.
 PROJECT_DOC = {
-    "version": "1",
-    "description": "read L0 through the fitted PCA basis",
+    "header": {
+        "protocol_version": "3",
+        "description": "read L0 through the fitted PCA basis",
+    },
     "model": {"key": TINY_LLAMA, "revision": "main"},
-    "data": {"base": {"dataset": "weekdays/train", "field": "input"}},
-    "positions": {"answer_tok": {"index": -1}},
-    "sites": {"L0": {"component": "block_output", "layer": 0}},
-    "featurizers": {
-        "basis": {"kind": "pca", "k": 2, "file_path": "fit/weight.safetensors"}
+    "data": {"base": {"dataset": "weekdays/data#train", "field": "input"}},
+    "method": {
+        "positions": {"answer_tok": {"index": -1}},
+        "sites": {"L0": {"component": "block_output", "layers": [0]}},
+        "featurizers": {
+            "basis": {"kind": "pca", "k": 2, "file_path": "fit/weight.safetensors"}
+        },
+        "reads": {
+            "coords": {
+                "site": "L0",
+                "pos": "answer_tok",
+                "model": "original",
+                "input": "base",
+                "featurizer": "basis",
+            }
+        },
+        "save": [
+            {
+                "value": "coords",
+                "model": "original",
+                "input": "base",
+                "file_path": "coords.safetensors",
+            }
+        ],
     },
-    "reads": {
-        "coords": {
-            "site": "L0",
-            "pos": "answer_tok",
-            "model": "original",
-            "input": "base",
-            "featurizer": "basis",
-        }
-    },
-    "save": [
-        {
-            "value": "coords",
-            "model": "original",
-            "input": "base",
-            "file_path": "coords.safetensors",
-        }
-    ],
 }
 
 
@@ -77,7 +81,7 @@ def _workflow(project_doc: Path) -> dict:
             "harvest": {
                 "type": "intervention_protocol",
                 "document": f"{METHODS}/harvest.json",
-                "set": {**tiny, "sites.L8.layer": 0, "sites.L24.layer": 1},
+                "set": {**tiny, "sites.L8.layers": 0, "sites.L24.layers": 1},
             },
             "fit": {
                 "type": "script",
@@ -192,7 +196,7 @@ def test_fitted_basis_carries_a_checkable_identity(transform_run: Path) -> None:
     # inherited from the harvested activations, so the basis is provably a fit
     # on this model at the site the read came from
     assert metadata["model_key"] == TINY_LLAMA
-    assert json.loads(metadata["site"]) == {"component": "block_output", "layer": 0}
+    assert json.loads(metadata["site"]) == {"component": "block_output", "layers": [0]}
     # from the op's params, and from the step itself
     # declared by the script, because only it knows its own parameter — a
     # consuming `pca` featurizer's identity check requires the rank
@@ -208,7 +212,7 @@ def test_protocol_step_consumes_the_fitted_basis(transform_run: Path) -> None:
     featurizer is a real one, and the read comes back in the 2-d feature
     space the basis defines."""
     coords = load_file(str(transform_run / "project" / "coords.safetensors"))["coords"]
-    assert coords.shape == (4, 1, 2)  # 4 examples x 1 position x k
+    assert coords.shape == (2, 1, 2)  # 2 examples x 1 position x k
 
 
 def test_manifest_records_the_script_step(transform_run: Path) -> None:

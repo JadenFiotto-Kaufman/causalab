@@ -6,25 +6,72 @@ Two output families:
 - Dash/Cytoscape interactive graphs (``build_*_app`` / ``display_*``)
 - Matplotlib/NetworkX static figures (``build_*_figure`` / ``print_*``)
 
+Only the first family needs Dash, and Dash is a `notebook` extra rather than
+a core dependency, so it is imported inside the functions that build an app
+(:func:`_require_dash`). Importing this module — and importing
+``causalab.io.plots``, which re-exports it — costs nothing extra.
+
 Each family is factored into pure builders that return data/objects and thin
 ``display_*`` / ``print_*`` wrappers that actually launch a server or call
 ``plt.show``. Tests can exercise the builders without binding a port or opening
 a window.
 """
 
+from __future__ import annotations
+
+import importlib.util
 from typing import TYPE_CHECKING, Any, Callable
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from dash import Dash, html
-from dash.dependencies import Input, Output, State
-import dash_cytoscape as cyto  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
+    import dash_cytoscape as cyto  # type: ignore[import-untyped]
+    from dash import Dash
     from matplotlib.figure import Figure
 
     from causalab.causal.causal_model import CausalModel
     from causalab.causal.trace import CausalTrace
+
+#: What to say when the interactive half is asked for and is not installed.
+#: A bare ``No module named 'dash'`` does not tell a reader that this module's
+#: *other* half needs nothing extra, which is the whole point of the split.
+_NEEDS_NOTEBOOK = (
+    "the interactive causal-graph views (build_*_app / display_*) need the "
+    "`notebook` extra: `uv sync --extra notebook`, or "
+    "`pip install 'causalab[notebook]'`. The matplotlib views in this module "
+    "(build_*_figure / print_*) need nothing beyond the core install."
+)
+
+
+def _installed(name: str) -> bool:
+    """Is ``name`` importable, without importing it?
+
+    ``find_spec`` raises rather than returning ``None`` in two cases that both
+    mean "no" here: a missing parent package (``ModuleNotFoundError``) and a
+    module already sitting in ``sys.modules`` as ``None`` (``ValueError``).
+    """
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _require_dash() -> None:
+    """Refuse with the install hint rather than a bare ``ModuleNotFoundError``.
+
+    Dash and dash-cytoscape are a `notebook` extra, not core dependencies: a
+    headless install — a network-less venv on a compute node — has no reason
+    to carry a web-app server. They are
+    therefore imported inside the four functions that build an app, so that
+    importing this module (and, through ``causalab.io.plots.__init__``,
+    everything that reaches it) works without them.
+
+    The check costs nothing on the path where the extra *is* installed: it
+    asks whether the module can be found, never loading it.
+    """
+    if not all(_installed(name) for name in ("dash", "dash_cytoscape")):
+        raise ModuleNotFoundError(_NEEDS_NOTEBOOK)
 
 
 class DEFAULT_COLORS:
@@ -394,6 +441,9 @@ def _cytoscape(
     roots: str,
     stylesheet: list[dict[str, Any]],
 ) -> cyto.Cytoscape:
+    _require_dash()
+    import dash_cytoscape as cyto  # type: ignore[import-untyped]
+
     return cyto.Cytoscape(
         id="causal-graph-visualization",
         elements=elements,
@@ -406,6 +456,9 @@ def build_structure_app(
     model: "CausalModel", colors: type[DEFAULT_COLORS] = DEFAULT_COLORS
 ) -> Dash:
     """Dash app showing only the DAG structure, no inputs."""
+    _require_dash()
+    from dash import Dash, html
+
     elements = build_variable_nodes(model) + build_edges(model)
     stylesheet = build_stylesheet(
         colors,
@@ -426,6 +479,10 @@ def build_forward_pass_app(
     colors: type[DEFAULT_COLORS] = DEFAULT_COLORS,
 ) -> Dash:
     """Dash app for a forward pass (optionally with an intervention)."""
+    _require_dash()
+    from dash import Dash, html
+    from dash.dependencies import Input, Output, State
+
     if intervention is None:
         intervention = {}
 
@@ -478,6 +535,10 @@ def build_interchange_app(
     colors: type[DEFAULT_COLORS] = DEFAULT_COLORS,
 ) -> Dash:
     """Dash app comparing the base run against per-key counterfactual sources."""
+    _require_dash()
+    from dash import Dash, html
+    from dash.dependencies import Input, Output, State
+
     input_trace = model.new_trace(inputs) if isinstance(inputs, dict) else inputs
 
     cf_traces: "dict[str, CausalTrace]" = {}

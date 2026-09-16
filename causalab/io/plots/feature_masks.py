@@ -6,7 +6,7 @@ mask-based interventions where each grid cell can select a subset of features.
 
 Cells arrive as structured :class:`~causalab.io.plots.grid_cells.GridCell`
 records — component/layer/head/position joined from the grid's own specs by
-:func:`~causalab.io.plots.grid_cells.cells_from_site_grid` (WU5, #507). The
+:func:`~causalab.io.plots.grid_cells.cells_from_site_grid`. The
 legacy path parsed these coordinates out of unit-id strings
 (:mod:`causalab.io.plots.unit_id`, retired); post-migration the per-key dicts
 are keyed by opaque ``spec.key`` strings that nothing may parse.

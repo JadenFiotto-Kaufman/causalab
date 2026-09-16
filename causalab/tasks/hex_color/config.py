@@ -11,11 +11,11 @@ machinery in ``natural_domains_arithmetic``.
 classes; ``indigo`` (hue 258°, between blue 235° and purple 285°) is dropped
 because the golden fixture (Qwen3-4B-Instruct) cannot perceptually separate it
 — it labels indigo swatches "purple" ~0.999-confident, which capped 7-colour
-accuracy at ~0.80, below the 0.9 golden floor. Decided during epic #522
-orchestration (see ``README.md`` / ``causal_models.py``).
+accuracy at ~0.80, below the 0.9 golden floor (see ``README.md`` /
+``causal_models.py``).
 
 Constants here are the model-agnostic task definition. The 600 stimuli (100 per
-colour × 6) live in the bundled ``data/hex_color.json`` (see ``causal_models.py``);
+colour × 6) live in the bundled ``sources/hex_color.json`` (see ``causal_models.py``);
 they were generated for Llama-3.1-8B DAS work, but only the model-agnostic
 stimulus content (hex + RGB/HSV + colour label) is consumed — no tokenizer- or
 position-specific fields, and the 100 ``indigo`` rows are excluded at build time.
@@ -68,8 +68,9 @@ PROMPT_TEMPLATE = (
 )
 
 # Bundled stimulus file (model-agnostic; committed with the package like IOI's
-# data files). Never read from ``external artifact storage`` at runtime.
-DATA_PATH = Path(__file__).resolve().parent / "data" / "hex_color.json"
+# sources/). Generated tables live in data/; the inputs a generator reads live
+# in sources/. Never read from ``external artifact storage`` at runtime.
+DATA_PATH = Path(__file__).resolve().parent / "sources" / "hex_color.json"
 
 # Token-length requirements.
 MAX_TASK_TOKENS = 64  # generous headroom for the prompt + a hex code

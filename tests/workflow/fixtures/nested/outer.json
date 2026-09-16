@@ -1,0 +1,26 @@
+{
+  "version": "1",
+  "description": "A nested reusable workflow on CPU (workflow spec §2.10): `tail` nests tail.json, whose steps join this run as tail/measure, tail/gate_k and tail/best; the outer `measure` shares its local name with tail/measure and both publish, each under its own directory; `report` reads the inner values script by its flattened name.",
+  "output_dir": "nested",
+  "steps": {
+    "measure": {
+      "type": "script",
+      "script": {"path": "scripts/measure.py"},
+      "inputs": {"measurement": {"path": "outer_measurement.json"}},
+      "outputs": {
+        "values": {"file": "values.json", "keys": {"score": 0.5, "k": 8}},
+        "table": {"file": "scores.json", "columns": {"score": "float64"}}
+      }
+    },
+    "tail": {
+      "type": "workflow",
+      "document": "tail.json"
+    },
+    "report": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {"k": {"step": "tail/best", "file": "best.json", "key": "k"}},
+      "outputs": {"out": {"file": "report.json", "keys": {"ran": true, "k": 0.5}}}
+    }
+  }
+}

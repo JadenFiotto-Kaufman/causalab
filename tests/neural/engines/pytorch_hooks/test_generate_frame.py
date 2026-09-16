@@ -20,7 +20,9 @@ import torch
 
 from causalab.neural.shared.encoding import encode
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor, RaggedValue
-from causalab.protocol.schema import SECTION_ORDER, parse_document
+from causalab.protocol.schema import parse_document
+
+from tests.protocol._docs import in_order
 
 from tests.neural.engines.pytorch_hooks.conftest import TINY_GPT2, TINY_LLAMA
 
@@ -43,37 +45,41 @@ def _doc(
 ) -> dict[str, Any]:
     """A document reading the continuation, optionally under a steer."""
     raw: dict[str, Any] = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": key, "revision": "main"},
         "data": {"base": {"dataset": "probe", "field": "input"}},
-        "positions": {
-            "cont": {
-                "generated": {"max_new_tokens": BUDGET},
-                **(anchor or {"all": True}),
-            }
-        },
-        "sites": {
-            "lm_head": {"component": "lm_head"},
-            "mid": {"component": "block_output", "layer": 1},
+        "method": {
+            "positions": {
+                "cont": {
+                    "generated": {"max_new_tokens": BUDGET},
+                    **(anchor or {"all": True}),
+                }
+            },
+            "sites": {
+                "lm_head": {"component": "lm_head"},
+                "mid": {"component": "block_output", "layers": [1]},
+            },
         },
     }
     model = "original"
     if steer is not None:
         # a literal-scalar operand (§2.8) — enough to move the continuation
         # without dragging a tensor fixture into the test
-        raw["writes"] = {
+        raw["method"]["writes"] = {
             "steer": {
                 "site": "mid",
                 "pos": -1,
                 "do": {"add_scaled": {"op": steer, "alpha": 1.0}},
             }
         }
-        raw["intervened_models"] = {"steered": {"input": "base", "writes": ["steer"]}}
+        raw["method"]["intervened_models"] = {
+            "steered": {"input": "base", "writes": ["steer"]}
+        }
         model = "steered"
-    raw["reads"] = {
+    raw["method"]["reads"] = {
         "cont": {"site": site, "pos": "cont", "model": model, "input": "base"}
     }
-    raw["save"] = [
+    raw["method"]["save"] = [
         {
             "value": "cont",
             "model": model,
@@ -81,7 +87,7 @@ def _doc(
             "file_path": "cont.safetensors",
         }
     ]
-    return {key_: raw[key_] for key_ in SECTION_ORDER if key_ in raw}
+    return in_order(raw)
 
 
 def _executor(bundle, raw: dict[str, Any]):
@@ -165,39 +171,54 @@ def test_a_steer_in_the_prefill_moves_the_continuation(llama_bundle):
     assert not torch.equal(plain, steered)
 
 
-def test_a_decode_moves_prompt_frame_reads_only_by_float_noise(llama_bundle):
+def test_a_decode_moves_prompt_frame_reads_only_by_float_noise(
+    llama_bundle, monkeypatch
+):
     """Adding a continuation read leaves prompt-frame values alone to within
-    float noise — not bit-identically.
+    float noise, including bit-identical results on some platforms.
 
     Measured: ~4e-9 on tiny-random fp32. The cause is `use_cache=True`, which
     a decoding group needs and which takes a slightly different kernel path
     through the prefill. It is why the flag is set from the decode depth
     rather than always: a document that does not decode keeps the exact
-    numbers its goldens were captured with."""
+    numbers its goldens were captured with. Check the cache flag directly;
+    floating-point inequality is not evidence that decoding ran."""
+    cache_flags = []
+    forward = llama_bundle.model.forward
+
+    def observed_forward(*args, **kwargs):
+        cache_flags.append(kwargs.get("use_cache"))
+        return forward(*args, **kwargs)
+
+    monkeypatch.setattr(llama_bundle.model, "forward", observed_forward)
     without: dict[str, Any] = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": TINY_LLAMA, "revision": "main"},
         "data": {"base": {"dataset": "probe", "field": "input"}},
-        "sites": {"mid": {"component": "block_output", "layer": 1}},
-        "reads": {
-            "tail": {"site": "mid", "pos": -1, "model": "original", "input": "base"}
+        "method": {
+            "sites": {"mid": {"component": "block_output", "layers": [1]}},
+            "reads": {
+                "tail": {"site": "mid", "pos": -1, "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "tail",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "tail.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "tail",
-                "model": "original",
-                "input": "base",
-                "file_path": "tail.safetensors",
-            }
-        ],
     }
     plain = _executor(llama_bundle, without).read_value("tail")
+    assert cache_flags == [False]
+    cache_flags.clear()
 
     withgen = {
         **without,
         "positions": {"cont": {"generated": {"max_new_tokens": BUDGET}, "all": True}},
         "reads": {
-            **without["reads"],
+            **without["method"]["reads"],
             "cont": {
                 "site": "mid",
                 "pos": "cont",
@@ -206,8 +227,8 @@ def test_a_decode_moves_prompt_frame_reads_only_by_float_noise(llama_bundle):
             },
         },
     }
-    withgen["save"] = [
-        *without["save"],
+    withgen["method"]["save"] = [
+        *without["method"]["save"],
         {
             "value": "cont",
             "model": "original",
@@ -215,14 +236,12 @@ def test_a_decode_moves_prompt_frame_reads_only_by_float_noise(llama_bundle):
             "file_path": "cont.safetensors",
         },
     ]
-    ordered = {k: withgen[k] for k in SECTION_ORDER if k in withgen}
+    ordered = in_order(withgen)
     also = _executor(llama_bundle, ordered).read_value("tail")
     assert isinstance(plain, torch.Tensor) and isinstance(also, torch.Tensor)
     assert torch.allclose(plain, also, atol=1e-7, rtol=0)
-    assert not torch.equal(plain, also), (
-        "if these became bit-identical, use_cache stopped changing the kernel "
-        "path and this test's premise (and its tolerance) should be revisited"
-    )
+    assert len(cache_flags) > 1  # prefill followed by actual decode forwards
+    assert all(flag is True for flag in cache_flags)
 
 
 def test_an_early_eos_shortens_that_row(llama_bundle):
@@ -231,6 +250,7 @@ def test_an_early_eos_shortens_that_row(llama_bundle):
     failing."""
     executor = _executor(llama_bundle, _doc(TINY_LLAMA))
     eos = llama_bundle.tokenizer.eos_token_id
+    executor.decoding = {"mode": "deterministic", "eos_token_ids": [eos]}
     original = llama_bundle.model.forward
 
     def eos_first(*args, **kwargs):

@@ -15,6 +15,7 @@ from causalab.neural.shared.metrics import (
     compute_windowed_metric,
 )
 from causalab.protocol.errors import ProtocolError
+from causalab.protocol.resolution import Unavailable
 from causalab.protocol.schema import MetricSpec
 
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
@@ -59,6 +60,23 @@ def test_logit_diff(tokenizer):
         tokenizer,
     )
     assert values == [pytest.approx(3.0)]
+
+
+def test_soft_accuracy_is_the_sigmoid_of_the_margin(tokenizer):
+    """σ(logits[a] − logits[b]) on the same hand-built logits `test_logit_diff`
+    pins at 3.0: σ(3) = 0.9526; swapping the columns gives 1 − σ(3), so the two
+    rows of one table are complementary and the value lives in (0, 1)."""
+    logits = _logits(tokenizer, " Monday", " Friday")
+    forward = MetricSpec(kind="soft_accuracy", of="logits", fields={"a": "x", "b": "y"})
+    values = compute_metric(
+        forward, logits, [{"x": " Monday", "y": " Friday"}], tokenizer
+    )
+    assert values == [pytest.approx(1.0 / (1.0 + math.exp(-3.0)))]
+    reverse = MetricSpec(kind="soft_accuracy", of="logits", fields={"a": "y", "b": "x"})
+    flipped = compute_metric(
+        reverse, logits, [{"x": " Monday", "y": " Friday"}], tokenizer
+    )
+    assert flipped == [pytest.approx(1.0 - values[0])]
 
 
 def test_cross_entropy(tokenizer):
@@ -405,12 +423,16 @@ def test_match_scalar_column_is_a_group_of_one(tokenizer):
     assert compute_metric(grouped, logits, [{"ans": " Monday"}], tokenizer) == [1.0]
 
 
-def test_match_empty_group_refuses(tokenizer):
+def test_match_empty_group_is_an_excluded_row(tokenizer):
+    """An empty form group is a row the table carries no answer for: an
+    excluded measurement under ``alignment_missing`` (spec §2.10
+    "Eligibility"), not a refusal of the run — it used to raise ``P2``."""
     metric = MetricSpec(kind="match", of="logits", fields={"expected": "forms"})
-    with pytest.raises(ProtocolError):
-        compute_metric(
-            metric, _logits(tokenizer, " Monday", " Friday"), [{"forms": []}], tokenizer
-        )
+    (cell,) = compute_metric(
+        metric, _logits(tokenizer, " Monday", " Friday"), [{"forms": []}], tokenizer
+    )
+    assert isinstance(cell, Unavailable)
+    assert cell.reason == "alignment_missing"
 
 
 def test_first_token_mode_credits_a_multi_token_answer(tokenizer):
@@ -567,8 +589,7 @@ def test_first_token_agrees_with_exact_on_single_token_answers(tokenizer):
 #
 # `_candidates` strips a leading space before `token_form` picks a form, so
 # ["Sorry", " Sorry"] resolves to one id twice and `class_probs` — which SUMS a
-# group's ids — counted it twice. Measured in a refusal study: a reported
-# "probability" of 1.9927.
+# group's ids — counted it twice, so a "probability" above 1 was possible.
 #
 # The gpt2 tokenizer is the witness that makes this visible. On the
 # sentencepiece fixture above, half the surface-form distinctions collapse
@@ -635,3 +656,218 @@ def test_class_probs_distinct_forms_under_bare_still_sum(gpt2_tokenizer):
     (entry,) = compute_metric(metric, logits, [{}], gpt2_tokenizer)
     probs = torch.softmax(logits[0, 0].float(), dim=-1)
     assert entry["refusal"] == pytest.approx(float(probs[upper] + probs[lower]))
+
+
+# --------------------------------------------------------------------------- #
+# §2.10 token_logits — the task's answer space, saved as raw logits
+#
+# The oracle is `token_logit`: one listed token at a time, through a dataset
+# column, is exactly what `token_logits` reports for every listed token at
+# once. The pin is that the two agree entry for entry — same id, same raw value.
+# --------------------------------------------------------------------------- #
+
+_ANSWERS = (" Monday", " Friday", " Sunday")
+
+
+def _token_logits_metric(tokens=_ANSWERS, token_form="space_prefixed"):
+    return MetricSpec(
+        kind="token_logits",
+        of="logits",
+        fields={"tokens": tuple(tokens)},
+        token_form=token_form,
+    )
+
+
+def test_token_logits_equal_the_corresponding_token_logit_values(tokenizer):
+    torch.manual_seed(0)
+    logits = torch.randn(2, 1, 32000)
+    (first, second) = compute_metric(
+        _token_logits_metric(), logits, [{}, {}], tokenizer
+    )
+
+    for entry, example in ((first, 0), (second, 1)):
+        assert list(entry) == ["indices", "tokens", "values"]
+        assert entry["indices"] == [
+            column_token_id(tokenizer, t, token_form="space_prefixed") for t in _ANSWERS
+        ]
+        assert entry["tokens"] == [tokenizer.decode([i]) for i in entry["indices"]]
+        for answer, value in zip(_ANSWERS, entry["values"]):
+            oracle = MetricSpec(
+                kind="token_logit",
+                of="logits",
+                fields={"token": "t"},
+                token_form="space_prefixed",
+            )
+            (want,) = compute_metric(
+                oracle, logits[example : example + 1], [{"t": answer}], tokenizer
+            )
+            assert value == pytest.approx(want)
+
+
+def test_token_logits_values_are_raw_logits_not_probabilities(tokenizer):
+    """`values` has one identity across `top_k` and this kind: the raw read
+    value. Nothing is normalized."""
+    logits = _logits(tokenizer, " Monday", " Friday")
+    (entry,) = compute_metric(_token_logits_metric(), logits, [{}], tokenizer)
+    assert entry["values"] == [
+        pytest.approx(4.0),
+        pytest.approx(1.0),
+        pytest.approx(0.0),
+    ]
+
+
+def test_token_logits_refuses_a_multi_token_entry(tokenizer):
+    """The single-token rule every string-resolving kind follows: " Tuesday"
+    is three pieces on this tokenizer, and scoring its first piece would
+    silently save the logit of a different token under the answer's name."""
+    metric = _token_logits_metric(tokens=(" Monday", " Tuesday"))
+    with pytest.raises(ProtocolError, match="not a single token"):
+        compute_metric(metric, torch.zeros(1, 1, 32000), [{}], tokenizer)
+
+
+def test_token_logits_refuses_two_entries_that_resolve_to_one_id(tokenizer):
+    """A spec built in code bypasses the parse-time duplicate check, and a
+    tokenizer can map two different strings to one id regardless; either way
+    the same row would be saved twice under two names. On this sentencepiece
+    fixture " Monday" and "Monday" are one id (see the resolution pin at the
+    top of the file), which is the collision a `MetricSpec` can carry."""
+    metric = _token_logits_metric(tokens=("Monday", " Monday"), token_form="auto")
+    with pytest.raises(ProtocolError) as err:
+        compute_metric(metric, torch.zeros(1, 1, 32000), [{}], tokenizer)
+    assert "resolve to token id" in str(err.value)
+    assert "twice" in str(err.value)
+
+
+def test_windowed_token_logits_reduces_per_position(tokenizer):
+    """Over a multi-position read the kind follows the per-position rules:
+    one entry per addressed position, each carrying the three lists, and an
+    example that addressed nothing hands back an empty row."""
+    torch.manual_seed(1)
+    windows = [torch.randn(2, 32000), torch.zeros(0, 32000), torch.randn(1, 32000)]
+    got = compute_windowed_metric(
+        _token_logits_metric(), windows, [{}, {}, {}], tokenizer
+    )
+    assert [len(row) for row in got] == [2, 0, 1]
+    ids = [column_token_id(tokenizer, t, token_form="space_prefixed") for t in _ANSWERS]
+    for window, row in zip(windows, got):
+        for position, entry in enumerate(row):
+            assert entry["indices"] == ids
+            assert entry["values"] == [
+                pytest.approx(float(window[position, i])) for i in ids
+            ]
+
+
+# --------------------------------------------------------------------------- #
+# §2.10 `js` — Jensen–Shannon, optionally restricted to an answer set
+# --------------------------------------------------------------------------- #
+
+
+def _js_by_hand(p_logits: torch.Tensor, q_logits: torch.Tensor) -> float:
+    """The definition, spelled out in probability space over one row."""
+    p = torch.softmax(p_logits.double(), dim=-1)
+    q = torch.softmax(q_logits.double(), dim=-1)
+    m = 0.5 * (p + q)
+    kl_pm = float((p * (p / m).log()).sum())
+    kl_qm = float((q * (q / m).log()).sum())
+    return 0.5 * kl_pm + 0.5 * kl_qm
+
+
+def test_js_of_identical_distributions_is_zero(tokenizer):
+    metric = MetricSpec(kind="js", of="p", fields={"target": "q"})
+    p = _logits(tokenizer, " Monday", " Friday")
+    values = compute_metric(metric, p, [{}], tokenizer, target_value=p.clone())
+    assert values == [pytest.approx(0.0, abs=1e-7)]
+
+
+def test_js_is_symmetric_and_bounded_by_ln2(tokenizer):
+    metric = MetricSpec(kind="js", of="p", fields={"target": "q"})
+    # well-separated peaks, so the value is O(0.1) and a float32 log_softmax
+    # over 32000 entries is compared at a tolerance it can meet (the definition
+    # is evaluated in float64; the reduction runs in float32)
+    p = torch.zeros(1, 1, 32000)
+    q = torch.zeros(1, 1, 32000)
+    p[0, 0, column_token_id(tokenizer, " Monday")] = 15.0
+    q[0, 0, column_token_id(tokenizer, " Friday")] = 15.0
+    pq = compute_metric(metric, p, [{}], tokenizer, target_value=q)[0]
+    qp = compute_metric(metric, q, [{}], tokenizer, target_value=p)[0]
+    assert pq == pytest.approx(qp, rel=1e-6)
+    assert pq == pytest.approx(_js_by_hand(p[0, 0], q[0, 0]), rel=1e-4)
+    assert 0.5 < pq < math.log(2)  # two near-point masses on different tokens
+    # disjoint supports: the bound is reached
+    far_p = torch.full((1, 1, 32000), -40.0)
+    far_q = torch.full((1, 1, 32000), -40.0)
+    far_p[0, 0, column_token_id(tokenizer, " Monday")] = 40.0
+    far_q[0, 0, column_token_id(tokenizer, " Friday")] = 40.0
+    assert compute_metric(metric, far_p, [{}], tokenizer, target_value=far_q)[
+        0
+    ] == pytest.approx(math.log(2), abs=1e-6)
+
+
+def test_restricted_js_is_js_over_the_renormalised_slice(tokenizer):
+    """`restrict` slices both distributions to the answer ids and renormalises
+    — a `log_softmax` over the slice — so the value equals the definition
+    applied to the sliced logits, and the literal and column spellings agree."""
+    answers = [" Monday", " Friday"]
+    ids = [column_token_id(tokenizer, a) for a in answers]
+    p = _logits(tokenizer, " Monday", " Friday")
+    q = _logits(tokenizer, " Friday", " Monday")
+    p[0, 0, 5] = 6.0  # mass on a token outside the answer set
+    literal = MetricSpec(
+        kind="js",
+        of="p",
+        fields={"target": "q", "restrict": tuple(answers)},
+        token_form="space_prefixed",
+    )
+    column = MetricSpec(
+        kind="js",
+        of="p",
+        fields={"target": "q", "restrict": "valid"},
+        token_form="space_prefixed",
+    )
+    by_literal = compute_metric(literal, p, [{}], tokenizer, target_value=q)[0]
+    by_column = compute_metric(
+        column, p, [{"valid": answers}], tokenizer, target_value=q
+    )[0]
+    expected = _js_by_hand(p[0, 0, ids], q[0, 0, ids])
+    assert by_literal == pytest.approx(expected, rel=1e-5)
+    assert by_column == pytest.approx(expected, rel=1e-5)
+    # and it is not the unrestricted value: the off-set mass changes that one
+    unrestricted = MetricSpec(kind="js", of="p", fields={"target": "q"})
+    assert compute_metric(unrestricted, p, [{}], tokenizer, target_value=q)[
+        0
+    ] != pytest.approx(expected, rel=1e-3)
+
+
+def test_js_restrict_column_empty_row_is_an_excluded_measurement(tokenizer):
+    metric = MetricSpec(
+        kind="js",
+        of="p",
+        fields={"target": "q", "restrict": "valid"},
+        token_form="space_prefixed",
+    )
+    p = torch.cat([_logits(tokenizer, " Monday", " Friday")] * 2, dim=0)
+    q = torch.cat([_logits(tokenizer, " Friday", " Monday")] * 2, dim=0)
+    rows = [{"valid": []}, {"valid": [" Monday", " Friday"]}]
+    values = compute_metric(metric, p, rows, tokenizer, target_value=q)
+    assert isinstance(values[0], Unavailable)
+    assert values[0].reason == "alignment_missing"
+    assert isinstance(values[1], float) and values[1] > 0.0
+
+
+def test_js_restrict_refuses_two_answers_on_one_id(tokenizer):
+    """The `class_probs` rule: a duplicated id would give one answer double
+    mass in the restricted softmax. On this sentencepiece tokenizer
+    `" Monday"` and `"Monday"` are one id (pinned above), so the pair is the
+    run-time collision the parse-time check cannot see."""
+    metric = MetricSpec(
+        kind="js",
+        of="p",
+        fields={"target": "q", "restrict": "valid"},
+        token_form="auto",
+    )
+    p = _logits(tokenizer, " Monday", " Friday")
+    with pytest.raises(ProtocolError) as err:
+        compute_metric(
+            metric, p, [{"valid": [" Monday", "Monday"]}], tokenizer, target_value=p
+        )
+    assert "double mass" in str(err.value)

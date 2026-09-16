@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from causalab.causal.causal_model import CausalModel
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 from .config import IdentityNamingConfig
@@ -71,17 +72,20 @@ def create_causal_model(config: IdentityNamingConfig) -> CausalModel:
         embeddings["result"] = lambda v, _m=result_to_idx: [float(_m[v])]
 
     # The answer is the canonical name, emitted as ``output_prefix + name``
-    # (a single token). Declare that surface form per result value (#296): the
-    # probability path reads it, and the derived (exact) checker matches the
-    # generated name — replacing the former GET_RESULT_TOKEN_PATTERN/checker.py.
-    output_tokens = {"result": {v: [output_prefix + str(v)] for v in result_values}}
+    # (a single token). Declare that surface form per result value in
+    # the task's ``ScoringSpec``: the probability path reads it, and the
+    # (exact) grader matches the generated name — replacing the former
+    # GET_RESULT_TOKEN_PATTERN/checker.py.
+    scoring = ScoringSpec(
+        forms={"result": {v: [output_prefix + str(v)] for v in result_values}}
+    )
 
     model = CausalModel(
         mechanisms,
         values,
         id=f"identity_naming_{config.domain_type}",
         embeddings=embeddings,
-        output_tokens=output_tokens,
+        scoring=scoring,
     )
     model._in_config = config  # type: ignore[attr-defined]
     return model

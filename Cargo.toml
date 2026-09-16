@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/fst-core", "crates/fst-cuda", "crates/fst-py"]
+# plain `cargo build/test/clippy` covers the pure crates; `fst-py` is built by
+# maturin against the project interpreter (`uv run maturin develop`)
+default-members = ["crates/fst-core", "crates/fst-cuda"]
+
+[workspace.package]
+version = "0.1.1"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.90"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

@@ -20,8 +20,8 @@ TINY_GPT2 = "hf-internal-testing/tiny-random-gpt2"
 #: stack (layers 0-2 Gated DeltaNet, layer 3 full attention) with a sparse MoE
 #: in every layer. Deliberately *not* in the parametrized ``bundle`` fixture:
 #: the oracle suites pin family-specific tensors the oracle has no MoE/DeltaNet
-#: entry for. The site resolver *can* address a DeltaNet layer as of PR2 (the
-#: mixer is resolved per layer), so ask for ``qwen35moe_bundle`` explicitly.
+#: entry for. The site resolver *can* address a DeltaNet layer (the mixer is
+#: resolved per layer), so ask for ``qwen35moe_bundle`` explicitly.
 TINY_QWEN35_MOE = "tiny-random/qwen3.5-moe"
 
 BASE_TEXT = "the quick brown fox jumps"

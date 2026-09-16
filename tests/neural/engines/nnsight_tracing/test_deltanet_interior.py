@@ -1,4 +1,4 @@
-"""The Gated DeltaNet interior on the nnsight engine (engine plan §9, N7).
+"""The Gated DeltaNet interior on the nnsight engine.
 
 30 of the 40 target layers carry this mixer, and nothing in it is a module
 boundary. As with the expert interior there is no cross-engine parity to
@@ -9,15 +9,21 @@ lean on, so correctness rests on identities and causal writes:
 * **the projection chain**: the mixer's own output is
   `out_proj(deltanet_gated_out)`, invoked through the envoy;
 * **the state**: one fire per 64-token chunk (the kernel's own loop count,
-  never the config), and clq §1's causal signature — zeroing the state after
+  never the config), and the recurrence's causal signature — zeroing the state after
   chunk 0 leaves chunk 0's tokens bit-identical and moves later ones;
 * **fire-axis discipline**: the state's position axis is the chunk index, so
   text anchors refuse, out-of-range fires refuse, and a write past the last
   fire refuses rather than silently never running.
 
-Plus the ownership seams: the reference engine refuses `deltanet_*` by name,
-and routing lands such documents here unasked (D3 — this is what formally
-retires the idea of a pytorch_hooks DeltaNet tap).
+Plus the ownership seams: the reference engine refuses the three faces only
+this engine serves (`deltanet_query`, `deltanet_key`, `deltanet_state`) by
+name, and routing lands such documents here unasked. Since the family
+adapters took ownership of the interior names, the other eight `deltanet_*`
+spellings are aliases of the `delta_*` names both engines
+serve; the documents below still author them, which is the alias fold under
+test — each reads through this engine's envoys or `.source` lines and equals
+what the reference engine reads under the same name
+(`test_parity_a3b_sweep.py`).
 """
 
 from __future__ import annotations
@@ -51,31 +57,33 @@ SHORT_TEXT = "the quick brown fox jumps"
 
 def _read_doc(component: str, *, pos: object = -1, extra: dict | None = None) -> dict:
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {"tap": {"component": component, "layer": LAYER}},
-        "reads": {
-            "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": {"component": component, "layers": [LAYER]}},
+            "reads": {
+                "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
     for name, (site, npos) in (extra or {}).items():
-        doc["sites"][f"{name}_site"] = site
-        doc["reads"][name] = {
+        doc["method"]["sites"][f"{name}_site"] = site
+        doc["method"]["reads"][name] = {
             "site": f"{name}_site",
             "pos": npos,
             "model": "original",
             "input": "base",
         }
-        doc["save"].append(
+        doc["method"]["save"].append(
             {
                 "value": name,
                 "model": "original",
@@ -141,9 +149,9 @@ def test_query_key_value_are_the_conv_splits_exactly(trace_qwen):
     doc = _read_doc(
         "deltanet_qkv_conv",
         extra={
-            "q": ({"component": "deltanet_query", "layer": LAYER}, -1),
-            "k": ({"component": "deltanet_key", "layer": LAYER}, -1),
-            "v": ({"component": "deltanet_value", "layer": LAYER}, -1),
+            "q": ({"component": "deltanet_query", "layers": [LAYER]}, -1),
+            "k": ({"component": "deltanet_key", "layers": [LAYER]}, -1),
+            "v": ({"component": "deltanet_value", "layers": [LAYER]}, -1),
         },
     )
     executor = _executor(TracePointExecutor, doc, trace_qwen, with_cf=False)
@@ -172,7 +180,7 @@ def test_the_mixer_output_is_the_projection_of_the_gated_out(trace_qwen):
     the same mechanism attention_result's derivation uses."""
     doc = _read_doc(
         "deltanet_gated_out",
-        extra={"out": ({"component": "attention_output", "layer": LAYER}, -1)},
+        extra={"out": ({"component": "attention_output", "layers": [LAYER]}, -1)},
     )
     executor = _executor(TracePointExecutor, doc, trace_qwen, with_cf=False)
     gated = executor.read_value("r")
@@ -216,7 +224,7 @@ def test_the_last_chunk_state_is_index_minus_one(trace_qwen):
 
 
 def test_zeroing_the_state_after_chunk_0_moves_only_later_tokens(trace_qwen):
-    """clq §1's causal signature, as a document: a clamp-to-zero write at
+    """The recurrence's causal signature, as a document: a clamp-to-zero write at
     chunk 0 leaves chunk 0's own tokens bit-identical (the state is applied
     *after* the chunk that produced it) and moves later tokens."""
     clean = _single_row_executor(
@@ -226,33 +234,39 @@ def test_zeroing_the_state_after_chunk_0_moves_only_later_tokens(trace_qwen):
     ).read_value("r")
 
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {
-            "tap": {"component": "deltanet_state", "layer": LAYER},
-            "out_site": {"component": "attention_output", "layer": LAYER},
+        "method": {
+            "sites": {
+                "tap": {"component": "deltanet_state", "layers": [LAYER]},
+                "out_site": {"component": "attention_output", "layers": [LAYER]},
+            },
+            "reads": {
+                "out": {
+                    "site": "out_site",
+                    "pos": "all",
+                    "model": "patched",
+                    "input": "base",
+                }
+            },
+            "writes": {
+                "zero": {
+                    "site": "tap",
+                    "pos": 0,
+                    "do": {"clamp": {"lo": 0.0, "hi": 0.0}},
+                }
+            },
+            "intervened_models": {"patched": {"input": "base", "writes": ["zero"]}},
+            "save": [
+                {
+                    "value": "out",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "o.safetensors",
+                }
+            ],
         },
-        "reads": {
-            "out": {
-                "site": "out_site",
-                "pos": "all",
-                "model": "patched",
-                "input": "base",
-            }
-        },
-        "writes": {
-            "zero": {"site": "tap", "pos": 0, "do": {"clamp": {"lo": 0.0, "hi": 0.0}}}
-        },
-        "intervened_models": {"patched": {"input": "base", "writes": ["zero"]}},
-        "save": [
-            {
-                "value": "out",
-                "model": "patched",
-                "input": "base",
-                "file_path": "o.safetensors",
-            }
-        ],
     }
     patched = _single_row_executor(trace_qwen, doc, LONG_TEXT).read_value("out")
     changed = (patched != clean).any(-1)[0]
@@ -265,12 +279,14 @@ def test_a_write_past_the_last_fire_is_refused_not_skipped(trace_qwen):
     keeps the fires it reached and warns), so the executor must turn the miss
     into a refusal rather than return values from a write that never landed."""
     doc = _state_doc("all")
-    doc["reads"]["r"]["model"] = "patched"
-    doc["writes"] = {
+    doc["method"]["reads"]["r"]["model"] = "patched"
+    doc["method"]["writes"] = {
         "zero": {"site": "tap", "pos": 99, "do": {"clamp": {"lo": 0.0, "hi": 0.0}}}
     }
-    doc["intervened_models"] = {"patched": {"input": "base", "writes": ["zero"]}}
-    doc["save"][0]["model"] = "patched"
+    doc["method"]["intervened_models"] = {
+        "patched": {"input": "base", "writes": ["zero"]}
+    }
+    doc["method"]["save"][0]["model"] = "patched"
     executor = _single_row_executor(trace_qwen, doc, LONG_TEXT)
     with pytest.raises(ProtocolError, match="fire"):
         executor.read_value("r")
@@ -300,41 +316,45 @@ def test_an_out_of_range_chunk_read_is_refused(trace_qwen):
 def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component):
     def swap_doc() -> dict:
         return {
-            "version": "1",
+            "header": {"protocol_version": "3"},
             "model": {"key": "test", "revision": "main"},
             "data": _data(with_cf=True),
-            "sites": {
-                "tap": {"component": component, "layer": LAYER},
-                "head": {"component": "lm_head"},
-            },
-            "reads": {
-                "v_cf": {
-                    "site": "tap",
-                    "pos": -1,
-                    "model": "original",
-                    "input": "counterfactual",
+            "method": {
+                "sites": {
+                    "tap": {"component": component, "layers": [LAYER]},
+                    "head": {"component": "lm_head"},
                 },
-                "logits": {
-                    "site": "head",
-                    "pos": -1,
-                    "model": "patched",
-                    "input": "base",
+                "reads": {
+                    "v_cf": {
+                        "site": "tap",
+                        "pos": -1,
+                        "model": "original",
+                        "input": "counterfactual",
+                    },
+                    "logits": {
+                        "site": "head",
+                        "pos": -1,
+                        "model": "patched",
+                        "input": "base",
+                    },
                 },
+                "writes": {"patch": {"site": "tap", "pos": -1, "do": {"swap": "v_cf"}}},
+                "intervened_models": {
+                    "patched": {"input": "base", "writes": ["patch"]}
+                },
+                "save": [
+                    {
+                        "value": "logits",
+                        "model": "patched",
+                        "input": "base",
+                        "file_path": "l.safetensors",
+                    }
+                ],
             },
-            "writes": {"patch": {"site": "tap", "pos": -1, "do": {"swap": "v_cf"}}},
-            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-            "save": [
-                {
-                    "value": "logits",
-                    "model": "patched",
-                    "input": "base",
-                    "file_path": "l.safetensors",
-                }
-            ],
         }
 
     clean_doc = _read_doc("deltanet_qkv")
-    clean_doc["sites"]["tap"] = {"component": "lm_head"}
+    clean_doc["method"]["sites"]["tap"] = {"component": "lm_head"}
     clean = _executor(
         TracePointExecutor, clean_doc, trace_qwen, with_cf=False
     ).read_value("r")
@@ -343,7 +363,7 @@ def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component)
     assert float((moved.dense_value("logits") - clean).abs().max()) > 1e-5, component
 
     self_swap = swap_doc()
-    self_swap["reads"]["v_cf"]["input"] = "base"
+    self_swap["method"]["reads"]["v_cf"]["input"] = "base"
     same = _executor(TracePointExecutor, self_swap, trace_qwen, with_cf=True)
     assert float((same.dense_value("logits") - clean).abs().max()) == 0.0, component
 
@@ -357,7 +377,7 @@ def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component)
 def test_the_reference_engine_refuses_by_name(hooks_qwen, component):
     doc = _read_doc(component)
     if component == "deltanet_state":
-        doc["reads"]["r"]["pos"] = "all"
+        doc["method"]["reads"]["r"]["pos"] = "all"
     with pytest.raises(ProtocolError, match="nnsight engine"):
         _executor(PointExecutor, doc, hooks_qwen, with_cf=False).run_all()
 
@@ -373,6 +393,6 @@ def test_routing_lands_deltanet_documents_here():
 
 def test_deltanet_at_a_full_attention_layer_refuses_architecturally(trace_qwen):
     doc = _read_doc("deltanet_state", pos="all")
-    doc["sites"]["tap"]["layer"] = 3  # full attention on this fixture
+    doc["method"]["sites"]["tap"]["layers"] = 3  # full attention on this fixture
     with pytest.raises(ProtocolError, match="Gated DeltaNet mixer"):
         _executor(TracePointExecutor, doc, trace_qwen, with_cf=False).run_all()

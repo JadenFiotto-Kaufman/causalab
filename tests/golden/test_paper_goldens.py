@@ -1,9 +1,7 @@
 """Paper-golden tier: real-model runs asserted against paper-provenance values.
 
 Every asserted number in tests/golden/paper_goldens.json traces to a
-published paper figure/table or to the VeriFires task package encoding it
-(tasks/) — never to a pinning run of this
-stack. Documents live in tests/golden/protocols/ (identity pinned in
+published paper figure/table — never to a pinning run of this stack. Documents live in tests/golden/protocols/ (identity pinned in
 golden_digests.json); fixture datasets are seeded, committed JSON produced
 by tests/golden/fixtures/generators/.
 
@@ -146,9 +144,11 @@ def test_rome_average_total_effect(tmp_path):
         run_document(f"rome_ate_w{width}_im.json", out)
         ce_clean = _frame(out / "ce_clean.json")
         ce_corr = _frame(out / "ce_corr.json")
-        p_clean = np.exp(-ce_clean.groupby("example")["value"].mean())
+        p_clean = np.exp(-ce_clean.groupby("example_id")["value"].mean())
         p_corr = (
-            ce_corr.assign(p=np.exp(-ce_corr["value"])).groupby("example")["p"].mean()
+            ce_corr.assign(p=np.exp(-ce_corr["value"]))
+            .groupby("example_id")["p"]
+            .mean()
         )
         effects.append(p_clean - p_corr)
         clean_all.append(p_clean)
@@ -179,12 +179,14 @@ def test_rome_hidden_state_aie_peak(tmp_path):
         ce_corr = _frame(out / "ce_corr.json")
         ce_rest = _frame(out / "ce_rest.json")
         p_corr = (
-            ce_corr.assign(p=np.exp(-ce_corr["value"])).groupby("example")["p"].mean()
+            ce_corr.assign(p=np.exp(-ce_corr["value"]))
+            .groupby("example_id")["p"]
+            .mean()
         )
-        layer_col = _axis_column(ce_rest, "hidden.layer")
+        layer_col = _axis_column(ce_rest, "hidden.layers")
         rest = ce_rest.assign(p=np.exp(-ce_rest["value"]))
         for layer, group in rest.groupby(layer_col):
-            p_rest = group.groupby("example")["p"].mean()
+            p_rest = group.groupby("example_id")["p"].mean()
             per_layer.setdefault(int(layer), []).append(p_rest - p_corr)
     aie = {layer: pd.concat(parts).mean() * 100 for layer, parts in per_layer.items()}
     peak_layer = max(aie, key=aie.get)
@@ -212,100 +214,109 @@ def test_rome_mlp_window_aie_peak(tmp_path):
                 layer for layer in range(center - 4, center + 6) if 0 <= layer < 48
             ]
             doc = {
-                "version": "1",
-                "description": f"generated: ROME MLP window restore, center {center}, width-{width} shard",
+                "header": {
+                    "protocol_version": "3",
+                    "description": f"generated: ROME MLP window restore, center {center}, width-{width} shard",
+                },
                 "model": {"key": "gpt2-xl", "revision": "main", "dtype": "fp32"},
                 "data": {
                     "base": {"dataset": f"counterfact/facts_w{width}", "field": "input"}
                 },
-                "positions": {
-                    "last_subject": {"index": -1, "scope": {"variable": "subject"}}
-                },
-                "sites": {
-                    "emb": {"component": "embeddings"},
-                    "lm_head": {"component": "lm_head"},
-                    **{
-                        f"mlp{layer}": {"component": "mlp_output", "layer": layer}
-                        for layer in layers
+                "method": {
+                    "positions": {
+                        "last_subject": {"index": -1, "scope": {"variable": "subject"}}
                     },
-                },
-                "reads": {
-                    "logits_corr": {
-                        "site": "lm_head",
-                        "pos": -1,
-                        "model": "corrupted",
-                        "input": "base",
-                    },
-                    "logits_rest": {
-                        "site": "lm_head",
-                        "pos": -1,
-                        "model": "restored",
-                        "input": "base",
-                    },
-                    **{
-                        f"v{layer}": {
-                            "site": f"mlp{layer}",
-                            "pos": "last_subject",
-                            "model": "original",
-                            "input": "base",
-                        }
-                        for layer in layers
-                    },
-                },
-                "writes": {
-                    "noise": {
-                        "site": "emb",
-                        "pos": {"variable": "subject"},
-                        "do": {
-                            "gaussian": {
-                                "seed": 7,
-                                "scale": 0.144681,
-                                "axis": "tp_duplicated",
+                    "sites": {
+                        "emb": {"component": "embeddings"},
+                        "lm_head": {"component": "lm_head"},
+                        **{
+                            f"mlp{layer}": {
+                                "component": "mlp_output",
+                                "layers": [layer],
                             }
+                            for layer in layers
                         },
                     },
-                    **{
-                        f"rest{layer}": {
-                            "site": f"mlp{layer}",
-                            "pos": "last_subject",
-                            "do": {"swap": f"v{layer}"},
-                        }
-                        for layer in layers
+                    "reads": {
+                        "logits_corr": {
+                            "site": "lm_head",
+                            "pos": -1,
+                            "model": "corrupted",
+                            "input": "base",
+                        },
+                        "logits_rest": {
+                            "site": "lm_head",
+                            "pos": -1,
+                            "model": "restored",
+                            "input": "base",
+                        },
+                        **{
+                            f"v{layer}": {
+                                "site": f"mlp{layer}",
+                                "pos": "last_subject",
+                                "model": "original",
+                                "input": "base",
+                            }
+                            for layer in layers
+                        },
                     },
+                    "writes": {
+                        "noise": {
+                            "site": "emb",
+                            "pos": {"variable": "subject"},
+                            "do": {
+                                "gaussian": {
+                                    "seed": 7,
+                                    "scale": 0.144681,
+                                    "axis": "tp_duplicated",
+                                }
+                            },
+                        },
+                        **{
+                            f"rest{layer}": {
+                                "site": f"mlp{layer}",
+                                "pos": "last_subject",
+                                "do": {"swap": f"v{layer}"},
+                            }
+                            for layer in layers
+                        },
+                    },
+                    "intervened_models": {
+                        "corrupted": {"input": "base", "writes": ["noise"]},
+                        "restored": {
+                            "input": "base",
+                            "writes": ["noise"] + [f"rest{layer}" for layer in layers],
+                        },
+                    },
+                    "metrics": {
+                        "ce_corr": {
+                            "kind": "cross_entropy",
+                            "of": "logits_corr",
+                            "target": "answer",
+                            "token_form": "space_prefixed",
+                        },
+                        "ce_rest": {
+                            "kind": "cross_entropy",
+                            "of": "logits_rest",
+                            "target": "answer",
+                            "token_form": "space_prefixed",
+                        },
+                    },
+                    "save": [
+                        {
+                            "value": "ce_corr",
+                            "model": "corrupted",
+                            "input": "base",
+                            "file_path": "ce_corr.json",
+                        },
+                        {
+                            "value": "ce_rest",
+                            "model": "restored",
+                            "input": "base",
+                            "file_path": "ce_rest.json",
+                        },
+                    ],
                 },
-                "intervened_models": {
-                    "corrupted": {"input": "base", "writes": ["noise"]},
-                    "restored": {
-                        "input": "base",
-                        "writes": ["noise"] + [f"rest{layer}" for layer in layers],
-                    },
-                },
-                "metrics": {
-                    "ce_corr": {
-                        "kind": "cross_entropy",
-                        "of": "logits_corr",
-                        "target": "answer",
-                    },
-                    "ce_rest": {
-                        "kind": "cross_entropy",
-                        "of": "logits_rest",
-                        "target": "answer",
-                    },
-                },
-                "save": [
-                    {
-                        "value": "ce_corr",
-                        "model": "corrupted",
-                        "input": "base",
-                        "file_path": "ce_corr.json",
-                    },
-                    {
-                        "value": "ce_rest",
-                        "model": "restored",
-                        "input": "base",
-                        "file_path": "ce_rest.json",
-                    },
-                ],
             }
             doc_path = tmp_path / f"mlp_c{center}_w{width}.json"
             doc_path.write_text(json_lib.dumps(doc))
@@ -347,10 +358,9 @@ def test_mixing_positional_shares(tmp_path):
     none when the original answer still dominates. Shares are normalized
     among attributed rows and read at layer 18 — the paper's own
     intervention layer for gemma-2-2b-it ("the last layer before
-    retrieval starts", named as layers 16-18; the VeriFires leaf anchors
-    "~18"). A max-attribution heuristic is wrong here: past retrieval
+    retrieval starts", named as layers 16-18, anchored at ~18). A max-attribution heuristic is wrong here: past retrieval
     (L20+) the patch carries the counterfactual's finished answer and
-    reflexive sweeps to ~100% everywhere (H100 layer table, job 1380237:
+    reflexive sweeps to ~100% everywhere (an H100 layer table corroborated it:
     L16 edges 100/74% vs middle 28%; L18 90/65% vs 17%; L22+ ref≈100%).
     One document per bucket keeps the single-batch lm_head forward within
     GPU memory; the scan stays in the document so the retrieval
@@ -362,9 +372,9 @@ def test_mixing_positional_shares(tmp_path):
         frames = {}
         for mech in ("pos", "lex", "ref"):
             frame = _frame(out / f"ld_{mech}.json")
-            layer_col = _axis_column(frame, "target.layer")
+            layer_col = _axis_column(frame, "target.layers")
             frames[mech] = frame.rename(columns={layer_col: "layer"})
-        part = frames["pos"][["example", "layer"]].copy()
+        part = frames["pos"][["example_id", "layer"]].copy()
         diffs = pd.DataFrame(
             {mech: frames[mech]["value"].to_numpy() for mech in ("pos", "lex", "ref")}
         )
@@ -402,8 +412,7 @@ def test_arithmetic_steering_diagonal(tmp_path):
     baseline-correct hours prompt toward each of the 24 targets (layer-18
     residual, last token, alpha=10, periods {2,5,10,20,50}); a target
     counts when its hour token has the highest prompt-averaged probability
-    over the 24 hour tokens. Anti-gaming constraints from the VeriFires
-    judge notes are structural here: all 24 targets run, the period set is
+    over the 24 hour tokens. Anti-gaming constraints are structural here: all 24 targets run, the period set is
     fixed in tests/golden/_steering.py, and the only prompt filter is
     baseline correctness.
 
@@ -425,7 +434,9 @@ def test_arithmetic_steering_diagonal(tmp_path):
     run_document("hours_baseline_im.json", base_out)
     acc = _frame(base_out / "acc.json")
     rows = json_lib.loads((FIXTURES / "data" / "hours" / "all.json").read_text())
-    correct = [rows[int(e)] for e, v in zip(acc["example"], acc["value"]) if v == 1.0]
+    correct = [
+        rows[int(e)] for e, v in zip(acc["example_id"], acc["value"]) if v == 1.0
+    ]
     print(f"baseline-correct prompts: {len(correct)}/1152")
 
     # 2. harvest addition residuals (pinned document)
@@ -473,49 +484,62 @@ def test_arithmetic_steering_diagonal(tmp_path):
     hits = 0
     for target in range(24):
         doc = {
-            "version": "1",
-            "description": f"generated: hours steering toward target {target:02d}",
+            "header": {
+                "protocol_version": "3",
+                "description": f"generated: hours steering toward target {target:02d}",
+            },
             "model": {
                 "key": "meta-llama/Llama-3.1-8B",
                 "revision": "main",
                 "dtype": "bf16",
             },
             "data": {"base": {"dataset": "hours/correct", "field": "input"}},
-            "sites": {
-                "l18": {"component": "block_output", "layer": 18},
-                "lm_head": {"component": "lm_head"},
+            "method": {
+                "sites": {
+                    "l18": {"component": "block_output", "layers": [18]},
+                    "lm_head": {"component": "lm_head"},
+                },
+                "reads": {
+                    "logits": {
+                        "site": "lm_head",
+                        "pos": -1,
+                        "model": "steered",
+                        "input": "base",
+                    }
+                },
+                "code": {
+                    "steer_fn": {
+                        "locator": f"tests.golden._steering.apply_target_{target}",
+                        "description": "Eq. 4 / Alg. 1, per-prompt (§2.8.1)",
+                    }
+                },
+                "writes": {
+                    "steer": {
+                        "site": "l18",
+                        "pos": -1,
+                        "do": {"pytorch_fn": {"code": "steer_fn"}},
+                    }
+                },
+                "intervened_models": {
+                    "steered": {"input": "base", "writes": ["steer"]}
+                },
+                "metrics": {
+                    "hour_probs": {
+                        "kind": "class_probs",
+                        "of": "logits",
+                        "groups": groups,
+                        "token_form": "bare",
+                    }
+                },
+                "save": [
+                    {
+                        "value": "hour_probs",
+                        "model": "steered",
+                        "input": "base",
+                        "file_path": "hour_probs.json",
+                    }
+                ],
             },
-            "reads": {
-                "logits": {
-                    "site": "lm_head",
-                    "pos": -1,
-                    "model": "steered",
-                    "input": "base",
-                }
-            },
-            "writes": {
-                "steer": {
-                    "site": "l18",
-                    "pos": -1,
-                    "do": {
-                        "pytorch_fn": {
-                            "qualname": f"tests.golden._steering.apply_target_{target}"
-                        }
-                    },
-                }
-            },
-            "intervened_models": {"steered": {"input": "base", "writes": ["steer"]}},
-            "metrics": {
-                "hour_probs": {"kind": "class_probs", "of": "logits", "groups": groups}
-            },
-            "save": [
-                {
-                    "value": "hour_probs",
-                    "model": "steered",
-                    "input": "base",
-                    "file_path": "hour_probs.json",
-                }
-            ],
         }
         doc_path = tmp_path / f"steer_{target:02d}.json"
         doc_path.write_text(json_lib.dumps(doc))

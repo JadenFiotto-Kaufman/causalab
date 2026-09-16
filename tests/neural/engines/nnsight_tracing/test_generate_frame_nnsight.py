@@ -1,4 +1,4 @@
-"""The generated frame on the nnsight engine (engine plan §10, N8).
+"""The generated frame on the nnsight engine.
 
 One ``model.generate`` trace per group: prompt-frame taps and writes bind
 occurrence 0 of their locations — the prefill — and the decode steps are
@@ -8,8 +8,8 @@ hooks, which makes it the oracle here: the same documents through both, ids
 and activations agreeing.
 
 Plus what parity cannot say: the greedy self-consistency pin (the argmax of a
-continuation ``lm_head`` read reproduces the decoded ids — from the
-generation-frame handoff note), and the N7 bridge — the DeltaNet state read
+continuation ``lm_head`` read reproduces the decoded ids), and the bridge to
+the DeltaNet interior — the state read
 per decode step, through the *recurrent* kernel's own address, continuous
 with the prefill chunks.
 """
@@ -39,26 +39,33 @@ DELTANET_LAYER = 0
 def _gen_doc(component: str, *, layer: int | None, pos: dict | None = None) -> dict:
     site: dict = {"component": component}
     if layer is not None:
-        site["layer"] = layer
+        site["layers"] = layer
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {"tap": site},
-        "positions": {
-            "window": pos or {"generated": {"max_new_tokens": DEPTH}, "all": True}
+        "method": {
+            "sites": {"tap": site},
+            "positions": {
+                "window": pos or {"generated": {"max_new_tokens": DEPTH}, "all": True}
+            },
+            "reads": {
+                "r": {
+                    "site": "tap",
+                    "pos": "window",
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "reads": {
-            "r": {"site": "tap", "pos": "window", "model": "original", "input": "base"}
-        },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
@@ -122,17 +129,21 @@ def test_a_write_reaches_the_continuation_identically(hooks_qwen, trace_qwen):
     token and the cache. The patched continuation read must agree."""
     doc = _gen_doc("block_output", layer=0)
     doc["data"] = _data(with_cf=True)
-    doc["sites"]["src"] = {"component": "block_output", "layer": 0}
-    doc["reads"]["v_cf"] = {
+    doc["method"]["sites"]["src"] = {"component": "block_output", "layers": [0]}
+    doc["method"]["reads"]["v_cf"] = {
         "site": "src",
         "pos": -1,
         "model": "original",
         "input": "counterfactual",
     }
-    doc["reads"]["r"]["model"] = "patched"
-    doc["writes"] = {"patch": {"site": "src", "pos": -1, "do": {"swap": "v_cf"}}}
-    doc["intervened_models"] = {"patched": {"input": "base", "writes": ["patch"]}}
-    doc["save"][0]["model"] = "patched"
+    doc["method"]["reads"]["r"]["model"] = "patched"
+    doc["method"]["writes"] = {
+        "patch": {"site": "src", "pos": -1, "do": {"swap": "v_cf"}}
+    }
+    doc["method"]["intervened_models"] = {
+        "patched": {"input": "base", "writes": ["patch"]}
+    }
+    doc["method"]["save"][0]["model"] = "patched"
     hooked = _executor(PointExecutor, doc, hooks_qwen, with_cf=True)
     traced = _executor(TracePointExecutor, doc, trace_qwen, with_cf=True)
     _assert_same(
@@ -162,7 +173,7 @@ def test_the_lm_head_argmax_reproduces_the_decoded_ids(trace_qwen):
 
 
 # --------------------------------------------------------------------------- #
-# the N7 bridge: the DeltaNet state per decode step
+# the bridge to the DeltaNet interior: the state per decode step
 # --------------------------------------------------------------------------- #
 
 
@@ -184,14 +195,17 @@ def test_the_deltanet_state_reads_per_decode_step(trace_qwen):
     with the prefill chunks and advancing every step."""
     info = trace_qwen.info
     doc = _gen_doc("deltanet_state", layer=DELTANET_LAYER)
-    doc["sites"]["prefill"] = {"component": "deltanet_state", "layer": DELTANET_LAYER}
-    doc["reads"]["last_chunk"] = {
+    doc["method"]["sites"]["prefill"] = {
+        "component": "deltanet_state",
+        "layers": [DELTANET_LAYER],
+    }
+    doc["method"]["reads"]["last_chunk"] = {
         "site": "prefill",
         "pos": -1,
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "last_chunk",
             "model": "original",

@@ -13,14 +13,14 @@ made **outside** the model, once per write application.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 import torch
 
 from causalab.protocol.errors import ProtocolError
-from causalab.protocol.schema import ADDITIVE_MECHANISMS, Do
+from causalab.protocol.schema import ADDITIVE_MECHANISMS, CodeSpec, Do
 
-__all__ = ["apply_absolute", "apply_delta", "is_additive"]
+__all__ = ["apply_absolute", "apply_delta", "is_additive", "row_role_bounds"]
 
 #: Resolve an operand to a tensor/scalar: the executor passes a lookup over
 #: read values, params, and dotted featurizer slots.
@@ -37,9 +37,18 @@ def _operand(lookup: OperandLookup, value: Any) -> torch.Tensor | float:
     return lookup(value)
 
 
-def apply_absolute(do: Do, f: torch.Tensor, lookup: OperandLookup) -> torch.Tensor:
+def apply_absolute(
+    do: Do,
+    f: torch.Tensor,
+    lookup: OperandLookup,
+    *,
+    code: Mapping[str, CodeSpec] | None = None,
+) -> torch.Tensor:
     """The absolute-class write ``f ← …`` for one mechanism; ``f`` is the
-    pre-write feature slice (already dims-selected)."""
+    pre-write feature slice (already dims-selected).
+
+    ``code`` is the document's ``code`` table, which only ``pytorch_fn``
+    reads (§2.8.1)."""
     mech = str(do.mechanism)
     payload = do.payload
     if mech == "swap":
@@ -65,17 +74,73 @@ def apply_absolute(do: Do, f: torch.Tensor, lookup: OperandLookup) -> torch.Tens
         hi = _scalar(_operand(lookup, payload["hi"]))
         return f.clamp(min=lo, max=hi)
     if mech == "pytorch_fn":
-        qualname = str(payload["qualname"])
-        module_name, _, attr = qualname.rpartition(".")
-        fn = getattr(importlib.import_module(module_name), attr)
-        return fn(f)
+        return _apply_pytorch_fn(payload, f, code)
     raise ProtocolError("P4", f"{mech!r} is not an absolute mechanism")
 
 
-def apply_delta(
-    do: Do, f_pre: torch.Tensor, lookup: OperandLookup, *, batch: int, n_pos: int
+def _apply_pytorch_fn(
+    payload: Any, f: torch.Tensor, code: Mapping[str, CodeSpec] | None
 ) -> torch.Tensor:
-    """The additive-class delta for one mechanism (summed by the caller)."""
+    """Call a declared local function (§2.8.1).
+
+    ``args`` are the declaration's typed JSON keywords, and ``row_roles``
+    becomes the ``role -> (start, stop)`` map that replaces inferring roles
+    from physical batch positions — passed only when the declaration carries
+    roles, so a plain one-tensor function is still called ``fn(f)``. The
+    loader has already checked the signature agrees (§5 rule 24).
+
+    ``data_inputs`` and ``env_inputs`` are *not* passed: they are identity and
+    an allowlist, not a delivery channel (§2.8.1). The function opens its own
+    declared path, and the load refuses one it did not declare.
+    """
+    name = str(payload["code"])
+    spec = (code or {}).get(name)
+    if spec is None:
+        raise ProtocolError(
+            "P2",
+            f"pytorch_fn names code declaration {name!r}, which this document "
+            "does not carry — the executor was handed a document the loader "
+            "did not validate (§2.8.1)",
+        )
+    locator = str(spec.locator)
+    module_name, _, attr = locator.rpartition(".")
+    fn = getattr(importlib.import_module(module_name), attr)
+    kwargs: dict[str, Any] = dict(spec.args)
+    if spec.row_roles:
+        kwargs["row_roles"] = row_role_bounds(spec)
+    return fn(f, **kwargs)
+
+
+def row_role_bounds(spec: CodeSpec) -> dict[str, tuple[int, int]]:
+    """``role -> (start, stop)`` half-open row bounds, in declared order."""
+    bounds: dict[str, tuple[int, int]] = {}
+    start = 0
+    for role in spec.row_roles:
+        bounds[role.role] = (start, start + role.rows)
+        start += role.rows
+    return bounds
+
+
+def apply_delta(
+    do: Do,
+    f_pre: torch.Tensor,
+    lookup: OperandLookup,
+    *,
+    batch: int,
+    n_pos: int,
+    rows: slice | Sequence[int] | None = None,
+) -> torch.Tensor:
+    """The additive-class delta for one mechanism (summed by the caller).
+
+    ``batch`` is the row count of the **whole** batch the write addresses and
+    ``rows`` the slice of it ``f_pre`` holds, when a forward covers only a
+    window of the rows (§8, execution scale) — or the row indices, when a
+    ragged write lands one width bucket of the window at a time (§5 rule 19,
+    ``exact_length_buckets``). A ``gaussian`` draw is made over all ``batch``
+    rows and sliced or indexed, so the noise a row receives is the same in
+    one forward as in several, and the same whichever rows share its bucket —
+    the RNG contract the parity goldens pin.
+    """
     mech = str(do.mechanism)
     payload = do.payload
     if mech == "add_scaled":
@@ -89,6 +154,8 @@ def apply_delta(
         draw = torch.randn(
             (batch, n_pos, f_pre.shape[-1]), generator=generator, dtype=torch.float32
         )
+        if rows is not None:
+            draw = draw[rows] if isinstance(rows, slice) else draw[list(rows)]
         return scale * draw.to(dtype=f_pre.dtype, device=f_pre.device).reshape(
             f_pre.shape
         )

@@ -1,5 +1,7 @@
 """The golden corpus (spec §7): every example loads, validates,
-canonicalizes to a pinned digest, and derives the pinned execution shape.
+canonicalizes to a pinned digest, and derives the pinned execution shape —
+and reaches the same pinned digest with its sections in alphabetical order,
+which is §5 rule 2's whole content now that order is a recommendation.
 
 The digests are pinned against the committed fixture tables in
 ``tests/protocol/fixtures`` (dataset content digests are part of the
@@ -17,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from causalab.protocol.engine import component_capability, requires
+from causalab.protocol.errors import ProtocolWarning
 from causalab.protocol.loader import load
 from causalab.protocol.plan import (
     COMPONENT_RANK,
@@ -128,6 +131,23 @@ CORPUS_SHAPE = [
         2,
         {"paired_forward"} | _touch("block_output+w", "lm_head"),
     ),
+    (
+        # Eight writes, two intervened models, four forwards: the per-edge
+        # polarity map costs one joint forward per edge set, not one per edge.
+        "15_circuit_edges_im.json",
+        1,
+        4,
+        {"paired_forward"} | _touch("attention_result", "block_input+w", "lm_head"),
+    ),
+    (
+        # one point, four forwards: the shared counterfactual harvest of all ten
+        # taps plus one per band — the same shape 06's hand-written bands derive,
+        # which is the property `at_once` must not disturb (sec. 3.1)
+        "16_at_once_band_im.json",
+        1,
+        4,
+        {"paired_forward"} | _touch("attention_output+w", "lm_head"),
+    ),
 ]
 
 
@@ -141,6 +161,31 @@ class TestCorpusUnit:
         doc = loaded.point_documents[0]
         assert plan_point(doc).num_forwards == n_forwards
         assert set(requires(doc)) == needed
+
+    @pytest.mark.parametrize("name", [row[0] for row in CORPUS_SHAPE])
+    def test_sorted_key_order_keeps_the_pinned_digest(self, env, name):
+        """§5 rule 2 — the section order is not content.
+
+        ``json.dumps(..., sort_keys=True)`` is the reordering a document
+        acquires by accident: any tool that rewrites JSON does it, and the
+        loader used to refuse the result. It warns and parses now, and this is
+        the claim that makes that safe — the round-tripped document is not
+        merely *a* valid document but the same one, down to the digest pinned
+        in ``corpus_digests.json`` and every point digest under it.
+        """
+        original = load(CORPUS_DIR / name, env)
+        authored = json.loads((CORPUS_DIR / name).read_text())
+        sorted_order = json.loads(json.dumps(authored, sort_keys=True))
+        assert list(sorted_order) != list(authored), (
+            f"{name} is already in alphabetical order — this test would pass "
+            "without exercising anything"
+        )
+
+        with pytest.warns(ProtocolWarning, match="recommended"):
+            shuffled = load(sorted_order, env, base_dir=CORPUS_DIR)
+
+        assert shuffled.document_digest == PINS[name]["document"]
+        assert shuffled.point_digests == original.point_digests
 
     @pytest.mark.parametrize("name", [row[0] for row in CORPUS_SHAPE])
     def test_document_digest_pin(self, env, name):

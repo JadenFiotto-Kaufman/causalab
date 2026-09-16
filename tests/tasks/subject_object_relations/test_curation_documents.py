@@ -1,11 +1,11 @@
-"""The curation sweep, as a protocol document — the shape, not the run.
+"""The curation sweep, as an intervention specification — the shape, not the run.
 
 The per-relation base-accuracy table in this task's README was measured by a
 producer the protocol refactor deleted (`data/curation_sweep.py`), while its
 numbers stay load-bearing: they pick `config.py`'s default relation and the
 relation a pinned tier would use. Recomputing it needs two things this seam
 adds — task-generated tables, and a `match` that can grade a multi-token
-object by its first token (the task's own `match_modes={"object": "prefix"}`,
+object by its first token (the task's own `string_mode="prefix"`,
 spec §2.10).
 
 This test asserts the campaign is *expressible and valid* end to end on CPU:
@@ -17,14 +17,12 @@ test is the seam, and that is what this covers.
 
 from __future__ import annotations
 
-import json
 
 import pytest
 
 from causalab.protocol.loader import check_data_columns, load
 from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
 from causalab.tasks.serialize import (
-    build_manifest,
     serialize_counterfactual_dataset,
     write_dataset_table,
 )
@@ -44,37 +42,41 @@ def _baseline_document(refs: list[str]) -> dict:
     """A no-intervention baseline: read the answer-position logits and score
     the declared answer forms, swept over one table per relation."""
     return {
-        "version": "1",
-        "description": "Per-relation base accuracy: the curation sweep as a document.",
+        "header": {
+            "protocol_version": "3",
+            "description": "Per-relation base accuracy: the curation sweep as a document.",
+        },
         "model": {"key": MODEL, "revision": "main"},
         "data": {"base": {"dataset": {"sweep": refs}, "field": "input"}},
-        "positions": {"answer_tok": {"index": -1}},
-        "sites": {"lm_head": {"component": "lm_head"}},
-        "reads": {
-            "logits": {
-                "site": "lm_head",
-                "pos": "answer_tok",
-                "model": "original",
-                "input": "base",
-            }
+        "method": {
+            "positions": {"answer_tok": {"index": -1}},
+            "sites": {"lm_head": {"component": "lm_head"}},
+            "reads": {
+                "logits": {
+                    "site": "lm_head",
+                    "pos": "answer_tok",
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "metrics": {
+                "accuracy": {
+                    "kind": "match",
+                    "of": "logits",
+                    "expected": "base_answer_forms",
+                    "mode": "first_token",
+                    "token_form": "space_prefixed",
+                }
+            },
+            "save": [
+                {
+                    "value": "accuracy",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "accuracy.json",
+                }
+            ],
         },
-        "metrics": {
-            "accuracy": {
-                "kind": "match",
-                "of": "logits",
-                "expected": "base_answer_forms",
-                "mode": "first_token",
-                "token_form": "space_prefixed",
-            }
-        },
-        "save": [
-            {
-                "value": "accuracy",
-                "model": "original",
-                "input": "base",
-                "file_path": "accuracy.json",
-            }
-        ],
     }
 
 
@@ -83,7 +85,7 @@ def built(tmp_path_factory) -> tuple[ResolutionEnv, list[str], dict]:
     """Tables for the sampled relations, in a scratch data root.
 
     Deliberately not committed: 35 relations × 64 rows is a build product, and
-    the manifest beside each table is what makes it reproducible.
+    the parameters below are what make it reproducible.
     """
     root = tmp_path_factory.mktemp("sor_data")
     refs, manifests = [], {}
@@ -92,21 +94,13 @@ def built(tmp_path_factory) -> tuple[ResolutionEnv, list[str], dict]:
             "subject_object_relations",
             n=8,
             seed=0,
+            split="all",
             task_cfg=SubjectObjectRelationsConfig(relation=relation),
         )
         ref = f"subject_object_relations/{relation}"
-        digest = write_dataset_table(
-            dataset.rows,
-            root / f"{ref}.json",
-            manifest=build_manifest(dataset, task_cfg={"relation": relation}),
-        )
+        write_dataset_table(dataset.rows, root / f"{ref}.json")
         refs.append(ref)
-        manifests[relation] = json.loads(
-            (
-                root / "subject_object_relations" / f"{relation}.manifest.json"
-            ).read_text()
-        )
-        assert manifests[relation]["digest"] == digest
+        manifests[relation] = dataset
     env = ResolutionEnv(
         datasets=FileDatasets(root=root), artifacts=FileArtifacts(root=root)
     )
@@ -131,11 +125,11 @@ def test_every_column_reference_resolves(built):
     assert "base_answer_forms" in refs_checked  # the answer-form group column
 
 
-def test_the_manifest_records_the_declared_prefix_mode(built):
+def test_the_build_reports_the_declared_prefix_mode(built):
     """Why the document needs ``first_token``: the task declares its answer
     match mode as ``prefix`` (multi-token objects like "Washington D.C."), and
-    the builder records that next to the table so an author does not have to
+    the builder reports that beside the digest so an author does not have to
     rediscover it."""
-    _, _, manifests = built
-    assert all(m["declared_match_mode"] == "prefix" for m in manifests.values())
-    assert all(m["answer_variable"] == "object" for m in manifests.values())
+    _, _, built_datasets = built
+    assert all(d.match_mode == "prefix" for d in built_datasets.values())
+    assert all(d.answer_variable == "object" for d in built_datasets.values())

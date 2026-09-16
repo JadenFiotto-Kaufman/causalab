@@ -70,17 +70,12 @@ Single-variable counterfactuals (only one variable resampled) are configured via
 
 ## How to Run
 
-Each domain has at least one runner preset already wired up:
+The task runs from an intervention document that names its table
+(`natural_domains_arithmetic/data/weekdays#train`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
 
 ```bash
-# Single-step runs
-./scripts/run_exp.sh weekdays_8b_baseline       # baseline only
-./scripts/run_exp.sh weekdays_8b                # subspace at layer 28
-./scripts/run_exp.sh age_8b_pullback            # geodesic pullback
-./scripts/run_exp.sh integer_dual_manifold      # activation+output manifolds
-
-# Multi-step pipeline
-./scripts/run_exp.sh weekdays_8b_pipeline
+uv run causalab run <document.json>
 ```
 
 Available analyses for this task: `baseline`, `locate`, `subspace`, `activation_manifold`, `output_manifold`, `path_steering`, `pullback` (see `docs/CODEBASE.md` and per-analysis READMEs for what each one answers).
@@ -95,4 +90,5 @@ Outputs land under `artifacts/natural_domains_arithmetic/<model>/<analysis>/...`
 | `causal_models.py` | `create_causal_model`, `create_random_causal_model`, plus the `GET_*` accessors used by `tasks/loader.py` |
 | `counterfactuals.py` | `generate_dataset` |
 | `token_positions.py` | `create_token_positions` (single- or multi-template) |
+| `data/{weekdays,months}.json` | the shipped tables, one per domain: `natural_domains_arithmetic/data/weekdays#train` (30) / `#test` (19) and `…/months#train` (51) / `#test` (33) — whole pools, group-disjoint; built as split tables: task `natural_domains_arithmetic`, `domain_type=weekdays` (and `months`), seed 0, fractions `train=0.6` / `test=0.4`, target variable `result` |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

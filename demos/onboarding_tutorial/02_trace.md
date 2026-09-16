@@ -28,38 +28,61 @@ verbatim — the file is what `causalab run` reads, and
 
 ```json
 {
-  "version": "1",
-  "description": "Trace one MCQA pair: interchange the residual stream at every (layer, token position) of a single row, and read back what the model says. Two axes -- sites.target.layer over all 16 blocks, positions.tap.index over all 22 tokens of the row -- expand to 352 points. One row is what makes a dense index sweep well defined: token indices are a property of a tokenization, so a many-row document addresses positions by name instead (see mcqa_locate_scan.json).",
+  "header": {
+    "protocol_version": "3",
+    "description": "Trace one MCQA pair: interchange the residual stream at every (layer, token position) of a single row, and read back what the model says. Two axes -- sites.target.layers over all 16 blocks, positions.tap.index over all 22 tokens of the row -- expand to 352 points. One row is what makes a dense index sweep well defined: token indices are a property of a tokenization, so a many-row document addresses positions by name instead (see mcqa_locate_scan.json)."
+  },
   "model": {"key": "meta-llama/Llama-3.2-1B-Instruct", "revision": "main", "dtype": "bf16"},
   "data": {
-    "base":           {"dataset": "mcqa/pair_n1_s0", "field": "input"},
+    "base": {"dataset": "mcqa/pair_n1_s0", "field": "input"},
     "counterfactual": {"dataset": "mcqa/pair_n1_s0", "field": "counterfactual_inputs[0]"}
   },
-  "positions": {
-    "tap": {"index": {"sweep": {"range": [0, 22]}}}
-  },
-  "sites": {
-    "target":  {"component": "block_output", "layer": {"sweep": {"range": [0, 16]}}},
-    "lm_head": {"component": "lm_head"}
-  },
-  "reads": {
-    "v_cf":   {"site": "target",  "pos": "tap", "model": "original", "input": "counterfactual"},
-    "logits": {"site": "lm_head", "pos": -1,    "model": "patched",  "input": "base"}
-  },
-  "writes": {
-    "patch": {"site": "target", "pos": "tap", "do": {"swap": "v_cf"}}
-  },
-  "intervened_models": {
-    "patched": {"input": "base", "writes": ["patch"]}
-  },
-  "metrics": {
-    "said":    {"kind": "top_k", "of": "logits", "k": 1, "by": "prob"},
-    "flipped": {"kind": "match", "of": "logits", "expected": "cf_answer", "token_form": "space_prefixed"}
-  },
-  "save": [
-    {"value": "said",    "model": "patched", "input": "base", "file_path": "said.json"},
-    {"value": "flipped", "model": "patched", "input": "base", "file_path": "flipped.json"}
-  ]
+  "method": {
+    "positions": {
+      "tap": {
+        "index": {
+          "sweep": {"range": [0, 22]}
+        }
+      }
+    },
+    "sites": {
+      "target": {
+        "component": "block_output",
+        "layers": {
+          "sweep": {"range": [0, 16]}
+        }
+      },
+      "lm_head": {"component": "lm_head"}
+    },
+    "reads": {
+      "v_cf": {"site": "target", "pos": "tap", "model": "original", "input": "counterfactual"},
+      "logits": {"site": "lm_head", "pos": -1, "model": "patched", "input": "base"}
+    },
+    "writes": {
+      "patch": {"site": "target", "pos": "tap", "do": {"swap": "v_cf"}}
+    },
+    "intervened_models": {
+      "patched": {"input": "base", "writes": ["patch"]}
+    },
+    "metrics": {
+      "said": {"kind": "top_k", "of": "logits", "k": 1, "by": "prob"},
+      "flipped": {
+        "kind": "match",
+        "of": "logits",
+        "expected": "cf_answer",
+        "token_form": "space_prefixed"
+      }
+    },
+    "save": [
+      {"value": "said", "model": "patched", "input": "base", "file_path": "said.json"},
+      {
+        "value": "flipped",
+        "model": "patched",
+        "input": "base",
+        "file_path": "flipped.json"
+      }
+    ]
+  }
 }
 ```
 
@@ -91,15 +114,15 @@ exactly one read, and reducing one read two ways costs one forward, not two.
 ```bash
 uv run causalab validate demos/onboarding_tutorial/protocols/mcqa_trace_scan.json \
     --data-root demos/onboarding_tutorial/data --data
-# OK: demos/onboarding_tutorial/protocols/mcqa_trace_scan.json — 352 points, digest b9c21dcd7e557be0…
+# OK: demos/onboarding_tutorial/protocols/mcqa_trace_scan.json — 352 points, digest 9f80b710b3a6d56c…
 ```
 
 ```bash
 uv run causalab explain demos/onboarding_tutorial/protocols/mcqa_trace_scan.json \
     --data-root demos/onboarding_tutorial/data
-# digest    b9c21dcd7e557be042306fa74962c2116d7f1bc8fd8bd604e541b83a89d1e464
+# digest    9f80b710b3a6d56cc1b881e241e204f7cd181dc2802e7acedf708387cf0acf19
 # model     meta-llama/Llama-3.2-1B-Instruct@main bf16
-# axes      positions.tap.index (22 values), sites.target.layer (16 values)
+# axes      positions.tap.index (22 values), sites.target.layers (16 values)
 # points    352
 # requires  ['component:block_output', 'component:block_output:write', 'component:lm_head', 'full_logits', 'paired_forward']
 # forwards  2 per point
@@ -108,7 +131,7 @@ uv run causalab explain demos/onboarding_tutorial/protocols/mcqa_trace_scan.json
 # save
 #   said (model=patched, input=base) -> said.json
 #   flipped (model=patched, input=base) -> flipped.json
-# first point [tap.index=0,target.layer=0] digest 5bc2ae38e4ab689d…
+# first point [tap.index=0,target.layers=0] digest a8d6d2438abbe524…
 ```
 
 ```bash
@@ -188,7 +211,7 @@ give it: a **figure step**. `causalab.io.plots.workflow_figures` reads a table's
 sweep axes from the step record a *workflow* writes, and a bare `causalab run` of
 a protocol writes `protocol.json`, which carries the points but not the axes — so
 `axes_for` returns `()`, `aggregate` collapses all 352 cells into one row, and the
-renderer raises `KeyError: 'sites.target.layer'`.
+renderer raises `KeyError: 'sites.target.layers'`.
 
 One protocol step plus one script step fixes that, and it is the other legitimate
 shape rather than a workaround: nothing fans out and nothing is chained, so there
@@ -203,23 +226,17 @@ verbatim so `tests/demos/test_demos.py` can hold this copy to the file:
   "description": "The 02_trace demo's scan with a figure after it. One protocol step and one script step is the smallest workflow that is not a protocol: nothing here fans out, and the reason to write it is that a table and the picture of that table are two products of one experiment. It is also the only way a dense index sweep gets a figure -- causalab.io.plots.workflow_figures reads a table's sweep axes from the step record a workflow writes, so the same protocol run on its own produces a table no shipped renderer can draw.",
   "output_dir": "mcqa_trace",
   "steps": {
-    "scan": {
-      "type": "intervention_protocol",
-      "document": "../protocols/mcqa_trace_scan.json"
-    },
+    "scan": {"type": "intervention_protocol", "document": "../protocols/mcqa_trace_scan.json"},
     "heatmap": {
       "type": "script",
       "script": {"module": "causalab.io.plots.workflow_figures"},
       "inputs": {
         "table": {"step": "scan", "file": "flipped.json"},
         "plot": "heatmap",
-        "x": "sites.target.layer",
+        "x": "sites.target.layers",
         "y": "positions.tap.index"
       },
-      "outputs": {
-        "figure": "flipped_grid.png",
-        "plotted": {"file": "flipped_grid.json"}
-      }
+      "outputs": {"figure": "flipped_grid.png", "plotted": {"file": "flipped_grid.json"}}
     }
   }
 }
@@ -237,11 +254,10 @@ drawn, in the same directory, under the same step digest.
 ```bash
 uv run causalab explain demos/onboarding_tutorial/workflows/mcqa_trace.json \
     --data-root demos/onboarding_tutorial/data
-# digest    0fd35a654a442a867181fe5488056537f191b3e5a4c5d60b509898c59d881be1
 # schedule  2 levels
 #   level 0: scan
 #   level 1: heatmap
-#   scan: intervention_protocol ../protocols/mcqa_trace_scan.json — 352 point(s), campaign digest b9c21dcd7e557be0…
+#   scan: intervention_protocol ../protocols/mcqa_trace_scan.json — 352 point(s), campaign digest 9f80b710b3a6d56c…
 #   heatmap: script causalab.io.plots.workflow_figures -> flipped_grid.json, flipped_grid.png
 ```
 

@@ -1,6 +1,6 @@
 """Task packages → serialized dataset tables (spec §2.2).
 
-A protocol document names a dataset by ref and the resolver reads bytes
+An intervention specification names a dataset by ref and the resolver reads bytes
 (:class:`causalab.protocol.resolve.FileDatasets`). This module is the other
 half: it turns a task's causal model and counterfactual generator into those
 bytes, *ahead of* the load. Nothing here runs at load or run time — which is
@@ -31,8 +31,35 @@ fixtures use):
     columns on purpose.
 ``<answer>_forms``
     The equivalent surface forms of each answer above, from the causal
-    model's ``output_tokens`` declaration — the group a ``match`` metric
-    consumes (§2.10).
+    model's ``ScoringSpec`` (its ``forms`` for the ``answer_variable``) — the
+    group a ``match`` metric consumes (§2.10).
+``scoring_digest`` / ``string_mode``
+    The task's scoring identity, constant across the table
+    (:mod:`causalab.causal.scoring`): the spec's content digest, and whether a
+    generated string must equal a form or merely start with one. Written into
+    the rows rather than the manifest so the dataset content digest (§2.2)
+    covers it — a table rebuilt under a changed definition of correct is a
+    different dataset — and so a document's ``match`` ``mode`` can be held to
+    it at load and before the first forward (``check_scoring``). A table built
+    before these columns existed is *unrecorded*: it loads and runs as it
+    always did.
+``edit_groups``
+    **Only when the example declares it** — which spans of the pair move
+    together (:mod:`causalab.causal.pairs`): a list of groups, each a name,
+    an ``atomic`` flag and per-side ``[start, end]`` char spans into ``input``
+    and ``counterfactual_inputs[0]``, one constituent per span pair. A
+    generator attaches it to the example as an ``edit_groups`` key; the row
+    carries it verbatim after its shape is checked against the two texts.
+    Every shipped generator declares none, so no shipped or fixture table
+    gains the column and a row without it is unrecorded — nothing is held to
+    it. An ``atomic`` group is refused when a run addresses one of its
+    constituents without the others (rule 27, ``executor_base.py``).
+``split``
+    Which split this row belongs to (§2.2). A dataset is **one table** and the
+    split is a property of the row, not of the file: a document selects one
+    with the ``<ref>#<split>`` fragment, so disjointness is a fact about the
+    bytes rather than a claim about how two files were built. Required — see
+    :data:`causalab.tables.SPLIT_COLUMN`.
 ``<variable>``
     Every causal-model variable of the *base* trace, stringified: the
     per-row values that ``{"variable": …}`` and ``{"column": …}`` positions
@@ -41,26 +68,37 @@ fixtures use):
     The same variables for the counterfactual side, in the per-role
     ``<field>_variables`` convention position resolution reads.
 
-Provenance lives beside the table in a ``<ref>.manifest.json`` sidecar that
-resolution ignores: how the table was built, and the digest of the bytes it
-describes. The table itself is the content-addressed unit (§7).
+Nothing is written beside the table. The table itself is the content-addressed
+unit (§7): a document's canonical form carries its content digest, and a
+workflow that consumes it pins that digest in its own ``pins`` section
+(workflow spec §7) — the one place a pin lives. The parameters a table was
+built from are the builder's command line, which the table's README or the
+workflow's description records; there is no sidecar, no recipe file and no
+rebuild guard, so a table is exactly the bytes a document names.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import hashlib
-import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from causalab.causal.causal_model import CausalModel
+from causalab.causal.pairs import EDIT_GROUPS_COLUMN, EditGroupError, parse_edit_groups
+from causalab.causal.scoring import (
+    SCORING_DIGEST_COLUMN,
+    STRING_MODE_COLUMN,
+    ScoringError,
+)
+from causalab.tables import SPLIT_COLUMN, table_bytes
+from causalab.protocol.examples import EXAMPLE_ID_COLUMN, example_id_defect
 from causalab.tasks.loader import load_task, load_task_counterfactuals
 
 __all__ = [
     "RESERVED_COLUMNS",
+    "SPLIT_COLUMN",
     "SerializedDataset",
-    "build_manifest",
     "config_class",
     "serialize_counterfactual_dataset",
     "serialize_examples",
@@ -81,6 +119,15 @@ RESERVED_COLUMNS: frozenset[str] = frozenset(
         "cf_answer_forms",
         "label",
         "label_forms",
+        SPLIT_COLUMN,
+        SCORING_DIGEST_COLUMN,
+        STRING_MODE_COLUMN,
+        EDIT_GROUPS_COLUMN,
+        EXAMPLE_ID_COLUMN,
+        "pair_id",
+        "family",
+        "base_id",
+        "donor_id",
     }
 )
 
@@ -90,22 +137,27 @@ _TEXT_VARIABLES: frozenset[str] = frozenset({"raw_input", "raw_output"})
 
 @dataclasses.dataclass(frozen=True)
 class SerializedDataset:
-    """A built table plus what built it — the manifest's raw material."""
+    """A built table plus what built it — what the builder reports."""
 
     rows: list[dict[str, Any]]
     task: str
     generator: str
     n: int
     #: ``None`` when the examples did not come from a seeded generator — an
-    #: honest gap in the manifest is better than a number nothing reproduces
+    #: honest gap is better than a number nothing reproduces
     #: (:func:`serialize_examples`).
     seed: int | None
     target_variables: tuple[str, ...]
     answer_variable: str | None
-    #: The task's declared string-match mode for the answer variable
-    #: (``exact`` / ``prefix``), recorded so a document author knows whether
-    #: the answer space needs ``match``'s ``first_token`` mode (§2.10).
+    #: The task's ``string_mode`` (``exact`` / ``prefix``, from its
+    #: ``ScoringSpec``), which the builder prints beside the digest —
+    #: a copy for humans of the ``string_mode`` column the rows carry, so a
+    #: document author knows whether the answer space needs ``match``'s
+    #: ``first_token`` mode (§2.10).
     match_mode: str | None
+    #: ``{split value: row count}`` — the table's split allocation, which the
+    #: builder prints so its report states the partition the rows declare.
+    split_counts: dict[str, int]
 
 
 def serialize_counterfactual_dataset(
@@ -113,10 +165,12 @@ def serialize_counterfactual_dataset(
     *,
     n: int,
     seed: int,
+    split: str | Sequence[str],
     task_cfg: Any = None,
     target_variables: Sequence[str] | None = None,
     generator: str = "generate_dataset",
     answer_variable: str | None = None,
+    record_scoring: bool = True,
 ) -> SerializedDataset:
     """One task's counterfactual dataset as serializable rows.
 
@@ -125,15 +179,23 @@ def serialize_counterfactual_dataset(
         n: Number of counterfactual pairs to generate.
         seed: Generator seed. The shipped generators snapshot and restore the
             global RNG, so the same (task, cfg, n, seed) yields the same rows.
+        split: The split each row declares — one value broadcast to the whole
+            table, or one per example. Required, with no default: an undivided
+            pool is a claim worth stating (``split="all"``), and a table that
+            forgot to say is exactly what the column exists to prevent.
         task_cfg: Config object for a factory task; ``None`` for a singleton.
         target_variables: The variables the interchange replaces. Defaults to
             the task's ``TARGET_VARIABLE``, which is what its own analyses use.
         generator: Which generator in the task's ``counterfactuals.py`` to
             call (e.g. ``generate_resample_dataset`` for a noise floor).
-        answer_variable: The variable whose ``output_tokens`` declaration
-            supplies the answer-form columns. Defaults to the sole variable
-            the causal model declares forms for; ``None`` and no declaration
-            means no ``_forms`` columns.
+        answer_variable: The variable whose declared forms supply the
+            answer-form columns. Defaults to the spec's ``answer_variable``;
+            a model declaring no scoring means no ``_forms`` columns.
+        record_scoring: Whether the rows carry the ``scoring_digest`` /
+            ``string_mode`` columns (the module docstring). ``True`` for every
+            new table; ``False`` reproduces a table built before the columns
+            existed, which is how a committed unrecorded table stays
+            byte-reproducible from its recipe.
 
     Raises:
         ValueError: on a task whose generator produces more than one
@@ -159,12 +221,14 @@ def serialize_counterfactual_dataset(
     return serialize_examples(
         model,
         examples,
+        split=split,
         target_variables=targets,
         answer_variable=answer_variable,
         task_label=task_name,
         generator=generator,
         n=n,
         seed=seed,
+        record_scoring=record_scoring,
     )
 
 
@@ -172,12 +236,14 @@ def serialize_examples(
     model: CausalModel,
     examples: Sequence[Mapping[str, Any]],
     *,
+    split: str | Sequence[str],
     target_variables: Sequence[str],
     answer_variable: str | None = None,
     task_label: str = "inline",
     generator: str = "inline",
     n: int | None = None,
     seed: int | None = None,
+    record_scoring: bool = True,
 ) -> SerializedDataset:
     """The same rows, from a causal model and an example list you already have.
 
@@ -195,15 +261,20 @@ def serialize_examples(
     Args:
         model: The causal model the examples were generated from.
         examples: Counterfactual examples — what a generator returns.
+        split: As in :func:`serialize_counterfactual_dataset` — a scalar
+            broadcast to every row, or one value per example (what a
+            group-disjoint builder passes, having decided the allocation
+            per row).
         target_variables: The variables the interchange replaces. Required
             here (there is no package to read a ``TARGET_VARIABLE`` from), and
             what the ``label`` column is computed against.
         answer_variable: As in :func:`serialize_counterfactual_dataset`.
         task_label: What the rows record as their task. Provenance only — no
             package of this name has to exist.
-        generator, n, seed: Recorded on the result for the manifest. Leave
+        generator, n, seed: Recorded on the result. Leave
             them alone when the examples did not come from a seeded generator;
             ``None`` is more honest than a number nothing can reproduce.
+        record_scoring: As in :func:`serialize_counterfactual_dataset`.
     """
     targets = list(target_variables)
     if not targets or targets == [None]:
@@ -211,66 +282,147 @@ def serialize_examples(
             "target_variables is required: it is what the `label` column — the "
             "answer after the interchange — is computed against"
         )
-    labeled = model.label_counterfactual_data(list(examples), targets)
+    from causalab.causal.causal_utils import rederive_trace
+
+    # A pair can originate from another hypothesis's model. Its cached
+    # intermediates must not become inputs to this model's intervention.
+    derived = [
+        {
+            **example,
+            "input": rederive_trace(model, example["input"]),
+            "counterfactual_inputs": [
+                rederive_trace(model, trace)
+                for trace in example["counterfactual_inputs"]
+            ],
+        }
+        for example in examples
+    ]
+    labeled = model.label_counterfactual_data(derived, targets)
+    splits = _row_splits(split, len(labeled))
     resolved_answer = _answer_variable(model, answer_variable)
     forms_of = _forms_lookup(model, answer_variable)
+    spec = model.scoring
+    identity = (
+        (spec.digest, spec.string_mode) if record_scoring and spec is not None else None
+    )
+    rows = [
+        _row(example, forms_of, task_label, row_split, identity)
+        for example, row_split in zip(labeled, splits)
+    ]
+    # Preserve authored identities so exported hypothesis artifacts can be
+    # joined after sharding or reordering.  Validate the row identity at the
+    # serialization boundary rather than silently inventing an ordinal join.
+    if any(EXAMPLE_ID_COLUMN in example for example in labeled):
+        for row, example in zip(rows, labeled):
+            if EXAMPLE_ID_COLUMN not in example:
+                raise ValueError(
+                    f"{EXAMPLE_ID_COLUMN} must be present on every example when authored"
+                )
+            row[EXAMPLE_ID_COLUMN] = example[EXAMPLE_ID_COLUMN]
+        defect = example_id_defect(rows)
+        if defect:
+            raise ValueError(f"invalid authored example IDs: {defect}")
+    for key in ("pair_id", "family", "base_id", "donor_id"):
+        if any(key in example for example in labeled):
+            for row, example in zip(rows, labeled):
+                value = example.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(f"{key} must be nonempty on every example")
+                row[key] = value
+    counts: dict[str, int] = {}
+    for value in splits:
+        counts[value] = counts.get(value, 0) + 1
     return SerializedDataset(
-        rows=[_row(example, forms_of, task_label) for example in labeled],
+        rows=rows,
         task=task_label,
         generator=generator,
         n=len(labeled) if n is None else n,
         seed=seed,
         target_variables=tuple(targets),
         answer_variable=resolved_answer,
-        match_mode=(model.match_modes or {}).get(resolved_answer or "", None),
+        match_mode=spec.string_mode if spec is not None else None,
+        split_counts=dict(sorted(counts.items())),
     )
 
 
+def _row_splits(split: str | Sequence[str], n_rows: int) -> list[str]:
+    """One split value per row: a scalar broadcasts, a sequence must match.
+
+    A length mismatch is refused rather than zipped short — silently dropping
+    the tail would write a table whose rows are correct and whose partition is
+    a lie, which is the failure the column exists to make impossible.
+    """
+    if isinstance(split, str):
+        if not split:
+            raise ValueError("split must be a non-empty string")
+        return [split] * n_rows
+    values = [str(value) for value in split]
+    if len(values) != n_rows:
+        raise ValueError(
+            f"split has {len(values)} values for {n_rows} rows — pass one value "
+            "per example, or a single string to broadcast"
+        )
+    if any(not value for value in values):
+        raise ValueError("every split value must be a non-empty string")
+    return values
+
+
 def _answer_variable(model: CausalModel, answer_variable: str | None) -> str | None:
-    """The variable whose ``output_tokens`` declaration supplies answer forms:
-    the caller's choice, or the sole declared one."""
+    """The variable whose declared forms supply the answer-form columns: the
+    caller's choice, or the spec's own ``answer_variable``."""
     if answer_variable is not None:
         return answer_variable
-    declared = model.output_tokens or {}
-    return next(iter(declared)) if len(declared) == 1 else None
+    return model.scoring.answer_variable if model.scoring is not None else None
 
 
 def _forms_lookup(model: CausalModel, answer_variable: str | None):
     """``(setting) -> forms | None`` for the answer-form columns.
 
-    The forms come from the causal model's ``output_tokens`` — the task's own
+    The forms come from the causal model's ``ScoringSpec`` — the task's own
     declaration of which surface strings count as one answer (§2.10). Keyed
     by the *answer variable's* value, not by the answer string, because that
     is how the declaration is keyed (``result`` → ``[" Friday", "Friday"]``).
+    The same spec the string grader reads, so the two cannot disagree on
+    which forms an example's answer has.
     """
-    declared: Mapping[str, Mapping[Any, list[str]]] = model.output_tokens or {}
-    variable = answer_variable
-    if variable is None:
-        if len(declared) != 1:
-            return lambda setting: None
-        variable = next(iter(declared))
-    if variable not in declared:
+    spec = model.scoring
+    if spec is None:
+        if answer_variable is not None:
+            raise ValueError(
+                f"the causal model declares no scoring, so there are no forms "
+                f"for {answer_variable!r} to serialize"
+            )
+        return lambda setting: None
+    variable = spec.answer_variable if answer_variable is None else answer_variable
+    if variable not in spec.forms:
         raise ValueError(
-            f"the causal model declares no output_tokens for {variable!r} "
-            f"(declared: {sorted(declared)}) — no answer forms to serialize"
+            f"the causal model declares no scoring forms for {variable!r} "
+            f"(declared: {sorted(spec.forms)}) — no answer forms to serialize"
         )
-    var_map = declared[variable]
 
     def forms(setting: Any) -> list[str]:
-        value = setting[variable]
-        key = tuple(value) if isinstance(value, list) else value
-        if key not in var_map:
+        # the spec's one resolution rule (`ScoringSpec.forms_of`): an
+        # undeclared value refuses here as it always did — the answer space
+        # and the declaration disagree, which would silently mis-score a
+        # match metric — unless the spec declares `undeclared_value: literal`
+        try:
+            return list(spec.forms_of(setting[variable], variable=variable))
+        except ScoringError as err:
             raise ValueError(
-                f"the causal model declares no output_tokens forms for "
-                f"{variable}={key!r} — the answer space and the declaration "
-                "disagree, which would silently mis-score a match metric"
-            )
-        return list(var_map[key])
+                f"the causal model declares no scoring forms for "
+                f"{variable}={setting[variable]!r}: {err}"
+            ) from err
 
     return forms
 
 
-def _row(example: Mapping[str, Any], forms_of, task_name: str) -> dict[str, Any]:
+def _row(
+    example: Mapping[str, Any],
+    forms_of,
+    task_name: str,
+    split: str,
+    scoring: tuple[str, str] | None,
+) -> dict[str, Any]:
     base = example["input"]
     counterfactuals = example["counterfactual_inputs"]
     if len(counterfactuals) != 1:
@@ -287,15 +439,43 @@ def _row(example: Mapping[str, Any], forms_of, task_name: str) -> dict[str, Any]
         "base_answer": base["raw_output"],
         "cf_answer": counterfactual["raw_output"],
         "label": example["label"],
+        SPLIT_COLUMN: split,
     }
     base_forms = forms_of(base)
     if base_forms is not None:
         row["base_answer_forms"] = base_forms
         row["cf_answer_forms"] = forms_of(counterfactual)
         row["label_forms"] = forms_of(setting)
+    if scoring is not None:
+        # the task's scoring identity, constant per table — inside the bytes
+        # the content digest covers, so a changed definition of correct is a
+        # different dataset (the module docstring)
+        row[SCORING_DIGEST_COLUMN], row[STRING_MODE_COLUMN] = scoring
+    if example.get(EDIT_GROUPS_COLUMN) is not None:
+        # only a declaring example writes the column (the module docstring):
+        # default-on would rebuild every shipped table's bytes
+        row[EDIT_GROUPS_COLUMN] = _edit_groups_column(example, row, task_name)
     row.update(_variable_columns(base, task_name))
     row["counterfactual_inputs_variables"] = [_variables(counterfactual)]
     return row
+
+
+def _edit_groups_column(
+    example: Mapping[str, Any], row: Mapping[str, Any], task_name: str
+) -> list[dict[str, Any]]:
+    """The example's ``edit_groups`` declaration in the column's shape, its
+    spans checked against the two prompts the row carries — a build fails loud
+    on a malformed declaration rather than writing a table ``validate --data``
+    refuses."""
+    try:
+        groups = parse_edit_groups(
+            {**row, EDIT_GROUPS_COLUMN: example[EDIT_GROUPS_COLUMN]}
+        )
+    except EditGroupError as err:
+        raise ValueError(
+            f"task {task_name!r} declares malformed {EDIT_GROUPS_COLUMN}: {err}"
+        ) from err
+    return [group.as_row_value() for group in groups]
 
 
 def _variables(trace: Any) -> dict[str, str]:
@@ -321,66 +501,14 @@ def _variable_columns(trace: Any, task_name: str) -> dict[str, str]:
     return columns
 
 
-def table_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
-    """The exact bytes a table serializes to: sorted keys, fixed indent,
-    trailing newline. Deterministic on purpose — the content digest stamped
-    into a canonical form (§7) has to be reproducible from the manifest's
-    build parameters, on any machine."""
-    return (json.dumps(list(rows), indent=1, sort_keys=True) + "\n").encode()
-
-
-def write_dataset_table(
-    rows: Sequence[Mapping[str, Any]],
-    path: Path,
-    *,
-    manifest: Mapping[str, Any] | None = None,
-) -> str:
-    """Write a table (and its manifest sidecar) and return its content digest
-    — the sha256 of exactly the bytes
-    :class:`~causalab.protocol.resolve.FileDatasets` will read back."""
+def write_dataset_table(rows: Sequence[Mapping[str, Any]], path: Path) -> str:
+    """Write a table and return its content digest — the sha256 of exactly
+    the bytes :class:`~causalab.protocol.resolve.FileDatasets` will read
+    back. Nothing is written beside it (the module docstring)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     data = table_bytes(rows)
     path.write_bytes(data)
-    digest = hashlib.sha256(data).hexdigest()
-    if manifest is not None:
-        sidecar = path.with_name(f"{path.stem}.manifest.json")
-        sidecar.write_text(
-            json.dumps({**manifest, "digest": digest}, indent=1, sort_keys=True) + "\n"
-        )
-    return digest
-
-
-def build_manifest(
-    dataset: SerializedDataset,
-    *,
-    task_cfg: Mapping[str, Any] | None = None,
-    commit: str | None = None,
-) -> dict[str, Any]:
-    """The provenance sidecar's content: how to rebuild this table.
-
-    ``task_cfg`` is the caller's own JSON view of the config (the CLI's
-    ``--set`` values), not an introspection of the resolved config object —
-    those carry callables and derived value lists, and the reproducible input
-    is what was *asked for*.
-    """
-    manifest: dict[str, Any] = {
-        "built_by": "causalab.tasks.serialize",
-        "task": dataset.task,
-        "task_cfg": dict(task_cfg or {}),
-        "generator": dataset.generator,
-        "n": dataset.n,
-        "seed": dataset.seed,
-        "target_variables": list(dataset.target_variables),
-        "n_rows": len(dataset.rows),
-        "columns": sorted({key for row in dataset.rows for key in row}),
-    }
-    if dataset.answer_variable is not None:
-        manifest["answer_variable"] = dataset.answer_variable
-    if dataset.match_mode is not None:
-        manifest["declared_match_mode"] = dataset.match_mode
-    if commit is not None:
-        manifest["causalab_commit"] = commit
-    return manifest
+    return hashlib.sha256(data).hexdigest()
 
 
 def config_class(task_name: str) -> type | None:

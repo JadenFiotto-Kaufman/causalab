@@ -18,8 +18,8 @@ from tests.step_scripts import put_table, run_step
 
 pytestmark = pytest.mark.numerical_unit
 
-A = [{"example": i, "value": v} for i, v in enumerate([1.0, 2.0, 3.0, 4.0])]
-B = [{"example": i, "value": v} for i, v in enumerate([0.5, 1.0, 2.5, 3.0])]
+A = [{"example_id": str(i), "value": v} for i, v in enumerate([1.0, 2.0, 3.0, 4.0])]
+B = [{"example_id": str(i), "value": v} for i, v in enumerate([0.5, 1.0, 2.5, 3.0])]
 
 
 def _ttest(tmp_path: Path, a=A, b=B, tag: str = "a") -> dict:
@@ -41,7 +41,11 @@ def test_statistics_match_the_oracle(tmp_path):
         "mean_difference",
         "t_statistic",
         "p_value",
+        "unit",
+        "comparison",
     ]
+    # two tables that declare nothing compare as two arms, in no stated unit
+    assert row["unit"] is None and row["comparison"] == "arm"
     assert row["n_pairs"] == 4 and row["df"] == 3
     assert row["mean_difference"] == pytest.approx(0.75)
     assert row["t_statistic"] == pytest.approx(5.196152, abs=1e-6)
@@ -66,7 +70,7 @@ def test_rows_are_averaged_within_a_pair_before_the_test(tmp_path):
 
 
 def test_only_shared_pairs_are_compared(tmp_path):
-    partial = [{"example": 0, "value": 0.5}, {"example": 1, "value": 1.0}]
+    partial = [{"example_id": "0", "value": 0.5}, {"example_id": "1", "value": 1.0}]
     assert _ttest(tmp_path, b=partial, tag="partial")["n_pairs"] == 2
 
 
@@ -74,7 +78,7 @@ def test_a_constant_difference_is_reported_rather_than_fudged(tmp_path):
     """Zero spread makes the statistic degenerate; inf/0.0 is honest, an
     epsilon in the denominator would not be. Note the JSON round-trip: a
     non-finite float is written as null, so the sign is what survives."""
-    shifted = [{"example": r["example"], "value": r["value"] + 1.0} for r in A]
+    shifted = [{"example_id": r["example_id"], "value": r["value"] + 1.0} for r in A]
     row = _ttest(tmp_path, a=shifted, b=A, tag="const")
     assert row["t_statistic"] is None  # inf is not JSON; null is the honest cell
     assert row["p_value"] == 0.0
@@ -82,5 +86,5 @@ def test_a_constant_difference_is_reported_rather_than_fudged(tmp_path):
 
 def test_too_few_shared_pairs_is_refused(tmp_path):
     with pytest.raises(StepError) as err:
-        _ttest(tmp_path, b=[{"example": 0, "value": 0.5}], tag="lonely")
+        _ttest(tmp_path, b=[{"example_id": "0", "value": 0.5}], tag="lonely")
     assert "at least 2" in str(err.value)

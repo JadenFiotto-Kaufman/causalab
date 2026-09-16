@@ -42,7 +42,7 @@ def test_validate_data_checks_columns(capsys, artifacts_root):
 def test_validate_data_catches_missing_column(env):
     loaded = load(CORPUS_DIR / "02_interchange_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
-    raw["metrics"]["logit_diff"]["a"] = "not_a_column"
+    raw["method"]["metrics"]["logit_diff"]["a"] = "not_a_column"
     reloaded = load(raw, env)
     with pytest.raises(Exception) as err:
         check_data_columns(reloaded, env)
@@ -78,7 +78,7 @@ def test_set_override_changes_digest(capsys, env, artifacts_root):
                 "02_interchange_im.json",
                 artifacts_root,
                 "--set",
-                "sites.target.layer=5",
+                "sites.target.layers=5",
             )
         )
         == 0
@@ -96,7 +96,7 @@ def test_refusal_exits_nonzero(capsys, artifacts_root):
             "02_interchange_im.json",
             artifacts_root,
             "--set",
-            "sites.target.layer=99",
+            "sites.target.layers=99",
         )
     )
     assert code == 1
@@ -122,8 +122,16 @@ class _CapturingEngine(Engine):
     writable_components = frozenset(COMPONENTS)
     is_local = True
 
-    def __init__(self, *, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        *,
+        device: str = "cpu",
+        batch_rows: int | None = None,
+        cuda_graphs: bool = False,
+    ) -> None:
         self.device = device
+        self.batch_rows = batch_rows
+        self.cuda_graphs = cuda_graphs
         self.request = None
         type(self).last = self
 
@@ -175,6 +183,136 @@ def test_device_goes_to_the_engine_and_dtype_goes_to_the_document(
     assert not hasattr(capturing_engine.last, "dtype")
     request = capturing_engine.last.request
     assert request.canonical[0]["model"]["dtype"] == "bf16"
+
+
+def test_batch_rows_goes_to_the_engine_and_the_receipt_not_the_document(
+    capturing_engine, artifacts_root, tmp_path, capsys
+):
+    """§8: the microbatch bound is execution, like placement — it reaches the
+    engine's constructor and leaves the canonical document, so the digest is
+    the unbounded run's. The receipt is its one recorder: ``execution``
+    holds the bound the chosen engine reports, and nothing else does."""
+    code = main(
+        _run_argv(
+            "02_interchange_im.json", artifacts_root, tmp_path, "--batch-rows", "4"
+        )
+    )
+    assert code == 0
+    assert capturing_engine.last.batch_rows == 4
+    record = json.loads((tmp_path / "protocol.json").read_text())
+    assert record["execution"] == {
+        "batch_rows": 4,
+        "fit_rows": None,
+        "model_source": "loaded",
+    }
+    assert "batch_rows" not in json.dumps(record["canonical"])
+    assert "batch_rows" not in json.dumps(record["points"])
+    capsys.readouterr()
+    assert main(_argv("digest", "02_interchange_im.json", artifacts_root)) == 0
+    assert capsys.readouterr().out.strip() == record["document_digest"]
+
+
+def test_batch_rows_defaults_to_one_forward_per_group(
+    capturing_engine, artifacts_root, tmp_path
+):
+    """No flag: the engine runs whole, and the receipt says so — ``null``,
+    the same key, so a reader of two receipts compares one field."""
+    assert main(_run_argv("02_interchange_im.json", artifacts_root, tmp_path)) == 0
+    assert capturing_engine.last.batch_rows is None
+    record = json.loads((tmp_path / "protocol.json").read_text())
+    assert record["execution"] == {
+        "batch_rows": None,
+        "fit_rows": None,
+        "model_source": "loaded",
+    }
+
+
+def test_model_source_is_read_off_the_engine_into_the_receipt_only(
+    capturing_engine, artifacts_root, tmp_path, monkeypatch
+):
+    """§8/§9: where the model came from is execution provenance like the row
+    bound — the one recorder is the receipt's ``execution`` block, read off
+    the engine (``loaded`` when it declares nothing), and it enters no
+    canonical form and no point digest. The CLI has no bundle flag, so the
+    caller value is exercised through the engine's own report here."""
+    monkeypatch.setattr(capturing_engine, "model_source", "caller", raising=False)
+    assert main(_run_argv("02_interchange_im.json", artifacts_root, tmp_path)) == 0
+    record = json.loads((tmp_path / "protocol.json").read_text())
+    assert record["execution"] == {
+        "batch_rows": None,
+        "fit_rows": None,
+        "model_source": "caller",
+    }
+    assert "model_source" not in json.dumps(record["canonical"])
+    assert "model_source" not in json.dumps(record["points"])
+
+
+@pytest.mark.parametrize("bad", ("0", "-2", "many"))
+def test_batch_rows_refuses_a_non_positive_count(
+    capturing_engine, artifacts_root, tmp_path, bad: str
+):
+    """argparse's own refusal (exit 2) — a bound of zero rows would run
+    nothing, and a negative one means nothing."""
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            _run_argv(
+                "02_interchange_im.json", artifacts_root, tmp_path, "--batch-rows", bad
+            )
+        )
+    assert exit_info.value.code == 2
+    assert capturing_engine.last is None
+
+
+def test_batch_rows_refuses_an_explicit_nnsight_pin(
+    capturing_engine, artifacts_root, tmp_path, capsys
+):
+    """Fail closed: pinning the engine that has no bound while asking for one
+    is refused at parse (exit 2, both flags named) instead of running whole
+    and recording ``null`` — nothing would have honoured the bound."""
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            _run_argv(
+                "01_harvest_im.json",
+                artifacts_root,
+                tmp_path,
+                "--engine",
+                "nnsight",
+                "--batch-rows",
+                "3",
+            )
+        )
+    assert exit_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "--engine nnsight" in err and "--batch-rows" in err
+    assert capturing_engine.last is None
+
+
+@pytest.mark.parametrize("engine", ("pytorch_hooks", "auto"))
+def test_batch_rows_runs_under_the_reference_engine_and_auto(
+    capturing_engine, artifacts_root, tmp_path, engine: str
+):
+    """The refusal above fires on the explicit nnsight pin only: the bound
+    with the reference engine pinned, or under ``auto``, runs as before and
+    reaches the engine and the receipt."""
+    code = main(
+        _run_argv(
+            "02_interchange_im.json",
+            artifacts_root,
+            tmp_path,
+            "--engine",
+            engine,
+            "--batch-rows",
+            "3",
+        )
+    )
+    assert code == 0
+    assert capturing_engine.last.batch_rows == 3
+    record = json.loads((tmp_path / "protocol.json").read_text())
+    assert record["execution"] == {
+        "batch_rows": 3,
+        "fit_rows": None,
+        "model_source": "loaded",
+    }
 
 
 def test_engine_auto_tolerates_a_missing_optional_engine(
@@ -423,7 +561,7 @@ def test_validate_data_flags_a_missing_position_column(env):
     it mid-run (§2.3)."""
     loaded = load(CORPUS_DIR / "10_task_table_iia_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
-    raw["positions"]["subject"] = {"column": "not_a_column"}
+    raw["method"]["positions"]["subject"] = {"column": "not_a_column"}
     with pytest.raises(Exception) as err:
         check_data_columns(load(raw, env), env)
     assert "not_a_column" in str(err.value)
@@ -450,7 +588,9 @@ def test_validate_data_flags_a_missing_position_variable(env):
     loaded = load(CORPUS_DIR / "07_weekdays_locate_scan_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
     # the axis exactly as it shipped, bad coordinate second
-    raw["positions"]["tap"] = {"sweep": [{"index": -1}, {"variable": "subject"}]}
+    raw["method"]["positions"]["tap"] = {
+        "sweep": [{"index": -1}, {"variable": "subject"}]
+    }
     with pytest.raises(Exception) as err:
         check_data_columns(load(raw, env), env)
     assert "subject" in str(err.value)
@@ -464,7 +604,9 @@ def test_validate_data_checks_every_point_not_just_the_first(env):
     a dataset field — was unchecked at every other coordinate."""
     loaded = load(CORPUS_DIR / "07_weekdays_locate_scan_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
-    raw["metrics"]["iia"]["expected"] = {"sweep": ["cf_answer", "not_a_column"]}
+    raw["method"]["metrics"]["iia"]["expected"] = {
+        "sweep": ["cf_answer", "not_a_column"]
+    }
     with pytest.raises(Exception) as err:
         check_data_columns(load(raw, env), env)
     assert "not_a_column" in str(err.value)
@@ -481,13 +623,47 @@ def test_validate_data_accepts_a_variable_only_the_sibling_names(env):
     assert "entity" in refs
 
 
+def test_validate_data_reads_a_drawn_roles_sibling_at_its_eval_member(env, monkeypatch):
+    """§2.2 ``draw``: the loader's prompt-variable check asks the role for the
+    field the forward reads — `counterfactual_inputs[0]`, not the bare column
+    — so the per-member `_variables` sibling is read as the engine reads it.
+    Before the change the bare field skipped the sibling and a variable that
+    lived only there was a false rule-4 refusal. The shipped fixture cannot
+    exhibit that refusal (its `entity` is also a top-level column), so the
+    test records the field the check is handed rather than asserting a
+    refusal; `"entity" in refs` holds either way."""
+    from causalab.protocol import loader as loader_module
+
+    loaded = load(CORPUS_DIR / "07_weekdays_locate_scan_im.json", env)
+    raw = json.loads(json.dumps(dict(loaded.raw)))
+    raw["data"]["counterfactual"] = {
+        **raw["data"]["counterfactual"],
+        "field": "counterfactual_inputs",
+        "draw": {"kind": "uniform"},
+    }
+    asked: list[str] = []
+    real = loader_module._role_variables
+
+    def recording(rows, field):
+        asked.append(field)
+        return real(rows, field)
+
+    monkeypatch.setattr(loader_module, "_role_variables", recording)
+    refs = check_data_columns(load(raw, env), env)
+    assert "counterfactual_inputs[0]" in asked and "counterfactual_inputs" not in asked
+    assert "entity" in refs
+
+
 def test_validate_data_flags_a_missing_scope_variable(env):
     """``scope``/``relative_to`` spelled as a variable is the same reference,
     and the ROME-shaped ``{"index": -1, "scope": {"variable": …}}`` idiom is
     where it is actually written."""
     loaded = load(CORPUS_DIR / "07_weekdays_locate_scan_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
-    raw["positions"]["tap"] = {"index": -1, "scope": {"variable": "not_a_variable"}}
+    raw["method"]["positions"]["tap"] = {
+        "index": -1,
+        "scope": {"variable": "not_a_variable"},
+    }
     with pytest.raises(Exception) as err:
         check_data_columns(load(raw, env), env)
     assert "not_a_variable" in str(err.value)
@@ -496,7 +672,7 @@ def test_validate_data_flags_a_missing_scope_variable(env):
 def test_validate_data_flags_a_missing_relative_to_column(env):
     loaded = load(CORPUS_DIR / "10_task_table_iia_im.json", env)
     raw = json.loads(json.dumps(dict(loaded.raw)))
-    raw["positions"]["subject"] = {
+    raw["method"]["positions"]["subject"] = {
         "index": 1,
         "relative_to": {"column": "not_a_column"},
     }
@@ -516,13 +692,12 @@ def test_explain_reports_the_decode_and_what_it_obliges(capsys, artifacts_root):
 
 
 # --------------------------------------------------------------------------- #
-# methods, applications, and the run record (§1.1, §9)
+# the run receipt (§9)
 # --------------------------------------------------------------------------- #
 
 
 REPO = Path(__file__).resolve().parents[2]
-SHIPPED_METHOD = REPO / "causalab/configs/methods/interchange.json"
-SHIPPED_RUN = REPO / "causalab/configs/runs/weekdays_8b_interchange.json"
+SHIPPED_RUN = REPO / "causalab/configs/protocols/weekdays_8b_interchange.json"
 
 
 def _file_argv(verb: str, path, artifacts_root, *extra: str) -> list[str]:
@@ -601,7 +776,7 @@ def test_a_pure_verb_refuses_an_unregistered_model_without_the_flag(
 def test_register_from_hf_lets_a_pure_verb_pre_flight_an_unregistered_model(
     verb, unregistered_document, artifacts_root, capsys, monkeypatch
 ):
-    """The gap all three A3B protocol runs hand-rolled a wrapper around.
+    """The gap every run on an unregistered model hand-rolled a wrapper around.
 
     The documented workaround — validate against a *similar* registered model —
     produces a **false** refusal: `[V4] layer 36 out of range for the 36-layer
@@ -662,40 +837,20 @@ def test_register_from_hf_pre_registers_every_inner_model_of_a_workflow(
     assert key in seen
 
 
-def test_validate_and_digest_work_on_a_method(capsys, artifacts_root):
-    assert main(_file_argv("validate", SHIPPED_METHOD, artifacts_root)) == 0
-    assert "method" in capsys.readouterr().out
-    assert main(_file_argv("digest", SHIPPED_METHOD, artifacts_root)) == 0
-    assert len(capsys.readouterr().out.strip()) == 64
-
-
-def test_explain_on_a_method_prints_what_must_be_bound(capsys, artifacts_root):
-    assert main(_file_argv("explain", SHIPPED_METHOD, artifacts_root)) == 0
-    out = capsys.readouterr().out
-    assert "binds" in out
-    assert "sites.target: layer" in out
-    assert "model: key, revision, dtype" in out
-
-
-def test_a_method_cannot_be_run(capsys, artifacts_root, tmp_path):
-    code = main(
-        _file_argv("run", SHIPPED_METHOD, artifacts_root, "--out", str(tmp_path))
-    )
-    assert code == 1
-    assert "method file" in capsys.readouterr().err
-
-
-def test_explain_on_a_split_document_names_its_method(capsys, artifacts_root):
+def test_explain_prints_one_digest(capsys, artifacts_root):
+    """`explain` prints the document digest and no second one (§7): the method
+    digest is gone, so the only `digest` line is the campaign's."""
     assert main(_file_argv("explain", SHIPPED_RUN, artifacts_root)) == 0
     out = capsys.readouterr().out
-    assert "method    " in out
-    assert "(inline)" in out  # one file is one run
+    digest_lines = [line for line in out.splitlines() if line.startswith("digest")]
+    assert len(digest_lines) == 1 and len(digest_lines[0].split()[1]) == 64
+    assert not any(line.startswith("method") for line in out.splitlines())
     assert "bf16" in out
 
 
 def test_run_writes_the_protocol_record(capturing_engine, artifacts_root, tmp_path):
-    """The record a reproducer reads first: what ran, at what precision, from
-    which method, with the provenance digest of every point."""
+    """The record a reproducer reads first: what ran, at what precision, with
+    the provenance digest of every point."""
     assert (
         main(_file_argv("run", SHIPPED_RUN, artifacts_root, "--out", str(tmp_path)))
         == 0
@@ -706,7 +861,125 @@ def test_run_writes_the_protocol_record(capturing_engine, artifacts_root, tmp_pa
         "revision": "main",
         "dtype": "bf16",
     }
-    assert record["method"]["ref"] is None  # inlined in the run document
-    assert len(record["method"]["digest"]) == 64
+    assert "method" not in record  # no method digest (§7)
+    assert "title" not in record["canonical"]["header"]  # authoring metadata (§7)
     assert [point["index"] for point in record["points"]] == [0]
     assert record["points"][0]["digest"] == record["document_digest"]
+
+
+# --------------------------------------------------------------------------- #
+# dry-run: the verb beside the other pure verbs (the suite is test_dry_run.py)
+# --------------------------------------------------------------------------- #
+
+
+def test_dry_run_reports_and_ends_with_the_undecided_line(capsys, artifacts_root):
+    """`dry-run` is a pure verb: exit 0 on a valid document, the plan's
+    counts printed, and the last line is always the `undecided` list. On the
+    base the verb does not exist (argparse exit 2)."""
+    code = main(_argv("dry-run", "02_interchange_im.json", artifacts_root))
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "points    1" in out and "forwards  2 per point, 2 interned" in out
+    assert (
+        out.strip()
+        .splitlines()[-1]
+        .startswith("undecided (decided when the run encodes its inputs): ")
+    )
+
+
+def test_dry_run_refuses_with_the_reason_code(capsys, artifacts_root):
+    """An unavailable site: `validate`'s `refused:` line plus the record with
+    the reason code, exit 1."""
+    code = main(
+        _argv(
+            "dry-run",
+            "02_interchange_im.json",
+            artifacts_root,
+            "--set",
+            "sites.target.component=routed_output",
+        )
+    )
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "refused: [V4]" in err and "reason component_unavailable" in err
+
+
+def test_dry_run_without_the_flag_loads_no_engine(artifacts_root, capsys):
+    """Opt-in like `explain --engine`: no `capturing_engine` fixture here — a
+    load would import the real engine."""
+    assert main(_argv("dry-run", "02_interchange_im.json", artifacts_root)) == 0
+    out = capsys.readouterr().out
+    assert "engine    " not in out and "engines:" in out  # left undecided, named
+
+
+def test_dry_run_engine_reports_the_shortfall_rather_than_raising(
+    capturing_engine, artifacts_root, capsys, monkeypatch
+):
+    """The seam `explain --engine` left for the dry run: the refusal is a
+    `capability_shortfall` per candidate, printed beside the report; a pinned
+    engine's shortfall is exit 1."""
+    monkeypatch.setattr(capturing_engine, "capabilities", frozenset())
+    code = main(
+        _argv(
+            "dry-run",
+            "02_interchange_im.json",
+            artifacts_root,
+            "--engine",
+            "pytorch_hooks",
+        )
+    )
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "engine    capture: capability_shortfall" in captured.out
+    assert "paired_forward" in captured.out
+    assert "refused: [V13]" in captured.err
+
+
+def test_dry_run_engine_that_serves_is_exit_0(capturing_engine, artifacts_root, capsys):
+    code = main(
+        _argv("dry-run", "02_interchange_im.json", artifacts_root, "--engine", "auto")
+    )
+    assert code == 0
+    assert "engine    capture: serves" in capsys.readouterr().out
+
+
+def test_dry_run_refuses_register_from_hf(capsys, artifacts_root):
+    """The flag is not inherited: a dry run never fetches a config."""
+    code = main(
+        _argv(
+            "dry-run",
+            "02_interchange_im.json",
+            artifacts_root,
+            "--set",
+            "model.key=nobody/no-such-model",
+            "--register-from-hf",
+        )
+    )
+    assert code == 1
+    assert "refused: [P4] --register-from-hf" in capsys.readouterr().err
+
+
+def test_cuda_graph_option_reaches_engine_without_changing_document(
+    capturing_engine, artifacts_root, tmp_path
+):
+    assert (
+        main(_run_argv("02_interchange_im.json", artifacts_root, tmp_path / "eager"))
+        == 0
+    )
+    canonical = capturing_engine.last.request.canonical
+    assert not capturing_engine.last.cuda_graphs
+    assert (
+        main(
+            _run_argv(
+                "02_interchange_im.json",
+                artifacts_root,
+                tmp_path / "graph",
+                "--device",
+                "cuda",
+                "--cuda-graphs",
+            )
+        )
+        == 0
+    )
+    assert capturing_engine.last.cuda_graphs
+    assert capturing_engine.last.request.canonical == canonical

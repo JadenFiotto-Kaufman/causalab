@@ -16,9 +16,10 @@ conversion from the declared axes.
 
 That is the change from the five-string ``Layout`` vocabulary this replaces
 (``"bsd"``, ``"flat_td"``, ``"bds"``, ``"bs"``, ``"native"``). Those five are
-still the five shapes round 1 needed, and they survive as constructor names in
+still the five shapes the module-boundary vocabulary needs, and they survive as
+constructor names in
 :mod:`causalab.protocol.shapes`; what does not survive is an ``if layout == …``
-chain that a sixth shape had to be added to. Round 2's attention interior brings
+chain that a sixth shape had to be added to. The attention interior brings
 four more — a kept head axis, a head axis in front of the position axis, a fused
 ``[q | gate]`` projection — and each is a different axis tuple, not a new branch.
 

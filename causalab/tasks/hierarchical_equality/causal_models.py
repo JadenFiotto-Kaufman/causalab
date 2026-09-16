@@ -7,6 +7,7 @@ DAG: (var_1, var_2) → left_equality
 """
 
 from causalab.causal.causal_model import CausalModel
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 from .config import LETTERS, TASK_NAME
@@ -56,10 +57,13 @@ mechanisms = {
 }
 
 # All three equality variables have boolean values, but the model emits the
-# digit "1" (True) or "0" (False). Declare those surface forms once, per value
-# (#296): the probability path reads them, and the derived checker uses
-# ``prefix`` — ``raw_output`` is the bare digit, so the literal-fallback match
-# starts-with it, exactly as the former checker.py's ``startswith`` did.
+# digit "1" (True) or "0" (False). Declare those surface forms once, per value,
+# in the task's one ``ScoringSpec``: the probability path reads
+# them, and the grader uses ``string_mode="prefix"`` — ``raw_output`` is the
+# bare digit possibly followed by text, so a generation that starts with it is
+# correct, exactly as the former checker.py's ``startswith`` was. The graded
+# string is ``result_equality``'s digit (``answer_variable``); the other two
+# variables declare the same forms for the probability path.
 _EQUALITY_VARS = ("left_equality", "right_equality", "result_equality")
 _EQUALITY_FORMS: dict[object, list[str]] = {True: [" 1", "1"], False: [" 0", "0"]}
 
@@ -67,8 +71,11 @@ CAUSAL_MODEL = CausalModel(
     mechanisms,
     values,
     id=TASK_NAME,
-    output_tokens={v: dict(_EQUALITY_FORMS) for v in _EQUALITY_VARS},
-    match_modes={v: "prefix" for v in _EQUALITY_VARS},
+    scoring=ScoringSpec(
+        forms={v: dict(_EQUALITY_FORMS) for v in _EQUALITY_VARS},
+        answer_variable="result_equality",
+        string_mode="prefix",
+    ),
 )
 
 

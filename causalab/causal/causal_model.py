@@ -3,10 +3,11 @@
 import logging
 import random
 import warnings
-from typing import Any, Callable
+from typing import Any
 import copy
 
 from causalab.causal.counterfactual_dataset import CounterfactualExample
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism
 
 logger = logging.getLogger(__name__)
@@ -31,111 +32,6 @@ def build_output_tokens(values: list, prefix: str = " ") -> dict[Any, list[str]]
                 forms.append(cand)
         out[v] = forms
     return out
-
-
-# Canonical set of allowed per-variable string-match modes. Single source of
-# truth: ``_validate_match_modes`` (here) and ``derive_checker`` (the documented
-# string-match authority in ``methods/output_tokens.py``) both consume this, so a
-# future mode (e.g. ``"contains"``) is added once and cannot drift between the two
-# (#296). It lives in this lower layer because ``methods`` may import from
-# ``causal`` — never the reverse.
-MATCH_MODES = ("exact", "prefix")
-
-
-def _validate_output_tokens(output_tokens: dict[str, dict[Any, list[str]]]) -> None:
-    """Fail loud on a malformed ``output_tokens`` map.
-
-    Guards against the silently-wrong-shape footgun salvaged from #258: a
-    malformed map used to score against the wrong tokens with no error. The
-    declaration is the single source of truth for matching, so a malformed map
-    must raise at construction, not surface as a mis-score deep in scoring.
-    """
-    if not isinstance(output_tokens, dict):
-        raise TypeError(
-            f"output_tokens must be a dict keyed by variable "
-            f"(e.g. {{'weekday': {{'Monday': [' Monday', 'Monday']}}}}), "
-            f"got {type(output_tokens).__name__}."
-        )
-    for var, var_map in output_tokens.items():
-        if not isinstance(var_map, dict):
-            raise TypeError(
-                f"output_tokens[{var!r}] must be a {{value: [forms]}} dict, "
-                f"got {type(var_map).__name__}."
-            )
-        for value, forms in var_map.items():
-            if not isinstance(forms, list) or not all(
-                isinstance(f, str) for f in forms
-            ):
-                raise TypeError(
-                    f"output_tokens[{var!r}][{value!r}] must be a list[str] of "
-                    f"surface forms, got {forms!r}."
-                )
-            if not forms:
-                raise ValueError(
-                    f"output_tokens[{var!r}][{value!r}] declares no forms; "
-                    f"every value needs at least one surface form."
-                )
-            if not all(f.strip() for f in forms):
-                raise ValueError(
-                    f"output_tokens[{var!r}][{value!r}] has an empty/whitespace-only "
-                    f"form {forms!r}; a blank form matches nothing (exact) and "
-                    f"tokenizes to no ids."
-                )
-
-
-def _validate_match_modes(match_modes: dict[str, str]) -> None:
-    """Fail loud on an unknown per-variable match mode."""
-    for var, mode in match_modes.items():
-        if mode not in MATCH_MODES:
-            raise ValueError(
-                f"match_modes[{var!r}] must be one of {MATCH_MODES}, got {mode!r}."
-            )
-
-
-def derive_checker(
-    var_map: dict[Any, list[str]], match_mode: str = "exact"
-) -> Callable[[dict, str], bool]:
-    """Build the string checker from a variable's declared forms.
-
-    Returns ``checker(neural_output, causal_output) -> bool`` (the task-checker
-    signature, #167): the generated string matches iff it equals (``exact``) or
-    starts with (``prefix``) any declared form of the expected value. Forms are
-    compared stripped — leading-space forms exist for BPE tokenization, not for
-    string matching — so the mechanical ``[" v", v]`` map collapses to the value
-    while task-declared synonyms stay distinct alternatives.
-
-    ``causal_output`` is the expected value's string. When it names a declared
-    value, that value's forms are used; otherwise it is matched literally (the
-    strip-tolerant fallback that keeps the checker sound when an output token
-    differs from ``str(value)`` — e.g. graph_walk's coordinate-tuple keys vs. a
-    concept-string answer, or MCQA's ``answer_position`` digits vs. a letter).
-
-    This is the "string match authority" (#167). It lives in ``causal/`` — the
-    base layer — so the lower ``tasks/`` loader can derive a checker from a
-    model's declaration without importing upward into ``methods/`` (#296 PR
-    review). The probability-path resolvers (``form_groups`` /
-    ``resolve_score_token_ids`` / ``form_group_labels``) stay in
-    :mod:`causalab.methods.output_tokens` since they need a tokenizer.
-    """
-    if match_mode not in MATCH_MODES:
-        raise ValueError(
-            f"match_mode must be one of {MATCH_MODES}, got {match_mode!r}."
-        )
-    by_str: dict[str, list[str]] = {
-        str(value).strip(): forms for value, forms in var_map.items()
-    }
-
-    def _checker(neural_output: dict, causal_output: str) -> bool:
-        actual = neural_output["string"].strip()
-        key = str(causal_output).strip()
-        forms = by_str.get(key)
-        targets = [f.strip() for f in forms] if forms is not None else [key]
-        targets = [t for t in targets if t]
-        if match_mode == "prefix":
-            return any(actual.startswith(t) for t in targets)
-        return any(actual == t for t in targets)
-
-    return _checker
 
 
 class CausalModel:
@@ -166,8 +62,7 @@ class CausalModel:
         id: str = "null",
         embeddings: dict[str, Any] | None = None,
         periods: dict[str, float] | None = None,
-        output_tokens: dict[str, dict[Any, list[str]]] | None = None,
-        match_modes: dict[str, str] | None = None,
+        scoring: ScoringSpec | None = None,
         input_filter: Any = None,
     ) -> None:
         """
@@ -187,23 +82,20 @@ class CausalModel:
             Per-variable coordinate embedding functions.
         periods : dict, optional
             Per-variable periods for cyclic variables (e.g. {"day": 7}).
-        output_tokens : dict, optional
-            The explicit per-value token forms for a variable:
-            ``{variable: {value: [surface form, ...]}}`` (e.g.
-            ``{"weekday": {"Monday": [" Monday", "Monday"]}}``). This is the
-            single declaration of "which token(s) distinguish each value" —
-            the resolver in ``causalab.methods.output_tokens`` derives the
-            score-token ids (probability path) and :func:`derive_checker` the
-            string ``checker`` from it, with dedup emerging from values that
-            share a form group. Build the mechanical ``[" v", v]`` map with
-            :func:`build_output_tokens`.
-        match_modes : dict, optional
-            Per-variable string-match policy for the derived checker:
-            ``{variable: "exact" | "prefix"}``. ``"prefix"`` accepts any output
-            that *starts with* a declared form (the continuation tokens a
-            ``max_new_tokens > 1`` task emits after the answer); omitted /
-            ``"exact"`` requires an exact stripped match. Only consulted when
-            ``output_tokens`` declares the variable.
+        scoring : ScoringSpec, optional
+            The task's definition of correct, once
+            (:class:`causalab.causal.scoring.ScoringSpec`): each variable's
+            per-value surface forms (``forms``, e.g. ``{"weekday": {"Monday":
+            [" Monday", "Monday"]}}`` — build the mechanical ``[" v", v]`` map
+            with :func:`build_output_tokens`), which variable the graded
+            string is a form of, whether a generated string must equal a form
+            or merely start with one (``string_mode``), an optional bespoke
+            ``full_string_checker``, and a version plus content digest. The
+            probability path's score-token groups, the string grader
+            (:meth:`ScoringSpec.grader`) and the serialized answer-form
+            columns are all derived from it; :attr:`output_tokens` and
+            :attr:`match_modes` are read-only views of it, kept for the
+            readers that grew up on those names.
         input_filter : callable, optional
             A predicate ``f(trace) -> bool`` applied after the input variables
             are set. Used to drop boundary-violating combinations (e.g. an
@@ -216,12 +108,12 @@ class CausalModel:
         self.id = id
         self.embeddings: dict[str, Any] = embeddings or {}
         self.periods: dict[str, float] = periods or {}
-        if output_tokens is not None:
-            _validate_output_tokens(output_tokens)
-        if match_modes is not None:
-            _validate_match_modes(match_modes)
-        self.output_tokens: dict[str, dict[Any, list[str]]] | None = output_tokens
-        self.match_modes: dict[str, str] | None = match_modes
+        if scoring is not None and not isinstance(scoring, ScoringSpec):
+            raise TypeError(
+                f"scoring must be a ScoringSpec (causalab.causal.scoring), got "
+                f"{type(scoring).__name__}."
+            )
+        self._scoring: ScoringSpec | None = scoring
         self.input_filter = input_filter
         # Derive variables from mechanisms
         self.variables = list(self.mechanisms.keys())
@@ -337,6 +229,42 @@ class CausalModel:
         self.equiv_classes: dict[str, dict[Any, list[dict[str, Any]]]] = {}
 
     # FUNCTIONS FOR RUNNING THE MODEL
+
+    # ------------------------------------------------------------------ #
+    # scoring — one source, derived views
+    # ------------------------------------------------------------------ #
+
+    @property
+    def scoring(self) -> ScoringSpec | None:
+        """The task's definition of correct
+        (:class:`~causalab.causal.scoring.ScoringSpec`), or ``None`` for a
+        model that declares none. Read-only: a spec is frozen and digested at
+        construction, and the only way to change what counts as correct is to
+        construct a model with a new spec — which has a new digest."""
+        return self._scoring
+
+    @property
+    def output_tokens(self) -> dict[str, dict[Any, list[str]]] | None:
+        """``{variable: {value: [forms]}}`` — a **derived, read-only view** of
+        ``scoring.forms``, under the name the declaration always had. A fresh
+        copy on every read, so editing it changes nothing; assigning to it
+        raises. ``None`` when the model declares no scoring."""
+        if self._scoring is None:
+            return None
+        return {
+            var: {value: list(forms) for value, forms in var_map.items()}
+            for var, var_map in self._scoring.forms.items()
+        }
+
+    @property
+    def match_modes(self) -> dict[str, str] | None:
+        """``{variable: string_mode}`` for every variable the spec declares —
+        the **derived, read-only view** of ``scoring.string_mode`` under the
+        retired per-variable name. ``None`` when the model declares no
+        scoring."""
+        if self._scoring is None:
+            return None
+        return {var: self._scoring.string_mode for var in self._scoring.forms}
 
     def new_trace(self, inputs: dict[str, Any] | None = None) -> CausalTrace:
         """

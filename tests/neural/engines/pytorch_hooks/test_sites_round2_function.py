@@ -1,13 +1,13 @@
-"""Round-2 attention *function* interior: q, k, the scores, and z.
+"""The attention *function* interior: q, k, the scores, and z.
 
 These four are not module boundaries. ``transformers`` computes them inside one
 ``attention_interface(...)`` call, so a ``register_forward_hook`` on the mixer
 fires after they have been consumed — which is why writing the attention pattern
-was already a special case in round 1.
+was already a special case among the module-boundary components.
 
-The scores are the interesting one, and the reason this round is smaller than
-the plan expected. #53 reached the pattern by calling the real eager function and
-then **redoing** the two lines after its softmax — correct, but a transcription
+The scores are the interesting one, and the reason this vocabulary is smaller
+than one might expect. The first pattern tap reached the pattern by calling the
+real eager function and then **redoing** the two lines after its softmax — correct, but a transcription
 of library internals that has to resolve a per-family ``eager_attention_forward``
 to perform. A ``TorchFunctionMode`` scoped to the real call reaches the scores
 with nothing transcribed at all:
@@ -20,7 +20,7 @@ with nothing transcribed at all:
 
 and knocking one head off one token moved the qwen logits by 0.3114.
 
-The capability that follows is the point of the round: ``attention_probs``
+The capability that follows is the point of the interior: ``attention_probs``
 accepts only ``swap``, because a delta leaves rows that no longer sum to 1 and
 nothing renormalizes them. One step earlier, the model's own softmax does.
 Attention knockout, head boosting and every other arithmetic mechanism are legal
@@ -74,69 +74,73 @@ QWEN_INTERFACE: dict[str, tuple[tuple[int, ...], tuple[int, ...]]] = {
 
 def _read_doc(component: str, layer: int = FULL_ATTENTION_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": {"component": component, "layer": layer}},
-        "reads": {
-            "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": {"component": component, "layers": [layer]}},
+            "reads": {
+                "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
 def _write_doc(component: str, do: dict, *, layer: int = FULL_ATTENTION_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tap": {"component": component, "layer": layer},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "tap": {"component": component, "layers": [layer]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
+            },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
-            },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
-        },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -160,7 +164,7 @@ def test_the_tap_is_an_interface_slot_not_a_module_side(
     """There is no module boundary here, and the site says so rather than
     pointing at a module whose hook would fire too late."""
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component=component, layer=FULL_ATTENTION_LAYER)
+        qwen35moe_bundle, SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,))
     )
     assert site.kind == "interface"
     assert site.interface_slot is not None
@@ -247,7 +251,7 @@ def test_swapping_a_tap_with_its_own_value_moves_nothing(
     """The non-vacuity half: an edit that substitutes the same tensor must be
     exactly the identity, or the write is landing somewhere it should not."""
     doc = _write_doc(component, {"swap": "v_cf"})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) == 0.0, component
 
 
@@ -262,8 +266,8 @@ def test_attention_knockout_is_expressible_on_the_scores(qwen35moe_bundle):
     mask = torch.zeros(1, 8, 5, 5)
     mask[:, 0, :, 0] = -1e4
     doc = _write_doc("attention_scores", {"add_scaled": {"op": "knock", "alpha": 1.0}})
-    doc["params"] = {"knock": {"file_path": "k.safetensors"}}
-    del doc["reads"]["v_cf"]
+    doc["method"]["params"] = {"knock": {"file_path": "k.safetensors"}}
+    del doc["method"]["reads"]["v_cf"]
     assert (
         _moved(
             qwen35moe_bundle,
@@ -283,7 +287,7 @@ def test_a_uniform_shift_of_the_scores_is_a_no_op_because_softmax_is_shift_invar
     which is why the recipe above uses a full-shape mask rather than a scalar.
     """
     doc = _write_doc("attention_scores", {"add_scaled": {"op": -10000.0, "alpha": 1.0}})
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     assert _moved(qwen35moe_bundle, doc) < 1e-3
 
 
@@ -303,7 +307,7 @@ def test_every_arithmetic_mechanism_is_legal_on_the_scores(qwen35moe_bundle, do:
     whole reason one accepts arithmetic and the other does not.
     """
     doc = _write_doc("attention_scores", do)
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("after")
 
 
@@ -317,7 +321,7 @@ def test_every_arithmetic_mechanism_is_legal_on_the_scores(qwen35moe_bundle, do:
 )
 def test_the_same_mechanism_is_refused_on_the_pattern(qwen35moe_bundle, do: dict):
     doc = _write_doc("attention_probs", do)
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     with pytest.raises(ProtocolError) as excinfo:
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("after")
     message = str(excinfo.value)
@@ -336,7 +340,7 @@ def test_gaussian_is_refused_where_there_is_no_feature_axis(qwen35moe_bundle):
         "attention_scores",
         {"gaussian": {"seed": 0, "scale": 1.0, "axis": "tp_duplicated"}},
     )
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     with pytest.raises(ProtocolError, match="no feature axis at all"):
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("after")
 
@@ -400,8 +404,7 @@ def test_the_registry_key_is_restored_on_exit(qwen35moe_bundle):
 def test_a_tap_at_one_layer_leaves_another_layers_output_alone():
     """The scoping test that can actually fail.
 
-    ⚠️ ``causalab-round1-review-handoff`` §7 flags the round-1 version as
-    vacuous: it scoped against a *DeltaNet* layer, which never consults
+    ⚠️ An earlier version of this test was vacuous: it scoped against a *DeltaNet* layer, which never consults
     ``ALL_ATTENTION_FUNCTIONS`` at all, so it passed even for a wrapper that
     ignored its tap map entirely. 📐 tiny-llama has **two** full-attention
     layers, so this taps layer 1 and asserts layer 0's output is untouched —
@@ -452,7 +455,7 @@ def test_a_deltanet_layer_refuses_with_the_architectural_reason(
 ):
     with pytest.raises(ProtocolError, match="full-attention mixer"):
         resolve_site(
-            qwen35moe_bundle, SiteSpec(component=component, layer=DELTANET_LAYER)
+            qwen35moe_bundle, SiteSpec(component=component, layers=(DELTANET_LAYER,))
         )
 
 
@@ -470,8 +473,10 @@ def test_a_continuation_read_of_a_key_indexed_tap_is_refused(component: str):
     """
     bundle = load_model(TINY_LLAMA)
     doc = _read_doc(component, layer=LLAMA_LAYER)
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     with pytest.raises(ProtocolError) as excinfo:
         executor_for(doc, bundle, base_texts=[TEXT]).read_value("r")
     assert "generated frame" in str(excinfo.value)
@@ -483,15 +488,17 @@ def test_a_continuation_read_of_a_query_indexed_tap_works(component: str):
     row per step is exactly what a continuation frame means."""
     bundle = load_model(TINY_LLAMA)
     doc = _read_doc(component, layer=LLAMA_LAYER)
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, bundle, base_texts=[TEXT]).read_value("r")
     info = bundle.info
     assert tuple(value.shape) == (1, 3, info.num_heads * info.head_dim)
 
 
 def test_gpt2_reads_the_function_interior_too():
-    """Unlike round 2.2's module-boundary components, these four do **not**
+    """Unlike the attention module-boundary components, these four do **not**
     depend on separate q/k/v projections: the interface receives q, k and v as
     arguments however the mixer produced them. 📐 gpt2's eager also calls
     softmax exactly once, so the scores tap works there as well."""
@@ -519,7 +526,7 @@ def test_a_query_space_head_on_the_key_is_refused(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="which has 4 heads"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="attention_key", layer=FULL_ATTENTION_LAYER, head=5),
+            SiteSpec(component="attention_key", layers=(FULL_ATTENTION_LAYER,), head=5),
         )
 
 
@@ -537,34 +544,38 @@ def test_a_read_of_a_written_slot_matches_the_module_hook_path(qwen35moe_bundle)
 
     def written_minus_read(component: str) -> float:
         doc = {
-            "version": "1",
+            "header": {"protocol_version": "3"},
             "model": {"key": "test", "revision": "main"},
             "data": base_data_section(with_counterfactual=True),
-            "sites": {"tap": {"component": component, "layer": FULL_ATTENTION_LAYER}},
-            "reads": {
-                "src": {
-                    "site": "tap",
-                    "pos": "all",
-                    "model": "original",
-                    "input": "counterfactual",
+            "method": {
+                "sites": {
+                    "tap": {"component": component, "layers": [FULL_ATTENTION_LAYER]}
                 },
-                "obs": {
-                    "site": "tap",
-                    "pos": "all",
-                    "model": "patched",
-                    "input": "base",
+                "reads": {
+                    "src": {
+                        "site": "tap",
+                        "pos": "all",
+                        "model": "original",
+                        "input": "counterfactual",
+                    },
+                    "obs": {
+                        "site": "tap",
+                        "pos": "all",
+                        "model": "patched",
+                        "input": "base",
+                    },
                 },
+                "writes": {"p": {"site": "tap", "pos": "all", "do": {"swap": "src"}}},
+                "intervened_models": {"patched": {"input": "base", "writes": ["p"]}},
+                "save": [
+                    {
+                        "value": "obs",
+                        "model": "patched",
+                        "input": "base",
+                        "file_path": "o.safetensors",
+                    }
+                ],
             },
-            "writes": {"p": {"site": "tap", "pos": "all", "do": {"swap": "src"}}},
-            "intervened_models": {"patched": {"input": "base", "writes": ["p"]}},
-            "save": [
-                {
-                    "value": "obs",
-                    "model": "patched",
-                    "input": "base",
-                    "file_path": "o.safetensors",
-                }
-            ],
         }
         executor = executor_for(
             doc,

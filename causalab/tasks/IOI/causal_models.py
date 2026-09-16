@@ -35,6 +35,7 @@ import os
 from pathlib import Path
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 
 
@@ -48,11 +49,11 @@ def _load(path: Path) -> list[str]:
         return json.load(f)
 
 
-IOI_DIR = Path(__file__).resolve().parent
-NAMES: list[str] = _load(IOI_DIR / "names.json")
-OBJECTS: list[str] = _load(IOI_DIR / "objects.json")
-PLACES: list[str] = _load(IOI_DIR / "places.json")
-ALL_TEMPLATES: list[str] = _load(IOI_DIR / "templates.json")
+IOI_SOURCES = Path(__file__).resolve().parent / "sources"
+NAMES: list[str] = _load(IOI_SOURCES / "names.json")
+OBJECTS: list[str] = _load(IOI_SOURCES / "objects.json")
+PLACES: list[str] = _load(IOI_SOURCES / "places.json")
+ALL_TEMPLATES: list[str] = _load(IOI_SOURCES / "templates.json")
 
 # Coverage runner uses a single canonical template — keeps token-position
 # logic simple and avoids the multi-template factory plumbing. The other
@@ -161,9 +162,9 @@ def _build_causal_model() -> CausalModel:
         id="ioi",
         # The answer is the indirect-object name (``raw_output = " " + IO``);
         # the model emits a single name token, so exact match on the declared
-        # ``[" name", "name"]`` forms is the right grader (#296). This derives
-        # the checker in place of the former checker.py.
-        output_tokens={"IO": build_output_tokens(NAMES)},
+        # ``[" name", "name"]`` forms is the right grader — the task's
+        # ``ScoringSpec``, in place of the former checker.py.
+        scoring=ScoringSpec(forms={"IO": build_output_tokens(NAMES)}),
         input_filter=_input_filter,
     )
 

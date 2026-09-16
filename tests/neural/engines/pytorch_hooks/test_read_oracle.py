@@ -1,5 +1,5 @@
 """Read routing vs the raw-hook oracle — the collect contract re-driven
-through protocol documents (assertions from
+through intervention specifications (assertions from
 tests/neural/activations/test_collect_hook_oracle.py, verbatim tolerances:
 stack-vs-oracle atol=1e-5 rtol=1e-4)."""
 
@@ -26,54 +26,56 @@ def _inputs(bundle):
 
 def harvest_doc() -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {
-            "s_in0": {"component": "block_input", "layer": 0},
-            "s_out0": {"component": "block_output", "layer": 0},
-            "s_out1": {"component": "block_output", "layer": 1},
+        "method": {
+            "sites": {
+                "s_in0": {"component": "block_input", "layers": [0]},
+                "s_out0": {"component": "block_output", "layers": [0]},
+                "s_out1": {"component": "block_output", "layers": [1]},
+            },
+            "reads": {
+                "r_in0": {
+                    "site": "s_in0",
+                    "pos": {"index": 0},
+                    "model": "original",
+                    "input": "base",
+                },
+                "r_out0": {
+                    "site": "s_out0",
+                    "pos": {"index": 1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "r_out1": {
+                    "site": "s_out1",
+                    "pos": {"index": 2},
+                    "model": "original",
+                    "input": "base",
+                },
+            },
+            "save": [
+                {
+                    "value": "r_in0",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                },
+                {
+                    "value": "r_out0",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "b.safetensors",
+                },
+                {
+                    "value": "r_out1",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "r_in0": {
-                "site": "s_in0",
-                "pos": {"index": 0},
-                "model": "original",
-                "input": "base",
-            },
-            "r_out0": {
-                "site": "s_out0",
-                "pos": {"index": 1},
-                "model": "original",
-                "input": "base",
-            },
-            "r_out1": {
-                "site": "s_out1",
-                "pos": {"index": 2},
-                "model": "original",
-                "input": "base",
-            },
-        },
-        "save": [
-            {
-                "value": "r_in0",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            },
-            {
-                "value": "r_out0",
-                "model": "original",
-                "input": "base",
-                "file_path": "b.safetensors",
-            },
-            {
-                "value": "r_out1",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -102,28 +104,30 @@ def test_reads_match_oracle_captures(bundle, oracle: OracleShim):
 def test_every_component_matches_oracle(bundle, oracle: OracleShim, component: str):
     site: dict = {"component": component}
     if component != "embeddings":
-        site["layer"] = 0
+        site["layers"] = 0
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": site},
-        "reads": {
-            "r": {
-                "site": "tap",
-                "pos": {"index": 1},
-                "model": "original",
-                "input": "base",
-            }
+        "method": {
+            "sites": {"tap": site},
+            "reads": {
+                "r": {
+                    "site": "tap",
+                    "pos": {"index": 1},
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "r.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "r.safetensors",
-            }
-        ],
     }
     executor = executor_for(doc, bundle, base_texts=[BASE_TEXT])
     module, kind = oracle_lib.component_module(oracle, 0, component)
@@ -135,26 +139,28 @@ def test_head_value_read_matches_oracle(llama_bundle):
     """attention_premix head H == the oracle's o_proj-input column slice
     (test_collect_hook_oracle.py's head case)."""
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"h": {"component": "attention_premix", "layer": 0, "head": 1}},
-        "reads": {
-            "r": {
-                "site": "h",
-                "pos": {"index": 1},
-                "model": "original",
-                "input": "base",
-            }
+        "method": {
+            "sites": {"h": {"component": "attention_premix", "layers": [0], "head": 1}},
+            "reads": {
+                "r": {
+                    "site": "h",
+                    "pos": {"index": 1},
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "r.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "r.safetensors",
-            }
-        ],
     }
     shim = OracleShim(hf_model=llama_bundle.model)
     executor = executor_for(doc, llama_bundle, base_texts=[BASE_TEXT])
@@ -170,26 +176,28 @@ def test_head_value_read_matches_oracle(llama_bundle):
 
 def test_lm_head_read_is_the_model_logits(bundle, oracle: OracleShim):
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"lm_head": {"component": "lm_head"}},
-        "reads": {
-            "logits": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            }
+        "method": {
+            "sites": {"lm_head": {"component": "lm_head"}},
+            "reads": {
+                "logits": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "logits",
-                "model": "original",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
     executor = executor_for(doc, bundle, base_texts=[BASE_TEXT])
     want = oracle_lib.next_token_logits(oracle, _inputs(bundle))
@@ -201,22 +209,24 @@ def test_variable_position_reads_the_substring_tokens(llama_bundle):
     value for x — decoded back, the gathered ids spell the value."""
     text = "the quick brown fox jumps"
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "positions": {"v": {"variable": "animal"}},
-        "sites": {"emb": {"component": "embeddings"}},
-        "reads": {
-            "r": {"site": "emb", "pos": "v", "model": "original", "input": "base"}
+        "method": {
+            "positions": {"v": {"variable": "animal"}},
+            "sites": {"emb": {"component": "embeddings"}},
+            "reads": {
+                "r": {"site": "emb", "pos": "v", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "r.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "r.safetensors",
-            }
-        ],
     }
     executor = executor_for(
         doc, llama_bundle, base_texts=[text], extra_columns={"animal": ["brown fox"]}
@@ -249,41 +259,43 @@ def logit_lens_grid_doc() -> dict:
     layer (the sweep axis) × every token (the all spec), alongside the
     model's own logits at every token."""
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {
-            "resid": {"component": "block_output", "layer": {"sweep": [0, 1]}},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "resid": {"component": "block_output", "layers": {"sweep": [0, 1]}},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "r_resid": {
+                    "site": "resid",
+                    "pos": "all",  # bare-string sugar
+                    "model": "original",
+                    "input": "base",
+                },
+                "r_logits": {
+                    "site": "lm_head",
+                    "pos": {"all": True},  # the explicit anchor
+                    "model": "original",
+                    "input": "base",
+                },
+            },
+            "save": [
+                {
+                    "value": "r_resid",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "resid.safetensors",
+                },
+                {
+                    "value": "r_logits",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "logits.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "r_resid": {
-                "site": "resid",
-                "pos": "all",  # bare-string sugar
-                "model": "original",
-                "input": "base",
-            },
-            "r_logits": {
-                "site": "lm_head",
-                "pos": {"all": True},  # the explicit anchor
-                "model": "original",
-                "input": "base",
-            },
-        },
-        "save": [
-            {
-                "value": "r_resid",
-                "model": "original",
-                "input": "base",
-                "file_path": "resid.safetensors",
-            },
-            {
-                "value": "r_logits",
-                "model": "original",
-                "input": "base",
-                "file_path": "logits.safetensors",
-            },
-        ],
     }
 
 
@@ -300,7 +312,7 @@ def test_all_positions_grid_matches_oracle(bundle, oracle: OracleShim):
     inputs = _inputs(bundle)
     seq = int(inputs["input_ids"].shape[1])
     for point in expansion.points:
-        layer = point.raw["sites"]["resid"]["layer"]
+        layer = point.raw["method"]["sites"]["resid"]["layers"]
         executor = executor_for(point.raw, bundle, base_texts=[BASE_TEXT])
         have = executor.read_value("r_resid")
         want = oracle_lib.capture_residual(oracle, layer, inputs)
@@ -335,21 +347,23 @@ def test_all_positions_is_ragged_across_rows(llama_bundle):
 
     texts = ["one two three", "a much longer sentence right here"]
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"emb": {"component": "embeddings"}},
-        "reads": {
-            "r": {"site": "emb", "pos": "all", "model": "original", "input": "base"}
+        "method": {
+            "sites": {"emb": {"component": "embeddings"}},
+            "reads": {
+                "r": {"site": "emb", "pos": "all", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "r.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "r.safetensors",
-            }
-        ],
     }
     executor = executor_for(doc, llama_bundle, base_texts=texts)
     value = executor.read_value("r")

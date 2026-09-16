@@ -1,13 +1,13 @@
 """``attention_probs``: read + write, and the one component `layout` won't describe.
 
-PR4 of the hookpoint-vocabulary stack, and the last of round 1. The three checks
+The last of the module-boundary components. The three checks
 at the top are nnterp's, ported to this backend
 (``nnterp/rename_utils.py`` ``check_source``): the pattern must have shape
 ``(batch, heads, seq, seq)``, its rows must sum to 1, and **writing it must
 change the logits**. The third is the one that matters, because it is the one a
 plausible-looking implementation fails.
 
-Round-1 scope is the whole pattern. Addressing one query row, featurizing, or
+The scope here is the whole pattern. Addressing one query row, featurizing, or
 slicing ``dims`` all need the typed feature-shape descriptor — the feature axis
 here *is* a position axis — so each is refused and named as follow-up F1 rather
 than approximated.
@@ -37,13 +37,13 @@ pytestmark = pytest.mark.smoke
 
 
 def eager_attention_writes(edits: dict) -> Any:
-    """The round-1 spelling, over round 2.3's interface manager.
+    """The pattern-write spelling, over the interface manager.
 
     Kept as a test-local shim because these tests pin the *pattern-write*
     behaviour specifically, and phrasing them in terms of "an in-place edit to
     the pattern for these modules" is what they are about. The manager's own
     contract (hand out a clone, take back a replacement) is exercised by the
-    round-2 tests.
+    attention-interior tests.
     """
 
     def as_tap(edit: Any) -> tuple[InterfaceTap, ...]:
@@ -76,22 +76,24 @@ def _read_doc(
 ) -> dict:
     read: dict = {"site": "tap", "pos": pos, "model": "original", "input": "base"}
     doc: dict = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": {"component": "attention_probs", "layer": layer}},
-        "reads": {"r": read},
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
+        "method": {
+            "sites": {"tap": {"component": "attention_probs", "layers": [layer]}},
+            "reads": {"r": read},
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
+        },
     }
     if featurizer:
-        doc["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
+        doc["method"]["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
         read["featurizer"] = "f"
     if dims is not None:
         read["dims"] = dims
@@ -100,49 +102,51 @@ def _read_doc(
 
 def _swap_doc(*, layer: int = FULL_ATTENTION_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tap": {"component": "attention_probs", "layer": layer},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "tap": {"component": "attention_probs", "layers": [layer]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
+            },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
-            },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
-        },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -173,12 +177,12 @@ def test_the_pattern_rows_sum_to_one(pattern):
 
 
 def test_writing_the_pattern_changes_the_logits(qwen35moe_bundle):
-    """nnterp check 3, and the reason this PR is not a one-line tap.
+    """nnterp check 3, and the reason this component is not a one-line tap.
 
     A ``register_forward_hook`` on the mixer CAN rewrite element 1 of its output
     tuple — and it would change nothing, because ``attn_output`` was computed
     from the pattern inside the attention function before the hook fires. That
-    is the same silent-no-op shape as writing ``router_logits`` (PR3). The write
+    is the same silent-no-op shape as writing ``router_logits``. The write
     goes through the eager attention function instead, and this test is what
     says the difference mattered.
     """
@@ -360,7 +364,7 @@ def test_the_backend_now_declares_the_capability():
 
 
 # --------------------------------------------------------------------------- #
-# refusals: what round 1 will not approximate
+# refusals: what the pattern tap will not approximate
 # --------------------------------------------------------------------------- #
 
 
@@ -372,7 +376,7 @@ def test_the_tap_declares_two_position_axes_and_so_has_no_contract(
     refusal below follows from it."""
     site = resolve_site(
         qwen35moe_bundle,
-        SiteSpec(component="attention_probs", layer=FULL_ATTENTION_LAYER),
+        SiteSpec(component="attention_probs", layers=(FULL_ATTENTION_LAYER,)),
     )
     assert [a.kind for a in site.shape.axes] == [
         "batch",
@@ -430,27 +434,29 @@ def test_a_generated_frame_read_refuses(llama_bundle):
     and this one has two.
     """
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "positions": {"window": {"generated": {"max_new_tokens": 4}, "all": True}},
-        "sites": {"tap": {"component": "attention_probs", "layer": 0}},
-        "reads": {
-            "r": {
-                "site": "tap",
-                "pos": "window",
-                "model": "original",
-                "input": "base",
-            }
+        "method": {
+            "positions": {"window": {"generated": {"max_new_tokens": 4}, "all": True}},
+            "sites": {"tap": {"component": "attention_probs", "layers": [0]}},
+            "reads": {
+                "r": {
+                    "site": "tap",
+                    "pos": "window",
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
     with pytest.raises(ProtocolError) as excinfo:
         executor_for(doc, llama_bundle, base_texts=[BASE_TEXT]).read_value("r")
@@ -461,7 +467,7 @@ def test_a_generated_frame_read_refuses(llama_bundle):
 
 
 def test_a_deltanet_layer_refuses_on_the_architecture(qwen35moe_bundle):
-    """PR2's stream check still owns this, and it must keep owning it: at a
+    """The per-layer stream check still owns this, and it must keep owning it: at a
     Gated DeltaNet layer there is no attention matrix, which stays true now that
     the component is implemented."""
     with pytest.raises(ProtocolError) as excinfo:
@@ -525,7 +531,7 @@ def test_a_family_without_eager_math_refuses_by_name():
 
 
 def test_the_pattern_is_writable_on_a_family_with_no_repeat_kv():
-    """The capability round 2.5's deletion bought, as a behaviour rather than a
+    """The capability deleting the recompute bought, as a behaviour rather than a
     grep.
 
     📐 The recompute this module used to carry needed ``repeat_kv``, and GPT-2's
@@ -612,7 +618,7 @@ def test_writing_the_pattern_changes_the_logits_on_llama(llama_bundle):
 
 
 # --------------------------------------------------------------------------- #
-# round 1 writes are interchanges: only `swap` means "replace the pattern"
+# pattern writes are interchanges: only `swap` means "replace the pattern"
 # --------------------------------------------------------------------------- #
 
 
@@ -621,12 +627,12 @@ def test_a_non_swap_pattern_write_is_refused(qwen35moe_bundle):
     to 1, and the whole-pattern branch would misread its payload as a
     replacement anyway — refused by name, pointing at F1."""
     doc = _swap_doc()
-    doc["writes"]["patch"] = {
+    doc["method"]["writes"]["patch"] = {
         "site": "tap",
         "pos": "all",
         "do": {"clamp": {"lo": 0.0, "hi": 0.0}},
     }
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     with pytest.raises(ProtocolError) as excinfo:
         executor_for(
             doc,

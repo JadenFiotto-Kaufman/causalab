@@ -15,7 +15,6 @@ from causalab.protocol.resolve import FileDatasets
 from causalab.tasks.natural_domains_arithmetic.config import NaturalDomainConfig
 from causalab.tasks.serialize import (
     RESERVED_COLUMNS,
-    build_manifest,
     config_class,
     serialize_counterfactual_dataset,
     table_bytes,
@@ -30,6 +29,7 @@ def _weekdays(n: int = 4, seed: int = 0):
         "natural_domains_arithmetic",
         n=n,
         seed=seed,
+        split="all",
         task_cfg=NaturalDomainConfig(domain_type="weekdays"),
         target_variables=["result"],
     )
@@ -75,6 +75,7 @@ def test_label_is_the_post_intervention_answer_not_the_counterfactuals_own():
         "natural_domains_arithmetic",
         n=8,
         seed=0,
+        split="all",
         task_cfg=NaturalDomainConfig(domain_type="weekdays"),
         target_variables=["number"],
     )
@@ -95,31 +96,14 @@ def test_written_table_resolves_through_the_seam(tmp_path):
     ``FileDatasets`` reads back, digest included."""
     dataset = _weekdays()
     out = tmp_path / "weekdays" / "train.json"
-    digest = write_dataset_table(
-        dataset.rows, out, manifest=build_manifest(dataset, task_cfg={"x": 1})
-    )
+    digest = write_dataset_table(dataset.rows, out)
     resolver = FileDatasets(root=tmp_path)
     assert resolver.digest("weekdays/train") == digest
     assert resolver.rows("weekdays/train") == json.loads(out.read_text())
     assert "label_forms" in resolver.columns("weekdays/train")
-
-    manifest = json.loads((out.parent / "train.manifest.json").read_text())
-    assert manifest["digest"] == digest
-    assert manifest["task"] == "natural_domains_arithmetic"
-    assert manifest["n"] == 4 and manifest["seed"] == 0
-    assert manifest["target_variables"] == ["result"]
-    assert manifest["task_cfg"] == {"x": 1}
-
-
-def test_manifest_is_not_part_of_the_table(tmp_path):
-    """Provenance must not change the content address: the sidecar is written
-    beside the table, never into it."""
-    dataset = _weekdays()
-    plain = write_dataset_table(dataset.rows, tmp_path / "a" / "t.json")
-    stamped = write_dataset_table(
-        dataset.rows, tmp_path / "b" / "t.json", manifest=build_manifest(dataset)
-    )
-    assert plain == stamped
+    # the table is the whole of what is written: no sidecar beside it (§2.2)
+    # — a workflow pins the table's digest in its own `pins` section
+    assert [p.name for p in out.parent.iterdir()] == ["train.json"]
 
 
 def test_missing_generator_names_the_alternatives():
@@ -128,6 +112,7 @@ def test_missing_generator_names_the_alternatives():
             "natural_domains_arithmetic",
             n=1,
             seed=0,
+            split="all",
             task_cfg=NaturalDomainConfig(domain_type="weekdays"),
             target_variables=["result"],
             generator="generate_nonsense",
@@ -135,11 +120,12 @@ def test_missing_generator_names_the_alternatives():
 
 
 def test_undeclared_answer_variable_refuses():
-    with pytest.raises(ValueError, match="output_tokens"):
+    with pytest.raises(ValueError, match="declares no scoring forms"):
         serialize_counterfactual_dataset(
             "natural_domains_arithmetic",
             n=1,
             seed=0,
+            split="all",
             task_cfg=NaturalDomainConfig(domain_type="weekdays"),
             target_variables=["result"],
             answer_variable="entity",
@@ -198,6 +184,7 @@ def test_a_hand_authored_model_serializes_to_the_same_rows():
     inline = serialize_examples(
         task.causal_model,
         examples,
+        split="all",
         target_variables=["result"],
         task_label="natural_domains_arithmetic",
         generator="generate_dataset",
@@ -210,7 +197,7 @@ def test_a_hand_authored_model_serializes_to_the_same_rows():
 
 def test_serialize_examples_records_no_seed_it_cannot_vouch_for():
     """Examples that did not come from a seeded generator get `seed: None` in
-    the manifest rather than a number nothing can reproduce."""
+    the result rather than a number nothing can reproduce."""
     from causalab.tasks.loader import load_task, load_task_counterfactuals
     from causalab.tasks.serialize import serialize_examples
 
@@ -220,11 +207,10 @@ def test_serialize_examples_records_no_seed_it_cannot_vouch_for():
     examples = generators.generate_dataset(task.causal_model, 3, 0)
 
     dataset = serialize_examples(
-        task.causal_model, examples, target_variables=["result"]
+        task.causal_model, examples, split="all", target_variables=["result"]
     )
     assert dataset.seed is None
     assert dataset.n == 3  # counted from the rows, not asserted by the caller
-    assert build_manifest(dataset)["seed"] is None
 
 
 def test_serialize_examples_requires_the_target_variables():
@@ -237,4 +223,82 @@ def test_serialize_examples_requires_the_target_variables():
 
     task = load_task("natural_domains_arithmetic", task_cfg=cfg)
     with pytest.raises(ValueError, match="target_variables is required"):
-        serialize_examples(task.causal_model, [], target_variables=[])
+        serialize_examples(task.causal_model, [], split="all", target_variables=[])
+
+
+# --------------------------------------------------------------------------- #
+# the split column (§2.2)
+# --------------------------------------------------------------------------- #
+
+
+def test_every_row_declares_its_split():
+    dataset = _weekdays()
+    assert all(row["split"] == "all" for row in dataset.rows)
+    assert dataset.split_counts == {"all": 4}
+
+
+def test_split_is_required_with_no_default():
+    """A table that forgot to say which split it is, is the failure the column
+    exists to prevent — so there is nothing to forget."""
+    with pytest.raises(TypeError, match="split"):
+        serialize_counterfactual_dataset(
+            "natural_domains_arithmetic",
+            n=1,
+            seed=0,
+            task_cfg=NaturalDomainConfig(domain_type="weekdays"),
+            target_variables=["result"],
+        )
+
+
+def test_a_per_row_split_partitions_one_table():
+    """What a group-disjoint builder passes: the allocation decided per row,
+    serialized into one table rather than split across files."""
+    from causalab.tasks.loader import load_task, load_task_counterfactuals
+    from causalab.tasks.serialize import serialize_examples
+
+    cfg = NaturalDomainConfig(domain_type="weekdays")
+    task = load_task("natural_domains_arithmetic", task_cfg=cfg)
+    generators = load_task_counterfactuals("natural_domains_arithmetic")
+    examples = generators.generate_dataset(task.causal_model, 4, 0)
+
+    dataset = serialize_examples(
+        task.causal_model,
+        examples,
+        split=["train", "train", "test", "val"],
+        target_variables=["result"],
+    )
+    assert [row["split"] for row in dataset.rows] == ["train", "train", "test", "val"]
+    assert dataset.split_counts == {"test": 1, "train": 2, "val": 1}
+
+
+def test_a_short_split_sequence_refuses():
+    """Zipping short would write rows that are individually correct and a
+    partition that is a lie."""
+    from causalab.tasks.loader import load_task, load_task_counterfactuals
+    from causalab.tasks.serialize import serialize_examples
+
+    cfg = NaturalDomainConfig(domain_type="weekdays")
+    task = load_task("natural_domains_arithmetic", task_cfg=cfg)
+    generators = load_task_counterfactuals("natural_domains_arithmetic")
+    examples = generators.generate_dataset(task.causal_model, 4, 0)
+
+    with pytest.raises(ValueError, match="2 values for 4 rows"):
+        serialize_examples(
+            task.causal_model,
+            examples,
+            split=["train", "test"],
+            target_variables=["result"],
+        )
+
+
+def test_a_variable_named_split_collides():
+    """`split` is reserved: a causal-model variable of that name would
+    overwrite the row's own declaration."""
+    from causalab.tasks.serialize import RESERVED_COLUMNS
+
+    assert "split" in RESERVED_COLUMNS
+
+
+def test_the_result_records_the_allocation():
+    dataset = _weekdays()
+    assert dataset.split_counts == {"all": 4}

@@ -4,9 +4,8 @@
 > participate in the smoke + golden tiers (see docs/TESTS.md "Coverage-oriented
 > runners"). The shipped runner is **not scientifically meaningful** —
 > small `n_train` / `n_test`, single template, smallest production model.
-> The pyvene-era `demo.ipynb` (against `gpt2`) was removed in the #491
-> deletion sweep (PR #516) — it had been unrunnable since its imports were
-> retired; it lives in git history.
+> The pyvene-era `demo.ipynb` (against `gpt2`) was removed — it had been
+> unrunnable since its imports were retired; it lives in git history.
 
 ## Task
 
@@ -20,7 +19,7 @@ Each example is composed of:
 - `template` — the canonical IOI template (placeholders `{name_A}`,
   `{name_B}`, `{name_C}`, `{place}`, `{object}`). The full historical
   template list is still available as `ALL_TEMPLATES`.
-- `name_A`, `name_B`, `name_C` — three names drawn from `names.json`.
+- `name_A`, `name_B`, `name_C` — three names drawn from `sources/names.json`.
   Well-formedness (enforced by the model's `input_filter`) requires
   `name_A != name_B` and `name_C ∈ {name_A, name_B}`.
 - `place` (`places.json`) and `object` (`objects.json`) — surface vocab.
@@ -67,9 +66,9 @@ but available for ad-hoc work).
 | `causal_models.py` | `CAUSAL_MODEL` (singleton), `TARGET_VARIABLE`, `TEMPLATE`, `CANONICAL_TEMPLATE`, `ALL_TEMPLATES`, name/place/object pools |
 | `counterfactuals.py` | `generate_dataset`, `flip_name_C`, `random_counterfactual` |
 | `token_positions.py` | `create_token_positions` (declarative-spec based) |
-| `names.json`, `objects.json`, `places.json`, `templates.json` | Domain vocab |
+| `data/default.json` | the shipped table: `IOI/data/default` (256 pairs, `split all`); built with `uv run python scripts/build_task_dataset.py --task IOI --n 256 --seed 0 --split all --target-variable IO --out causalab/tasks/IOI/data/default.json` |
+| `sources/{names,objects,places,templates}.json` | Domain vocab |
 
-The pyvene-era `demo.ipynb` (end-to-end walkthrough on `gpt2`) was removed in
-the #491 deletion sweep (PR #516); it targeted the retired API and had been
-unrunnable since its imports were retired — recover it from git history if
-needed.
+The pyvene-era `demo.ipynb` (end-to-end walkthrough on `gpt2`) was removed; it
+targeted the retired API and had been unrunnable since its imports were
+retired — recover it from git history if needed.

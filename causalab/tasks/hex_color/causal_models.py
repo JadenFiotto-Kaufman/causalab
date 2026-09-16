@@ -13,26 +13,25 @@ maps to (one of the six colour words), looked up from the bundled data.
 
 Design notes:
 
-* **Singleton task.** The stimulus set is fixed (bundled ``data/hex_color.json``),
+* **Singleton task.** The stimulus set is fixed (bundled ``sources/hex_color.json``),
   so the model is a module-level ``CAUSAL_MODEL`` constant — no factory config.
 * **Periodic hue embedding.** ``color`` carries a 1-D embedding (its hue-centre
   in degrees) with a 360° period, mirroring ``natural_domains_arithmetic``'s
   cyclic ``result``. Manifold/geometry analyses read these; the baseline does
   not require them.
-* **Scoring is the colour word.** Unlike MCQA (which scores an option *letter*
-  by default and needs a ``score_by: value`` mode), the answer here *is* the
-  colour word, so the default path already scores "the value". ``output_tokens``
-  on ``color`` drives both the probability path and the *derived* string checker
-  (``causalab.tasks.loader._resolve_checker`` → ``derive_checker``): all six
-  colours are single-token, so plain exact match suffices and the task ships no
-  bespoke ``checker.py``.
+* **Scoring is the colour word.** Unlike MCQA (which scores an option *letter*),
+  the answer here *is* the colour word, so the default path already scores "the
+  value". The task's ``ScoringSpec`` (``forms`` on ``color``) drives both the
+  probability path and the string grader (``ScoringSpec.grader``): all six
+  colours are single-token, so plain exact match suffices and the task declares
+  no bespoke ``full_string_checker``.
 * **``indigo`` dropped (7 → 6).** The source dataset had seven classes; ``indigo``
   (hue 258°, wedged between blue 235° and purple 285°) is excluded because the
   golden fixture (Qwen3-4B-Instruct) labels indigo swatches "purple"
   ~0.999-confident, capping 7-colour accuracy at ~0.80 (< the 0.9 golden floor).
   Dropping it both makes the task viable on the fixture *and* removes the only
   multi-token colour (``indigo`` → ``["ind", "igo"]``), which is why no bespoke
-  checker is needed. Decided during epic #522 orchestration.
+  checker is needed.
 
 Data provenance: the stimuli come from Llama-3.1-8B DAS work
 (``<hex-color-das-source>/data.json``),
@@ -46,6 +45,7 @@ from __future__ import annotations
 import json
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 
 from .config import (
@@ -124,11 +124,11 @@ def _build_causal_model() -> CausalModel:
         values,
         id="hex_color",
         # The answer is the colour word (``raw_output = " " + color``). Declaring
-        # the mechanical ``[" red", "red"]`` forms drives both the probability
-        # path (score-token resolution / per-class distributions) and the derived
-        # exact-match grader. All six colours are single-token, so no bespoke
-        # checker.py is needed.
-        output_tokens={"color": build_output_tokens(COLORS)},
+        # the mechanical ``[" red", "red"]`` forms in the task's ``ScoringSpec``
+        # drives both the probability path (score-token resolution / per-class
+        # distributions) and the exact-match grader. All six colours are
+        # single-token, so no bespoke ``full_string_checker`` is needed.
+        scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),
         # Periodic hue embedding: each colour sits at its hue-centre on a circle
         # that wraps at 360°.
         embeddings={"color": lambda c: [HUE_CENTERS_DEG[c]]},

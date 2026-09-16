@@ -1,4 +1,4 @@
-"""Moved to :mod:`causalab.neural.shared.mechanisms` — engine-neutral (plan §2.4).
+"""Moved to :mod:`causalab.neural.shared.mechanisms` — engine-neutral.
 
 This re-export keeps the old import path alive for one deprecation beat;
 new code imports the shared home.

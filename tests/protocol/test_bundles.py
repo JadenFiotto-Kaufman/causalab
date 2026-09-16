@@ -109,7 +109,7 @@ class TestSelectEntry:
             select_entry(
                 ["weight[k=2,seed=0]", "weight[k=4,seed=0]"],
                 "weight",
-                {"k": 4, "target.layer": 7},
+                {"k": 4, "target.layers": 7},
                 what="w",
                 implicit=True,
             )
@@ -121,7 +121,7 @@ class TestSelectEntry:
             select_entry(
                 ["weight[k=2,seed=0]"],
                 "weight",
-                {"k": 2, "target.layer": 7},
+                {"k": 2, "target.layers": 7},
                 what="w",
             )
 

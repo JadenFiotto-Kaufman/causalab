@@ -3,10 +3,7 @@
   "description": "The weekdays_geometry demo end to end: check the model can do the task, locate the cell that carries the answer, ask how few directions in that cell suffice, and walk the straight line between two answers. Nothing here declares an order -- every edge is a reference to an earlier step's output, and the runner derives the rest.",
   "output_dir": "weekdays_geometry",
   "steps": {
-    "baseline": {
-      "type": "intervention_protocol",
-      "document": "../protocols/weekdays_baseline.json"
-    },
+    "baseline": {"type": "intervention_protocol", "document": "../protocols/weekdays_baseline.json"},
     "locate": {
       "type": "intervention_protocol",
       "document": "../protocols/weekdays_locate_scan.json"
@@ -17,7 +14,7 @@
       "inputs": {
         "table": {"step": "locate", "file": "iia.json"},
         "plot": "heatmap",
-        "x": "sites.target.layer",
+        "x": "sites.target.layers",
         "y": "positions.tap"
       },
       "outputs": {"figure": "locate_iia.png", "plotted": {"file": "locate_iia.json"}}
@@ -28,17 +25,20 @@
       "inputs": {
         "table": {"step": "locate", "file": "iia.json"},
         "choose": "max",
-        "emit": {"best_layer": "sites.target.layer", "best_pos": "positions.tap"}
+        "emit": {"best_layer": "sites.target.layers", "best_pos": "positions.tap"}
       },
       "outputs": {
-        "values": {"file": "values.json", "keys": {"best_layer": 26, "best_pos": {"index": -1}}}
+        "values": {
+          "file": "values.json",
+          "keys": {"best_layer": 25, "best_pos": {"index": -1}}
+        }
       }
     },
     "harvest": {
       "type": "intervention_protocol",
       "document": "../protocols/weekdays_harvest.json",
       "set": {
-        "sites.target.layer": {"artifact": "best", "key": "best_layer"},
+        "sites.target.layers": {"artifact": "best", "key": "best_layer"},
         "positions.best": {"artifact": "best", "key": "best_pos"}
       }
     },
@@ -48,10 +48,14 @@
       "inputs": {"acts": {"step": "harvest", "file": "acts.safetensors"}, "k": 32},
       "outputs": {
         "weight": "basis.safetensors",
-        "spectrum": {"file": "spectrum.json",
-                     "columns": {"pc": "int64",
-                                 "explained_variance": "float64",
-                                 "explained_variance_ratio": "float64"}}
+        "spectrum": {
+          "file": "spectrum.json",
+          "columns": {
+            "pc": "int64",
+            "explained_variance": "float64",
+            "explained_variance_ratio": "float64"
+          }
+        }
       }
     },
     "spectrum_curve": {
@@ -69,7 +73,7 @@
       "type": "intervention_protocol",
       "document": "../protocols/weekdays_das_sweep.json",
       "set": {
-        "sites.target.layer": {"artifact": "best", "key": "best_layer"},
+        "sites.target.layers": {"artifact": "best", "key": "best_layer"},
         "positions.best": {"artifact": "best", "key": "best_pos"}
       }
     },
@@ -88,7 +92,7 @@
       "type": "intervention_protocol",
       "document": "../protocols/weekdays_linear_walk.json",
       "set": {
-        "sites.target.layer": {"artifact": "best", "key": "best_layer"},
+        "sites.target.layers": {"artifact": "best", "key": "best_layer"},
         "positions.best": {"artifact": "best", "key": "best_pos"}
       }
     }

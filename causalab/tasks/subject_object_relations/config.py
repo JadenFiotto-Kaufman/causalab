@@ -1,11 +1,11 @@
 """Configuration for the ``subject_object_relations`` factory task.
 
-A single factory over the 35 LRE relations bundled under ``data/relations/``.
+A single factory over the 35 LRE relations bundled under ``sources/relations/``.
 The relation is selected by name (``task.relation=<name>``); its content —
 distinct subjects, the deterministic subject→object map, distinct objects, and
 the deduped ``{subject}`` templates — is loaded from the committed JSON in
 ``__post_init__``. The relation content is model-agnostic (all Llama token /
-position fields were dropped by ``data/build_relations.py``), so no ``external artifact storage``
+position fields were dropped by ``sources/build_relations.py``), so no ``external artifact storage``
 access happens at runtime.
 """
 
@@ -16,9 +16,9 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-_DATA_DIR = Path(__file__).resolve().parent / "data"
-_RELATIONS_DIR = _DATA_DIR / "relations"
-_MANIFEST_PATH = _DATA_DIR / "manifest.json"
+_SOURCES_DIR = Path(__file__).resolve().parent / "sources"
+_RELATIONS_DIR = _SOURCES_DIR / "relations"
+_MANIFEST_PATH = _SOURCES_DIR / "manifest.json"
 
 
 @lru_cache(maxsize=1)

@@ -112,7 +112,7 @@ def test_load_block_sae_frame_per_feature_gate(tmp_path):
 
     Foreign checkpoints may store a per-feature gate, so b_gate[bid] is a K-vector,
     not a scalar — float(b_gate[bid]) would raise and kill the whole load. The
-    metadata coercion records it as a list instead (PR #320 review fix).
+    metadata coercion records it as a list instead.
     """
     bg = torch.arange(N_GROUPS * K, dtype=torch.float32).reshape(N_GROUPS, K)
     path = _write_fake_block_sae(tmp_path, b_gate=bg, name="grass_pergate.pt")

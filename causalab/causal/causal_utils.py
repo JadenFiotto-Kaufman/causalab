@@ -149,9 +149,9 @@ def intervened_output_vector(
     return out
 
 
-def _output_disagreement_rate(a: list, b: list) -> float:
+def _output_disagreement_rate(a: list, b: list) -> float | None:
     """Fraction of positions where two intervened-output vectors differ."""
-    return sum(1 for x, y in zip(a, b) if x != y) / len(a) if a else 0.0
+    return sum(1 for x, y in zip(a, b) if x != y) / len(a) if a else None
 
 
 def distinguishability_report(
@@ -219,13 +219,39 @@ def distinguishability_report(
                 "vs_null": alts.get("null"),
                 "vs_all": alts.get("all"),
                 "alternatives": alts,
+                "disagreement_counts": {
+                    a: sum(x != y for x, y in zip(labels[tgt], labels[a])) for a in alts
+                },
+                "witness_indices": {
+                    a: [
+                        i
+                        for i, (x, y) in enumerate(zip(labels[tgt], labels[a]))
+                        if x != y
+                    ][:5]
+                    for a in alts
+                },
             }
-        report["datasets"][ds_name] = {"size": len(data), "per_target": per_target}
+        report["datasets"][ds_name] = {
+            "size": len(data),
+            "per_target": per_target,
+            "predictions": labels,
+            "available": bool(data),
+            "reason": None if data else "empty_dataset",
+        }
 
     # Group hypotheses whose intervened-output vectors are identical across the
     # whole random run: no sampled pair deconfounds them (confounded everywhere,
     # not a fixable per-dataset confound).
     big_labels = _label_vectors(random_pairs)
+    report["random_audit"] = {
+        "size": len(random_pairs),
+        "predictions": big_labels,
+        "available": bool(random_pairs),
+        "reason": None if random_pairs else "empty_dataset",
+    }
+    if not random_pairs:
+        report.update(always_confounded=[], singletons=[])
+        return report
     groups: list[list[str]] = []
     for name in hypotheses:
         for grp in groups:
@@ -326,9 +352,9 @@ def compute_interchange_scores(
             # ``raw_outputs`` is a legacy-artifact-only field: the stored
             # per-batch ``raw_results`` schema — a LIST of per-batch dicts
             # (``[{"string": ..., "sequences": ...}, ...]``). No current
-            # producer writes it (post-EU5a producers return the flat
-            # GenerationResult, #486, and nothing emits ``raw_outputs``);
-            # this loop only ever reads artifacts saved before EU5a, which
+            # producer writes it (current producers return the flat
+            # GenerationResult, and nothing emits ``raw_outputs``);
+            # this loop only ever reads artifacts saved by earlier ones, which
             # may carry several batches and bare-str single-example entries
             # — hence the tolerant reading below (no artifact migration).
             for batch_dict in raw_outputs:
@@ -706,22 +732,3 @@ def get_specific_path_filter(
         return False
 
     return check_path
-
-
-def form_groups(var_map: dict[Any, list[str]]) -> list[list[str]]:
-    """Distinct, order-stable form groups across a variable's values.
-
-    ``var_map`` is ``{value: [form, ...]}``. Values whose form lists are
-    identical collapse to a single group — this is where the dedup that
-    ``output_token_values`` used to encode emerges for free (e.g. many
-    ``(entity, group)`` tuples sharing one entity's forms).
-    """
-    groups: list[list[str]] = []
-    seen: set[tuple[str, ...]] = set()
-    for forms in var_map.values():
-        key = tuple(forms)
-        if key in seen:
-            continue
-        seen.add(key)
-        groups.append(list(forms))
-    return groups

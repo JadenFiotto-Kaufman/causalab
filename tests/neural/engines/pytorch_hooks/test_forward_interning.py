@@ -26,8 +26,9 @@ import pytest
 from causalab.cli import register_model_key
 from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 from causalab.neural.engines.pytorch_hooks.loading import load_model
-from causalab.neural.shared.execution import campaign_plans
-from causalab.protocol.engine import ExecutionRequest
+from causalab.neural.shared.execution import campaign_plans, execute_request
+from causalab.neural.shared.executor_base import CaptureKey, ForwardCache, Interning
+from causalab.protocol.engine import ExecutionRequest, RunResult
 from causalab.protocol.loader import LoadedProtocol, load
 from causalab.protocol.plan import interned_groups, plan_point
 from causalab.protocol.resolve import ResolutionEnv
@@ -45,7 +46,7 @@ pytestmark = pytest.mark.smoke
 #: forward differs and whose counterfactual harvest does not.
 OVERRIDES = {
     "model.key": TINY_LLAMA,
-    "sites.target.layer": {"sweep": [0, 1]},
+    "sites.target.layers": {"sweep": [0, 1]},
     "positions.tap": {"sweep": [{"index": -1}, {"index": -2}]},
 }
 
@@ -115,7 +116,7 @@ def test_the_plan_shares_a_group_the_points_do_not(scan: LoadedProtocol) -> None
     """The premise, stated as data: the campaign's forward-group instances
     outnumber its distinct digests, and the whole surplus is counterfactual
     harvest — one digest, one tap per layer."""
-    plans = campaign_plans(scan.point_documents)
+    plans = campaign_plans(scan.point_documents, scan.canonical_points)
     groups = interned_groups(plans)
     assert sum(plan.num_forwards for plan in plans) == 8  # 4 points x 2 groups
     assert len(groups) == 5  # 4 distinct patched + 1 shared harvest
@@ -136,7 +137,7 @@ def test_a_shared_forward_group_runs_once(
     Before interning this counted 8 — the flat per-point loop re-ran the
     shared counterfactual harvest for every one of the four points.
     """
-    plans = campaign_plans(scan.point_documents)
+    plans = campaign_plans(scan.point_documents, scan.canonical_points)
     owed = len(interned_groups(plans))
 
     result = PytorchHooksEngine().execute(_request(scan, scan_env, tmp_path))
@@ -189,3 +190,103 @@ def test_a_lone_point_still_runs_its_own_groups(
     assert plan_point(scan.point_documents[0]).num_forwards == 2
     assert result.forwards == 2
     assert len(forwards) == 2
+
+
+def _execute_watching_the_store(
+    request: ExecutionRequest,
+) -> tuple[RunResult, ForwardCache, list[set[CaptureKey]]]:
+    """Run ``request`` exactly as ``PytorchHooksEngine.execute`` does, keeping
+    the campaign's :class:`ForwardCache` in view.
+
+    ``execute_request``'s ``executor_factory`` is the seam: it is handed each
+    point's :class:`Interning` (whose ``cache`` is the campaign's one store)
+    right before the point runs, so a snapshot of the store's keys taken there
+    is "what the store held when point *i* started"."""
+    from causalab.neural.engines.pytorch_hooks.train import run_training
+
+    engine = PytorchHooksEngine()
+    stores: list[ForwardCache] = []
+    snapshots: list[set[CaptureKey]] = []
+
+    def factory(doc, req, coords, interning):
+        assert interning is not None
+        stores.append(interning.cache)
+        snapshots.append(set(interning.cache.captured))
+        return engine._executor(doc, req, coords=coords, interning=interning)
+
+    result = execute_request(
+        request,
+        engine_name=engine.name,
+        executor_factory=factory,
+        train_runner=run_training,
+        intern_forwards=True,
+    )
+    assert len(set(map(id, stores))) == 1, "one campaign, one store"
+    return result, stores[0], snapshots
+
+
+def test_a_capture_lives_with_its_sharers_not_with_the_request(
+    scan: LoadedProtocol, scan_env: ResolutionEnv, forwards: list[int], tmp_path: Path
+) -> None:
+    """The memory half of §3: the store keeps a raw capture only while a pass
+    is still owed it, and never stores one no other pass keys into.
+
+    Before this, every group published — the four distinct *patched* forwards
+    included — and nothing evicted, so a campaign pinned one raw capture per
+    point until the request ended. On a real-model sweep (gemma-2-2b-it, 150
+    rows, a 7-layer sweep tapping ``lm_head``) that is 13 GiB per point and
+    ran out of memory on an 80 GB device where the per-point loop had passed
+    in 47 s.
+
+    The plan says which digests recur: here one harvest shared by four points
+    (owed 4) and four patched groups owed once each. So the store must hold
+    exactly the harvest between points, and nothing once the last point has
+    been served.
+    """
+    plans = campaign_plans(scan.point_documents, scan.canonical_points)
+    (harvest,) = [g for g in interned_groups(plans) if g.model == "original"]
+    patched = {g.digest for g in interned_groups(plans) if g.model != "original"}
+    assert len(patched) == len(scan.expansion.points)
+
+    result, store, snapshots = _execute_watching_the_store(
+        _request(scan, scan_env, tmp_path)
+    )
+
+    # what each later point found: the shared harvest, and only that — a
+    # patched capture nobody else keys into is not stored in the first place
+    assert snapshots[0] == set()
+    assert all(seen == {harvest.digest} for seen in snapshots[1:]), snapshots
+    # the last sharer settled it: the store is empty once the campaign is done
+    assert store.captured == {} and store.routing == {}
+    assert store.owed == {digest: 0 for digest in {harvest.digest, *patched}}
+    # and eviction cost no forward: the harvest still ran exactly once
+    assert result.forwards == len(forwards) == len(interned_groups(plans))
+
+
+def test_an_untracked_store_keeps_every_capture(
+    scan: LoadedProtocol, scan_env: ResolutionEnv, tmp_path: Path
+) -> None:
+    """A store built without ``owed`` — a hand-built cache, an engine that
+    planned no campaign — is the pre-eviction store: it keeps what it is given
+    for the request. Lifetime tracking is opt-in by the count, so a caller
+    that did not plan cannot have captures pulled out from under it."""
+    engine = PytorchHooksEngine()
+    plans = campaign_plans(scan.point_documents, scan.canonical_points)
+    store = ForwardCache(
+        wanted={
+            g.digest: tuple(doc.sites[t.site] for t in g.taps)
+            for doc, plan in zip(scan.point_documents, plans)
+            for g in plan.groups
+        }
+    )
+    request = _request(scan, scan_env, tmp_path, [0])
+    doc = scan.point_documents[0]
+    handle = Interning(
+        digests={(g.model, g.input): g.digest for g in plans[0].groups}, cache=store
+    )
+    executor = engine._executor(
+        doc, request, coords=request.coords[0], interning=handle
+    )
+    executor.run_all()
+    assert set(store.captured) == {g.digest for g in plans[0].groups}
+    assert store.owed == {}

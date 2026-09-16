@@ -1,19 +1,25 @@
-"""The load pipeline: text → validated, expanded, canonicalized protocol.
+"""The authoring surface of a load, and the loader's legacy face.
 
-One entry point, :func:`load`, owns the order the spec implies:
+The pipeline itself — read, override, resolve, gate, expand, validate,
+canonicalize, digest — is :mod:`causalab.protocol.compile`, one function
+every entry point calls (spec §9). What lives here is what a compile
+*reads with*: the file readers (:func:`load_text`, strict JSON and YAML into
+one object model), the one authoring-sugar resolver the compiler's second
+stage runs (:func:`apply_overrides` for ``--set``), the per-point
+artifact-identity check the validate stage runs
+(:func:`check_loaded_featurizers`), the ``validate --data`` pass over a
+compiled result (:func:`check_data_columns`), and rule 25's row-role check
+(:func:`check_row_roles`, part of that pass and run again by
+:func:`~causalab.protocol.run.run_protocol` before any weights load).
 
-1. read + strict-parse the authored tree (rules 1–2, shape checks);
-2. resolve artifact-valued fields against the environment (rule 15);
-3. expand sweeps into point protocols (rule 14, point cap);
-4. parse + validate every point (rules 3–13 — a point is exactly as valid
-   as the same document written by hand);
-5. canonicalize: the document form (wrappers intact — the campaign) and
-   every point form (fully materialized — the provenance units), with
-   their digests.
+:func:`load` and :class:`LoadedProtocol` are the loader's original names and
+signature, kept as a thin wrapper over :func:`~causalab.protocol.compile.compile_protocol`:
+the flat view of a compile that tests and callers already read. It composes
+nothing of its own — the sequence is written once.
 
-``--set path=value`` overrides (§9) are applied to the authored tree before
-anything else — exploration only; the digest of an overridden document is
-the overridden document's digest, so the record never lies.
+``--set path=value`` overrides (§9) are applied to the authored document
+before anything else — exploration only; the digest of an overridden document
+is the overridden document's digest, so the record never lies.
 """
 
 from __future__ import annotations
@@ -22,36 +28,59 @@ import dataclasses
 import json
 import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
-from causalab.protocol import canonical as _canonical
+from causalab.causal.pairs import EDIT_GROUPS_COLUMN, EditGroupError, parse_edit_groups
+from causalab.causal.scoring import ScoringError, ScoringMismatch, check_scoring
+from causalab.causal.scoring import declared_modes
 from causalab.protocol.bundles import select_entry, selector_slot
+from causalab.protocol.canonical import canonical_model
 from causalab.protocol.errors import ParseError, ValidationError
-from causalab.protocol.method import (
-    document_type,
-    is_split,
-    method_digest,
-    split_document,
-)
-from causalab.protocol.resolve import ResolutionEnv, resolve_artifact_fields
+from causalab.protocol.examples import EXAMPLE_ID_COLUMN, example_id_defect
+from causalab.protocol.fit_splits import check_fit_splits
+from causalab.protocol.registry import site_group_map
+from causalab.protocol.resolve import ResolutionEnv
 from causalab.protocol.schema import (
+    metric_column_fields,
     FEATURIZER_SLOTS,
-    NON_COLUMN_METRIC_FIELDS,
-    OPTIONAL_METRIC_FIELDS,
+    HARD_CONCRETE_STRETCH,
+    MINIMUM_COUNT_FIELD,
+    DataRole,
     Document,
+    FeaturizerSpec,
+    MetricSpec,
     PositionSpec,
     load_raw,
-    parse_document,
+    tree_path,
 )
-from causalab.protocol.sweep import DEFAULT_POINT_CAP, Expansion, expand
-from causalab.protocol.validate import validate_document
+from causalab.protocol.spans import walk
+from causalab.protocol.sweep import DEFAULT_POINT_CAP, Expansion
+from causalab.protocol.validate import im_writes
 
-__all__ = ["LoadedProtocol", "apply_overrides", "flatten", "load", "load_text"]
+if TYPE_CHECKING:
+    from causalab.protocol.compile import CompiledProtocol
+
+__all__ = [
+    "LoadedProtocol",
+    "apply_overrides",
+    "check_data_columns",
+    "check_json_values",
+    "check_loaded_featurizers",
+    "check_minimum_counts",
+    "check_row_roles",
+    "load",
+    "load_text",
+    "maximum_eligible_count",
+]
 
 
 @dataclasses.dataclass(frozen=True)
 class LoadedProtocol:
-    """Everything a verb or an engine needs after one load."""
+    """Everything a verb or an engine needs after one load — the flat view of a
+    :class:`~causalab.protocol.compile.CompiledProtocol`, under the names the
+    loader always had. Built by :meth:`from_compiled` and nowhere else; the
+    compile it views is :attr:`compiled`, which is what
+    :func:`~causalab.protocol.run.run_protocol` executes."""
 
     document: Document
     raw: Mapping[str, Any]
@@ -61,13 +90,24 @@ class LoadedProtocol:
     document_digest: str
     canonical_points: tuple[Mapping[str, Any], ...]
     point_digests: tuple[str, ...]
-    #: The method this document was composed from (§1.1), when it was written
-    #: in split form: its content hash, and the ``method`` reference when the
-    #: method came from a reusable file rather than inline. The *composed*
-    #: document digests as if it had been written flat, so method provenance is
-    #: reported and stamped, never folded into the canonical bytes (§7).
-    method_digest: str | None = None
-    method_ref: str | None = None
+    #: The compile this is a view of.
+    compiled: CompiledProtocol | None = dataclasses.field(
+        default=None, repr=False, compare=False
+    )
+
+    @classmethod
+    def from_compiled(cls, compiled: CompiledProtocol) -> LoadedProtocol:
+        return cls(
+            document=compiled.points.document,
+            raw=compiled.points.explicit,
+            expansion=compiled.points,
+            point_documents=compiled.points.documents,
+            canonical_document=compiled.canonical,
+            document_digest=compiled.digests.document,
+            canonical_points=compiled.points.canonical,
+            point_digests=compiled.digests.points,
+            compiled=compiled,
+        )
 
 
 def load_text(path: Path) -> dict[str, Any]:
@@ -79,7 +119,7 @@ def load_text(path: Path) -> dict[str, Any]:
         raw = _load_yaml(text)
         if not isinstance(raw, dict):
             raise ParseError("P1", "the top level must be a mapping")
-        _check_json_values(raw)
+        check_json_values(raw)
         return raw
     return load_raw(text)
 
@@ -108,7 +148,7 @@ def _load_yaml(text: str) -> Any:
         raise ParseError("P1", f"not valid YAML: {err}") from err
 
 
-def _check_json_values(raw: Any, *, _path: str = "") -> None:
+def check_json_values(raw: Any, *, _path: str = "") -> None:
     """The JSON object model is normative (§0): every mapping key is a
     string and every number is finite — whatever surface (YAML, an artifact
     store) produced the tree."""
@@ -121,10 +161,10 @@ def _check_json_values(raw: Any, *, _path: str = "") -> None:
                     "authoring surface",
                     path=_path or None,
                 )
-            _check_json_values(value, _path=f"{_path}.{key}" if _path else str(key))
+            check_json_values(value, _path=f"{_path}.{key}" if _path else str(key))
     elif isinstance(raw, list):
         for item in raw:
-            _check_json_values(item, _path=_path)
+            check_json_values(item, _path=_path)
     elif isinstance(raw, float) and (
         raw != raw or raw in (float("inf"), float("-inf"))
     ):
@@ -133,23 +173,6 @@ def _check_json_values(raw: Any, *, _path: str = "") -> None:
             f"non-finite number at {_path or '<root>'} — the object model is JSON",
             path=_path or None,
         )
-
-
-def flatten(
-    raw: Mapping[str, Any], *, base_dir: Path | None = None
-) -> tuple[dict[str, Any], str | None, str | None]:
-    """One protocol document as a flat tree, whichever form it was written in
-    (§1.1). Returns the flat document, the method's content digest, and the
-    ``method`` reference when the method came from a file.
-
-    Everything that addresses fields by path — ``--set`` overrides, a workflow
-    step's ``set`` block, the run verb's model pre-registration — flattens
-    first, so a dotted path means the same thing in both forms.
-    """
-    if not is_split(raw):
-        return dict(raw), None, None
-    composed, method_raw, method_ref = split_document(raw, base_dir=base_dir)
-    return composed, method_digest(method_raw), method_ref
 
 
 def load(
@@ -161,85 +184,87 @@ def load(
     engine_is_local: bool | None = None,
     base_dir: Path | None = None,
 ) -> LoadedProtocol:
-    """Load one protocol document through the full pipeline.
+    """Load one intervention specification through the full pipeline — the
+    loader's original signature over :func:`~causalab.protocol.compile.compile_protocol`.
 
-    ``base_dir`` is where a relative ``method`` reference resolves from when
-    the document arrives as a tree rather than a file (a workflow step reads
-    its inner document itself); a document loaded from a path uses its own
-    directory. An inlined method — the usual case, one file per run — needs
-    neither.
+    ``base_dir`` is the directory a document's relative references resolve
+    from when it arrives as a tree rather than a file; a document loaded from
+    a path uses its own directory.
 
-    A *split* document (§1.1) is flattened first: the composition is an
-    ordinary protocol document, and everything after this line — overrides,
-    artifact fields, sweeps, validation, canonicalization — cannot tell how the
-    document was authored. ``--set`` paths therefore address the *composed*
-    document, whichever form it was written in.
+    ``--set`` paths are section-rooted (``sites.target.layers``, never
+    ``method.sites.target.layers``, §1): a section name is unique across the
+    document's four groups, so the group is never spelled.
+
+    ``engine_is_local`` is rule 13's question (§2.8) in the loader's original
+    spelling, and it says nothing else about the engine: the compiler asks
+    the question of a capability set, so the answer is put to
+    :func:`~causalab.protocol.compile.check_engine` as an engine that offers
+    exactly what the document requires, with ``pytorch_fn_local`` added
+    (``True``) or removed (``False``) — never as an engine that offers
+    nothing, which the compiler would refuse under rule 13 for every other
+    capability the document needs.
     """
-    raw = dict(load_text(source)) if isinstance(source, Path) else dict(source)
-    kind = document_type(raw)
-    if kind == "method":
-        raise ValidationError(
-            18,
-            "this is a method file: it names no network, no data and no "
-            "addresses, so there is nothing to run. Bind it from a document's "
-            "`application` half (§1.1), or ask for its signature with "
-            "`causalab explain`.",
-            path="type",
+    from causalab.protocol.compile import check_engine, compile_protocol
+
+    compiled = compile_protocol(
+        source,
+        source.parent if isinstance(source, Path) else base_dir,
+        overrides,
+        env.datasets,
+        env.artifacts,
+        None,
+        point_cap=point_cap,
+        model_info=env.model_info,
+    )
+    if engine_is_local is not None:
+        local = frozenset({"pytorch_fn_local"})
+        check_engine(
+            compiled,
+            compiled.capabilities | local
+            if engine_is_local
+            else compiled.capabilities - local,
         )
-    raw, method_digest_value, method_ref = flatten(
-        raw, base_dir=source.parent if isinstance(source, Path) else base_dir
-    )
-    if overrides:
-        raw = apply_overrides(raw, overrides)
-    # artifact fields resolve first (§1: legal anywhere a value is), then the
-    # strict parse gates the fully-literal authored form
-    resolved = resolve_artifact_fields(raw, env)
-    _check_json_values(resolved)
-    parse_document(resolved)  # authored-form shape gate (sweeps intact)
-    expansion = expand(resolved, point_cap=point_cap)
-    point_documents: list[Document] = []
-    for point in expansion.points:
-        pdoc = parse_document(point.raw)
-        validate_document(pdoc, engine_is_local=engine_is_local)
-        _check_loaded_featurizers(pdoc, env)
-        point_documents.append(pdoc)
-    canonical_document = _canonical.canonicalize(resolved, env)
-    canonical_points = tuple(
-        _canonical.canonicalize(point.raw, env) for point in expansion.points
-    )
-    return LoadedProtocol(
-        document=parse_document(resolved),
-        raw=resolved,
-        expansion=expansion,
-        point_documents=tuple(point_documents),
-        canonical_document=canonical_document,
-        document_digest=_canonical.digest(canonical_document),
-        canonical_points=canonical_points,
-        point_digests=tuple(_canonical.digest(c) for c in canonical_points),
-        method_digest=method_digest_value,
-        method_ref=method_ref,
-    )
+    return LoadedProtocol.from_compiled(compiled)
 
 
-def _check_loaded_featurizers(doc: Document, env: ResolutionEnv) -> None:
+def _is_default_stretch(stamped: Any) -> bool:
+    """Whether a bundle's stamped ``stretch`` (a JSON list, or the list itself)
+    is the unauthored default, which a document authoring none implies."""
+    try:
+        values = json.loads(stamped) if isinstance(stamped, str) else list(stamped)
+        lo, hi = float(values[0]), float(values[1])
+    except (TypeError, ValueError, IndexError, json.JSONDecodeError):
+        return False
+    return (lo, hi) == HARD_CONCRETE_STRETCH
+
+
+def check_loaded_featurizers(doc: Document, env: ResolutionEnv) -> None:
     """§2.5/§8: every ``file_path`` load is checked at load time. A
     featurizer bundle's stamped ArtifactIdentity must match what the
-    document implies (model, site record, k, parametrization, dtype); a
-    ``params`` entry's file must exist, and its identity — when stamped —
+    document implies (model, site record, k, parametrization, dtype, and —
+    for a grouped gate — the group and the map the registry derives for it);
+    a ``params`` entry's file must exist, and its identity — when stamped —
     must name the same model (free constant tensors may come from outside
     causalab, so an unstamped params file is existence-checked only; a
     stamped one must not contradict the document).
+
+    A ``subspace`` with an ``init`` basis is checked the same way against the
+    fields a *starting point* has to share with the fit — the model
+    realization and the site — and not against the fields the basis owns
+    (its rank, its dtype, the data it was fitted on); it must also carry a
+    ``produced_by``, since that digest is how the fit record names it.
 
     A bundle written by a *swept* producer stamps per entry, not per file
     (§8): the fields that differ between points live in the header's
     ``entries`` table. The check therefore looks at the record of the entry
     this document selects, whenever that entry is knowable here — an
     authored ``entry``, or a bundle holding exactly one record for the slot.
-    A selection that only the executing point can make (implicit matching
-    off its own coordinates, §2.5) is checked when the stage is built, where
-    the point is known."""
-    import dataclasses as _dc
-
+    When the selection is the executing point's (implicit matching off its
+    own coordinates, §2.5), an ``init`` basis is checked on its file-level
+    stamp — the model realization and site a start must share with the fit
+    are the producer's, so a swept producer stamps them file-wide unless it
+    swept them, and then only an authored ``entry`` can reach them and the
+    load refuses asking for one."""
     from causalab.protocol.resolve import check_artifact_identity
 
     defers = getattr(env.artifacts, "defers", None)
@@ -265,59 +290,304 @@ def _check_loaded_featurizers(doc: Document, env: ResolutionEnv) -> None:
             )
 
     for fname, spec in doc.featurizers.items():
-        if not isinstance(spec.file_path, str):
-            continue
-        if defers is not None and defers(spec.file_path):
-            continue  # a run-tree path inside a workflow — checked at run time
-        used_sites: list[str] = []
-        for entry in (*doc.reads.values(), *doc.writes.values()):
-            ref = entry.featurizer
-            chain = (
-                (ref,)
-                if isinstance(ref, str)
-                else tuple(ref)
-                if isinstance(ref, tuple)
-                else ()
+        if isinstance(spec.file_path, str):
+            if defers is not None and defers(spec.file_path):
+                continue  # a run-tree path inside a workflow — checked at run time
+            expected: dict[str, Any] = {
+                **_featurizer_realization(doc, fname),
+                "k": spec.k,
+                "parametrization": spec.parametrization,
+                "dtype": spec.dtype if spec.dtype is not None else "fp32",
+                # the four `init_*` keys are asked of a bundle ONLY when this
+                # document authors `init` (§8): a document without one implies
+                # nothing about a start, so a bundle stamped before the keys
+                # existed still loads under it, and the keys stay write-only
+                # provenance everywhere else
+                **_init_expectation(spec, env, defers),
+            }
+            if spec.stretch is not None:
+                # a hard-concrete gate's hard split is θ > logit((½−γ)/(ζ−γ)),
+                # so a bundle fitted at one stretch is a different mask under
+                # another: the document's authored stretch is asked of the
+                # bundle (the `group` precedent — only an AUTHORED value is
+                # expected; the unauthored default is the reverse check below).
+                # β is not compared: it does not enter the eval-mode split, and
+                # a loaded gate is only ever read in eval mode — the loop puts
+                # `train.params` stages in training mode, and a `file_path`
+                # featurizer may not be one (§2.5)
+                expected["stretch"] = list(spec.stretch)
+            if isinstance(spec.group, str):
+                # the map a grouped gate was fitted over is derivable offline
+                # from the registry, so "16 heads of 256" against "32 heads of
+                # 128" is refused here, by name, and not by a width mismatch
+                # deep in the build. Only a document that AUTHORS a group
+                # expects one: an ungrouped document derives neither key, so a
+                # per-coordinate gate fitted before ``group`` existed still
+                # loads (§2.5, "absent, nothing changes")
+                expected["group"] = spec.group
+                site_record = expected.get("site")
+                if isinstance(site_record, Mapping) and isinstance(
+                    site_record.get("component"), str
+                ):
+                    info = env.model_info(str(doc.model.key))
+                    head = site_record.get("head")
+                    expert = site_record.get("expert")
+                    expected["group_map"] = list(
+                        site_group_map(
+                            info,
+                            spec.group,
+                            site_record["component"],
+                            head=head if isinstance(head, int) else None,
+                            expert=expert if isinstance(expert, int) else None,
+                        )
+                    )
+            if isinstance(spec.axis, str):
+                # §2.5 `axis`: a mask over positions is not a mask over
+                # coordinates, and the bundle says which it is — asked here,
+                # by name, as `group` is, not by a width mismatch at the build
+                expected["axis"] = spec.axis
+            what = f"featurizer {fname!r} ({spec.file_path})"
+            stamped = env.artifacts.read_identity(spec.file_path)
+            slot = FEATURIZER_SLOTS.get(
+                spec.kind if isinstance(spec.kind, str) else "identity", ()
             )
-            if fname in chain and str(entry.site) not in used_sites:
-                used_sites.append(str(entry.site))
-        realization = _canonical.canonical_model(doc.raw["model"])
-        expected: dict[str, Any] = {
-            "model_key": doc.model.key,
-            "model_revision": doc.model.revision,
-            # the realization the bundle was fitted against is part of its
-            # identity (§8): a rotation fitted in bf16 does not apply to fp32
-            # activations just because the shapes agree
-            "model_dtype": realization["dtype"],
-            "model_quantization": realization.get("quantization"),
-            "k": spec.k,
-            "parametrization": spec.parametrization,
-            "dtype": spec.dtype if spec.dtype is not None else "fp32",
-        }
-        if len(used_sites) == 1:
-            site = doc.sites[used_sites[0]]
-            expected["site"] = {
+            resolved = (
+                _entry_identity(stamped, slot=slot[0], authored=spec.entry, what=what)
+                if stamped is not None and slot
+                else stamped
+            )
+            if resolved is None:
+                continue  # only the executing point can select — checked at build
+            if resolved.get("group") is not None and not isinstance(spec.group, str):
+                # the reverse mismatch: the bundle was fitted per head, and this
+                # document's per-coordinate gate would read its H parameters as H
+                # coordinates. Not a key the expectation carries, so said here
+                raise ValidationError(
+                    15,
+                    f"{what}: the bundle was fitted with group {resolved['group']!r} "
+                    "but this document declares no group on the gate — a mask over "
+                    "units is not a mask over coordinates (§2.5)",
+                )
+            if resolved.get("axis") is not None and not isinstance(spec.axis, str):
+                # the reverse: a bundle fitted over positions read by a
+                # per-coordinate gate would take its W parameters as W
+                # coordinates. Not a key the expectation carries, so said here
+                raise ValidationError(
+                    15,
+                    f"{what}: the bundle was fitted over {resolved['axis']!r} but "
+                    "this document declares no axis on the gate — a mask over "
+                    "positions is not a mask over coordinates (§2.5)",
+                )
+            stamped_pool = resolved.get("pool")
+            if stamped_pool is not None and not isinstance(spec.pool, str):
+                # a pooled theta is a ranking relative to its co-members (§2.5
+                # `pool`): read alone it is a different experiment. The other
+                # direction is open — an UNSTAMPED bundle may join a pooled
+                # readout, which is how a joint ranking of separately fitted
+                # sigmoid masks (DBM's MIB curve) is cut — so `pool` is not an
+                # expectation the bundle must carry, only one it may not
+                # contradict
+                raise ValidationError(
+                    15,
+                    f"{what}: the bundle was fitted in pool "
+                    f"{stamped_pool!r} but this document declares no pool on "
+                    "the gate — a pooled theta is a ranking relative to its "
+                    "co-members, so a cut through it alone is a different "
+                    "experiment (§2.5)",
+                )
+            if (
+                stamped_pool is not None
+                and isinstance(spec.pool, str)
+                and str(stamped_pool) != spec.pool
+            ):
+                raise ValidationError(
+                    15,
+                    f"{what}: ArtifactIdentity mismatch on 'pool' — the bundle was "
+                    f"fitted in pool {stamped_pool!r}, the document reads it "
+                    f"in {spec.pool!r} (§2.5)",
+                )
+            stamped_param = resolved.get("parametrization")
+            if (
+                spec.kind == "gate"
+                and stamped_param not in (None, "sigmoid")
+                and not isinstance(spec.parametrization, str)
+            ):
+                # the reverse mismatch again: a clamp-fitted bundle's hard mask
+                # is θ > ½, and a document declaring no parametrization would
+                # read it as a sigmoid gate's θ > 0. Not a key the expectation
+                # carries (absent means sigmoid, §2.5), so said here
+                raise ValidationError(
+                    15,
+                    f"{what}: the bundle was fitted with parametrization "
+                    f"{stamped_param!r} but this document declares none on the "
+                    "gate (sigmoid) — the two hard masks differ (θ > ½ against "
+                    "θ > 0), so declare the same parametrization (§2.5)",
+                )
+            stamped_stretch = resolved.get("stretch")
+            if (
+                spec.kind == "gate"
+                and stamped_stretch is not None
+                and spec.stretch is None
+                and not _is_default_stretch(stamped_stretch)
+            ):
+                # the reverse mismatch once more: the bundle was fitted at a
+                # stretch whose hard split is not θ > 0, and a document that
+                # authors none would read it at the default's. Not a key the
+                # expectation carries (absent means the default, §2.5)
+                raise ValidationError(
+                    15,
+                    f"{what}: the bundle was fitted at stretch {stamped_stretch!r} "
+                    "but this document authors none on the gate (the default "
+                    f"{list(HARD_CONCRETE_STRETCH)}) — the two hard masks split θ "
+                    "at different thresholds, so declare the same stretch (§2.5)",
+                )
+            check_artifact_identity(
+                resolved,
+                {key: value for key, value in expected.items() if value is not None},
+                what=what,
+            )
+        elif spec.init is not None and "file_path" in spec.init:
+            # a gate's `init.fill` is a value, not an artifact: nothing to check
+            init_path = str(spec.init["file_path"])
+            if defers is not None and defers(init_path):
+                continue  # a run-tree path inside a workflow — checked at run time
+            what = f"featurizer {fname!r} init ({init_path})"
+            (start_slot,) = FEATURIZER_SLOTS[
+                spec.kind if isinstance(spec.kind, str) else "subspace"
+            ][:1]
+            stamped = env.artifacts.read_identity(init_path)
+            if stamped is None:
+                raise ValidationError(
+                    15,
+                    f"{what}: the basis carries no ArtifactIdentity metadata — "
+                    "a fit's starting point enters its record, so an "
+                    "unverifiable one is refused (§2.5)",
+                )
+            resolved = _entry_identity(
+                stamped,
+                slot=start_slot,
+                authored=spec.init.get("entry"),
+                what=what,
+            )
+            # the basis must have been fitted where the subspace is trained:
+            # this model realization, this site. Its rank, dtype and dataset
+            # are its own — a wider basis seeds the fit by its first k columns
+            # (the width and column count are checked at build, where the
+            # tensor is), and a PCA over one corpus may start a fit on another
+            expected = {
                 key: value
-                for key, value in _dc.asdict(site).items()
+                for key, value in _featurizer_realization(doc, fname).items()
                 if value is not None
             }
-        what = f"featurizer {fname!r} ({spec.file_path})"
-        stamped = env.artifacts.read_identity(spec.file_path)
-        slot = FEATURIZER_SLOTS.get(
-            spec.kind if isinstance(spec.kind, str) else "identity", ()
+            if resolved is None:
+                # several entries, none authored: the executing point selects
+                # (§2.5). The fields a start has to share with the fit are
+                # the producer's, not the point's, so a swept producer stamps
+                # them file-level whenever its points agree on them — and the
+                # file-level stamp is checked here. A field its points did
+                # *not* agree on (a site sweep) lives per entry, where only an
+                # authored `entry` can reach it at load
+                resolved = {k: v for k, v in stamped.items() if k != "entries"}
+                per_entry = sorted(key for key in expected if key not in resolved)
+                if per_entry:
+                    raise ValidationError(
+                        15,
+                        f"{what}: the bundle holds several {start_slot!r} entries and "
+                        f"its file-level ArtifactIdentity carries no {per_entry} "
+                        "— those fields differ between its entries, so the "
+                        "document must author 'init.entry' to name the one it "
+                        "starts from (§2.5)",
+                    )
+            check_artifact_identity(resolved, expected, what=what)
+            if resolved.get("produced_by") is None:
+                raise ValidationError(
+                    15,
+                    f"{what}: ArtifactIdentity is missing 'produced_by' — the "
+                    "fit record names the basis it started from by that digest, "
+                    "so a basis without one cannot seed a fit (§2.5)",
+                )
+
+
+def _init_expectation(
+    spec: FeaturizerSpec, env: ResolutionEnv, defers: Any
+) -> dict[str, Any]:
+    """What a document that authors ``init`` implies about the *start* of a
+    bundle it loads (§8): the basis's own ``produced_by`` and data ref, and
+    the columns a rank-``k`` fit takes from it. Empty for a document without
+    ``init`` — which is what keeps a bundle stamped before the ``init_*`` keys
+    existed loadable under every document that never asked for a start — and
+    empty when the basis cannot be read here (a deferred run-tree path, a
+    swept basis whose entry only the executing point can pick), where the
+    build re-reads it. The parser refuses ``init`` beside ``file_path`` on the
+    same featurizer (§2.5), so today no parsed document reaches a load with
+    this non-empty; the expectation is built here regardless so the identity
+    contract is stated once, at the loader, and a bundle is never held to
+    fewer fields than its document authors. ``init_digest`` needs the tensor
+    and is a build-time fact, never expected here."""
+    if spec.init is None or "file_path" not in spec.init:
+        return {}  # no start, or a gate's `fill`: a value, not an artifact
+    init_path = str(spec.init["file_path"])
+    if defers is not None and defers(init_path):
+        return {}
+    stamped = env.artifacts.read_identity(init_path)
+    if stamped is None:
+        return {}
+    kind = spec.kind if isinstance(spec.kind, str) else "subspace"
+    basis = _entry_identity(
+        stamped,
+        slot=FEATURIZER_SLOTS[kind][0],
+        authored=spec.init.get("entry"),
+        what=f"init ({init_path})",
+    )
+    if basis is None:
+        return {}
+    expected: dict[str, Any] = {
+        "init_produced_by": basis.get("produced_by"),
+        "init_trained_on": basis.get("trained_on"),
+    }
+    if kind == "subspace":
+        # the columns a rank-k fit takes; a gate's start is the whole theta
+        expected["init_components"] = (
+            list(range(spec.k)) if isinstance(spec.k, int) else None
         )
-        resolved = (
-            _entry_identity(stamped, slot=slot[0], authored=spec.entry, what=what)
-            if stamped is not None and slot
-            else stamped
+    return expected
+
+
+def _featurizer_realization(doc: Document, fname: str) -> dict[str, Any]:
+    """What a bundle fitted *for* one featurizer must have been fitted
+    against: the model realization (§8 — a rotation fitted in bf16 does not
+    apply to fp32 activations just because the shapes agree) and, when the
+    featurizer is used at exactly one site, that site's record."""
+    used_sites: list[str] = []
+    for entry in (*doc.reads.values(), *doc.writes.values()):
+        ref = entry.featurizer
+        chain = (
+            (ref,)
+            if isinstance(ref, str)
+            else tuple(ref)
+            if isinstance(ref, tuple)
+            else ()
         )
-        if resolved is None:
-            continue  # only the executing point can select — checked at build
-        check_artifact_identity(
-            resolved,
-            {key: value for key, value in expected.items() if value is not None},
-            what=what,
-        )
+        if fname in chain and str(entry.site) not in used_sites:
+            used_sites.append(str(entry.site))
+    realization = canonical_model(doc.raw["model"])
+    expected: dict[str, Any] = {
+        "model_key": doc.model.key,
+        "model_revision": doc.model.revision,
+        "model_dtype": realization["dtype"],
+        "model_quantization": realization.get("quantization"),
+        "model_attn_implementation": realization.get("attn_implementation"),
+    }
+    if len(used_sites) == 1:
+        site = doc.sites[used_sites[0]]
+        expected["site"] = {
+            # the band as a JSON list, the spelling the stamp carries
+            # (`neural.shared.services.site_identity`)
+            key: list(value) if isinstance(value, tuple) else value
+            for key, value in dataclasses.asdict(site).items()
+            if value is not None
+        }
+    return expected
 
 
 def _entry_identity(
@@ -357,7 +627,10 @@ def _entry_identity(
     except ValidationError as err:
         if authored:
             raise  # an authored selection that misses is a load error
-        if "selects none" in str(err):
+        if err.reason == "empty_selector":
+            # nothing authored and several candidates: the selection is the
+            # executing point's, so the check is deferred, not failed. The
+            # reason code is the contract; the message text is not.
             return None
         raise
     record = table[key]
@@ -370,24 +643,35 @@ _INDEX = re.compile(r"^(.*)\[(\d+)\]$")
 
 #: Dotted paths an override may *create*. An override normally has to hit a
 #: field that exists — inventing structure is how a typo becomes an
-#: experiment. These two are the exception because the document is never
-#: really silent about them: canonicalization materializes both (§7), so
-#: setting one fills a default rather than adding a field.
-CREATABLE_PATHS: frozenset[str] = frozenset({"model.dtype", "model.revision"})
+#: experiment. Revision and dtype fill materialized defaults (§7); the
+#: optional attention backend lets a workflow select an implementation even
+#: when its referenced campaign leaves the engine default in place.
+CREATABLE_PATHS: frozenset[str] = frozenset(
+    {"model.dtype", "model.revision", "model.attn_implementation"}
+)
 
 
 def apply_overrides(
     raw: dict[str, Any], overrides: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Apply ``--set path=value`` overrides (§9): dotted paths, ``[i]`` for
+    """Apply ``--set path=value`` overrides (§9): section-rooted dotted paths
+    (:func:`~causalab.protocol.schema.tree_path` finds the group), ``[i]`` for
     list entries, values as JSON (bare words fall back to strings). The
     path must exist — an override that would *create* structure is a typo,
-    not an experiment — except for :data:`CREATABLE_PATHS`, the fields the
-    canonical form materializes whether or not they are authored."""
+    not an experiment — except for :data:`CREATABLE_PATHS`, the model's
+    defaulted fields and its optional attention backend."""
     out = json.loads(json.dumps(raw))  # deep copy, stays plain JSON types
     for dotted, value in overrides.items():
         node: Any = out
-        parts = dotted.split(".")
+        head, _, rest = dotted.partition(".")
+        if head == "method":
+            raise ParseError(
+                "P2",
+                f"--set {dotted}: paths start at the section, never the group — "
+                + (f"write {rest!r} (§1)" if rest else "name a section (§1)"),
+                path=dotted,
+            )
+        parts = tree_path(dotted)
         for i, part in enumerate(parts):
             last = i == len(parts) - 1
             match = _INDEX.match(part)
@@ -427,15 +711,36 @@ def apply_overrides(
 _LIST_FIELD = re.compile(r"^([A-Za-z0-9_]+)\[(\d+)\]$")
 
 
-def check_data_columns(loaded: LoadedProtocol, env: ResolutionEnv) -> list[str]:
-    """The ``validate --data`` pass (§2.2): every dataset field selector, every
-    metric column reference and every ``column``/``variable`` position must
-    exist in the resolved tables. Returns the checked names (for reporting);
-    raises on a miss.
+def check_data_columns(
+    loaded: LoadedProtocol | CompiledProtocol, env: ResolutionEnv
+) -> list[str]:
+    """The ``validate --data`` pass (§2.2) over a compiled result: every dataset
+    field selector, every metric column reference and every
+    ``column``/``variable`` position must exist in the resolved tables. Returns
+    the checked names (for reporting); raises on a miss.
 
-    References are checked against the *union* of the resolved tables: rows are
-    paired across roles (§2.2), and a metric or a column position addresses the
-    row, not one role's text.
+    A pass *after* the compile rather than a stage of it, and deliberately: it
+    reads every row of every table (prompt variables live in the rows), which
+    ``validate``, ``digest`` and a workflow's load of ten inner documents
+    should not pay for, and §5 places rule 20 and rule 4's column half under
+    ``validate --data`` for that reason.
+
+    References are checked against the **base** role's table, not the union of
+    all of them (§2.2, rule 20). Base is the schema of a paired row, and the
+    executor already believes it: ``rows_for_metrics`` returns
+    ``role_rows["base"]`` and nothing else
+    (``neural/shared/executor_base.py``). Checking the union accepted a
+    superset of what the run can serve — a counterfactual-only column passed
+    load, the model was brought up, and only then did the metric die looking
+    for a column in a base row.
+
+    A column *position* is resolved at run time against the role of the read
+    it positions, not against base, so a bare subset rule would leave the
+    mirror-image hole: a position on a counterfactual read naming a base-only
+    column. Rule 20 closes it by requiring the two roles' column sets to be
+    **equal** when they name different datasets — automatic, and free, for
+    every document that names one table for both sides, which is every
+    document this repo ships and the shape §3 recommends.
 
     **Every expanded point, not just the first.** A swept axis is a set of
     documents (§3), and the coordinate that names a bad column need not be
@@ -450,21 +755,51 @@ def check_data_columns(loaded: LoadedProtocol, env: ResolutionEnv) -> list[str]:
     tokenizer, and the pure verbs hold none (``ResolutionEnv`` carries datasets
     and artifacts, and stays torch- and network-free). So a variable that no
     role can name is refused here, while a variable whose window turns out to
-    be ragged across rows is still a run-time refusal ([V19]). That split is
+    be ragged across rows is still a run-time refusal (the encode-time
+    boundary). That split is
     the whole of what is answerable without a model.
+
+    **The scoring identity** (§2.2, §2.10). A table built from a task carries
+    its ``scoring_digest`` and ``string_mode`` in every row; a ``match``
+    metric's ``mode`` is held to the table's mode under §2.10's translation
+    table (:func:`causalab.causal.scoring.check_scoring`) — a ``prefix`` table
+    under ``mode: exact`` is refused under rule 4, naming both modes and the
+    derivation, because the document names a reference (an answer that is one
+    token) the table does not resolve. An unrecorded table compares nothing.
+    The same check runs again before the first forward, where the run receipt
+    records its result.
+
+    **The edit groups** (§2.2, §5 item 27). A row may declare which spans of
+    its pair move together (``edit_groups``, :mod:`causalab.causal.pairs`);
+    the shape of that declaration — spans inside the row's texts, the same
+    number of constituents on both sides, an ``atomic`` group with two or
+    more — is document-decidable and refused here under rule 27. Whether a
+    run addresses an atomic group whole is the tokenizer's question and is
+    refused before the first forward (``executor_base.check_edit_groups``).
+    A row without the column declares nothing and is untouched.
     """
     columns_by_ref: dict[str, set[str]] = {}
     variables_by_role: dict[tuple[str, str], set[str]] = {}
+    #: The role a paired row's schema comes from (§2.2). Named rather than
+    #: spelled inline so the reason is visible at every use.
+    BASE = "data.base"
 
     def columns_of(ref: str) -> set[str]:
         if ref not in columns_by_ref:
             columns_by_ref[ref] = set(env.datasets.columns(ref))
         return columns_by_ref[ref]
 
+    rows_by_ref: dict[str, list[dict[str, Any]]] = {}
+
+    def rows_of(ref: str) -> list[dict[str, Any]]:
+        if ref not in rows_by_ref:
+            rows_by_ref[ref] = env.datasets.rows(ref)
+        return rows_by_ref[ref]
+
     def variables_of(ref: str, field: str) -> set[str]:
         key = (ref, field)
         if key not in variables_by_role:
-            variables_by_role[key] = _role_variables(env.datasets.rows(ref), field)
+            variables_by_role[key] = _role_variables(rows_of(ref), field)
         return variables_by_role[key]
 
     refs: list[str] = []
@@ -479,54 +814,77 @@ def check_data_columns(loaded: LoadedProtocol, env: ResolutionEnv) -> list[str]:
         return True
 
     for doc in loaded.point_documents:
-        columns: set[str] = set()
+        columns_by_role: dict[str, set[str]] = {}
+        datasets: dict[str, str] = {}
         variables: set[str] = set()
-        for role_value in doc.data.values():
-            roles = role_value if isinstance(role_value, tuple) else (role_value,)
-            for role in roles:
-                if not isinstance(role.dataset, str):
-                    continue
-                columns.update(columns_of(role.dataset))
-                field = str(role.field)
-                base_field = field.split("[", 1)[0]
-                if base_field not in columns_of(role.dataset):
-                    raise ValidationError(
-                        4,
-                        f"data field {field!r} is not a column of {role.dataset!r}",
-                        path="data",
-                    )
-                variables.update(variables_of(role.dataset, field))
+        for where, role in _data_roles(doc):
+            if not isinstance(role.dataset, str):
+                continue
+            columns_by_role[where] = columns_of(role.dataset)
+            datasets[where] = role.dataset
+            field = str(role.field)
+            base_field = field.split("[", 1)[0]
+            if base_field not in columns_of(role.dataset):
+                raise ValidationError(
+                    4,
+                    f"data field {field!r} is not a column of {role.dataset!r}",
+                    path=where,
+                )
+            # the field the forward reads — `<column>[eval]` for a drawn role
+            # (§2.2) — so a per-member `_variables` sibling is read as the
+            # engine reads it, not skipped on the bare column
+            variables.update(variables_of(role.dataset, role.resolved_field))
+        columns = columns_by_role.get(BASE, set())
         for qname, metric in doc.metrics.items():
-            for field, value in metric.fields.items():
-                if (
-                    metric.kind == "kl"
-                    or field in NON_COLUMN_METRIC_FIELDS
-                    or field in OPTIONAL_METRIC_FIELDS.get(str(metric.kind), ())
-                    or not isinstance(value, str)
-                ):
-                    continue
+            # which fields are columns is one predicate, shared with the
+            # run-time eligibility check (§2.10, `metric_column_fields`)
+            for field, value in metric_column_fields(metric).items():
                 if not record(f"metrics.{qname}.{field}", value):
                     continue
                 if value not in columns:
                     raise ValidationError(
                         4,
-                        f"metric {qname!r} references column {value!r}, which none "
-                        f"of the resolved datasets provide",
+                        f"metric {qname!r} references column {value!r}"
+                        + _why_not_in_base(value, columns_by_role, datasets, base=BASE),
                         path=f"metrics.{qname}.{field}",
                     )
+        # a declared decision threshold against the most rows the base table
+        # can make eligible (§2.10 "Eligibility"): needs the rows, so it is
+        # this pass's and not the bare load's, like the column half above
+        base_ref = datasets.get(BASE)
+        if base_ref is not None:
+            check_minimum_counts(doc, rows_of(base_ref), base_ref)
+        # an `example_id` column is the rows' label (§2.2): present on every
+        # row, non-empty, unique — or absent, and the row index labels them
+        for where, ref in datasets.items():
+            if not record(f"{where}.{EXAMPLE_ID_COLUMN}", ref):
+                continue
+            defect = example_id_defect(rows_of(ref))
+            if defect is not None:
+                raise ValidationError(
+                    4,
+                    f"dataset {ref!r}: {defect} — an {EXAMPLE_ID_COLUMN} column must "
+                    "label every row, uniquely",
+                    path=where,
+                )
         for where, name in _column_position_refs(doc):
             if not record(where, name):
                 continue
             if name not in columns:
                 raise ValidationError(
                     4,
-                    f"position {where} references column {name!r}, which none of "
-                    f"the resolved datasets provide",
+                    f"position {where} references column {name!r}"
+                    + _why_not_in_base(name, columns_by_role, datasets, base=BASE),
                     path=where,
                 )
         # a prompt variable resolves per role: the role's <col>_variables
-        # sibling first, then a same-named column (§2.3). Either spelling counts.
-        resolvable = variables | columns
+        # sibling first, then a same-named column (§2.3). Either spelling
+        # counts, and unlike a metric or a column position this one stays a
+        # union over roles: a variable lives in a `<field>_variables` sibling,
+        # so two roles reading different fields of the *same* table legitimately
+        # name different variables — which is the shape every shipped
+        # multi-role document has.
+        resolvable = variables | set().union(*columns_by_role.values(), set())
         for where, name in _variable_position_refs(doc):
             if not record(where, name):
                 continue
@@ -539,7 +897,315 @@ def check_data_columns(loaded: LoadedProtocol, env: ResolutionEnv) -> list[str]:
                     f"column (have {sorted(resolvable)})",
                     path=where,
                 )
+        # the table's recorded scoring identity against every `match` mode the
+        # document declares (§2.10's translation table); metric rows are base
+        # rows, so the base table is the one held to
+        base_ref = datasets.get(BASE)
+        if base_ref is not None:
+            _check_scoring_identity(doc, rows_of(base_ref), base_ref)
+            _check_edit_groups(rows_of(base_ref), base_ref)
+        # last, so that a document which *references* a counterfactual-only
+        # column is told about the reference — the actionable half — rather
+        # than about the schema mismatch underneath it
+        _check_roles_agree_with_base(columns_by_role, datasets, base=BASE)
+        check_row_roles(doc, env)
+        check_fit_splits(doc, env.datasets)  # §5 rule 22, across the tables a fit names
     return refs
+
+
+def maximum_eligible_count(
+    metric: MetricSpec, rows: Sequence[Mapping[str, Any]]
+) -> tuple[int, dict[str, int]]:
+    """The most rows of ``rows`` a metric's decision rule could be evaluated
+    over (§2.10 "Eligibility"), and per column the rows that cannot be.
+
+    A row is eligible only if every **column** the kind names carries a value
+    for it — not ``null``, not absent, not an empty list of forms. That is
+    the one structural fact about a row's eligibility the resolved table can
+    settle without a model: a row whose answer column is empty is an excluded
+    measurement at run time (``neural/shared/metrics.py::excluded_rows``,
+    the same predicate) whatever the model does, so no run can make more rows
+    eligible than this. Fields that are not columns (``k``, ``by``,
+    ``tokens``, ``groups``, a ``kl``/``js`` target read, ``match.mode``)
+    exclude nothing here — :func:`~causalab.protocol.schema.metric_column_fields`
+    is the one predicate both sides apply.
+    """
+    columns = list(metric_column_fields(metric).values())
+    empty: dict[str, int] = {}
+    eligible = 0
+    for row in rows:
+        missing = [
+            column
+            for column in columns
+            if row.get(column) is None
+            or (isinstance(row.get(column), list) and not row.get(column))
+        ]
+        if missing:
+            for column in missing:
+                empty[column] = empty.get(column, 0) + 1
+        else:
+            eligible += 1
+    return eligible, empty
+
+
+def check_minimum_counts(
+    doc: Document, rows: Sequence[Mapping[str, Any]], ref: str
+) -> None:
+    """Rule 4's threshold half (§2.10 "Eligibility", §5): a metric's
+    ``minimum_count`` above the resolved base table's
+    :func:`maximum_eligible_count` is a decision rule the data cannot meet —
+    a reference to more eligible rows than resolve — refused naming the
+    maximum, the table's size and the empty columns. A threshold at exactly
+    the maximum passes; a metric with none makes no claim.
+
+    Held to the *maximum* and not to the row count on purpose: the table's
+    ``n_considered`` is what every row would contribute if it could be
+    scored, and a table three of whose ten answers are empty cannot make a
+    threshold of ten, whatever the model does. Run-time exclusions the table
+    cannot foresee (a row whose address aligns on nothing, §4.1) lower the
+    cell's ``n_eligible`` further; that number is the cell's to report, not
+    this pass's to predict.
+    """
+    for qname, metric in doc.metrics.items():
+        threshold = metric.minimum_count
+        if threshold is None:
+            continue
+        maximum, empty = maximum_eligible_count(metric, rows)
+        if threshold <= maximum:
+            continue
+        why = (
+            " — "
+            + ", ".join(f"{n} carry no value in {col!r}" for col, n in empty.items())
+            if empty
+            else ""
+        )
+        raise ValidationError(
+            4,
+            f"metric {qname!r} declares minimum_count={threshold}, but the resolved "
+            f"base table {ref!r} can make at most {maximum} of its {len(rows)} "
+            f"rows eligible{why} (§2.10 'Eligibility'). A decision rule the data "
+            "cannot meet is refused before any forward; declare a threshold of "
+            f"at most {maximum}, or a table that carries the answers",
+            path=f"metrics.{qname}.{MINIMUM_COUNT_FIELD}",
+        )
+
+
+def _check_scoring_identity(
+    doc: Document, rows: list[dict[str, Any]], ref: str
+) -> None:
+    """Rule 4's scoring half: a ``match`` ``mode`` the base table's recorded
+    ``string_mode`` contradicts is a reference that does not resolve
+    (:func:`causalab.causal.scoring.check_scoring`; §2.2, §2.10). A malformed
+    identity — rows disagreeing on it, or half of it missing — is refused the
+    same way: the table cannot be held to a claim it does not make cleanly."""
+    modes = declared_modes(doc.metrics)
+    try:
+        check_scoring(rows, modes, where=ref)
+    except ScoringMismatch as err:
+        raise ValidationError(4, str(err), path=f"metrics.{err.metric}.mode") from err
+    except ScoringError as err:
+        raise ValidationError(4, f"dataset {ref!r}: {err}", path="data.base") from err
+
+
+def _check_edit_groups(rows: list[dict[str, Any]], ref: str) -> None:
+    """Rule 27's data half: a row's ``edit_groups`` declaration is well-formed
+    (:func:`causalab.causal.pairs.parse_edit_groups`) — a span that is not
+    inside the pair's text, sides that disagree on their constituent count or
+    an ``atomic`` group of one is a span that is not well-formed, refused at
+    ``validate --data`` with the row named. Rows without the column are not
+    read."""
+    for index, row in enumerate(rows):
+        if row.get(EDIT_GROUPS_COLUMN) is None:
+            continue
+        try:
+            parse_edit_groups(row)
+        except EditGroupError as err:
+            raise ValidationError(
+                27,
+                f"dataset {ref!r} row {index}: {err} (sec. 2.2 `edit_groups`)",
+                path="data.base",
+            ) from err
+
+
+def check_row_roles(doc: Document, env: ResolutionEnv) -> None:
+    """Rule 25 — declared row roles match the resolved data (§2.8.1).
+
+    A ``code`` declaration that says what the rows of its batch *are* has
+    made a checkable claim, and this is where it is checked: the rows a
+    referenced function receives are the resolved rows of the input role of
+    every intervened_model the write is in force on, so the declared roles
+    have to add up to that table's length.
+
+    This is the second half of the ROME case ``code.py`` describes. Its
+    corruption function assumed one
+    clean row followed by ten corrupted ones and inferred the roles from
+    physical batch positions; nothing anywhere said eleven, so a twelve-row
+    batch would have run and produced numbers. Written down, the same
+    assumption is arithmetic the loader can do before a model is brought up.
+
+    Needs the resolved tables, so — like rule 4's column half and rule 20 —
+    it belongs to the ``validate --data`` pass rather than the bare load. It
+    is *also* called from :func:`~causalab.protocol.run.run_protocol`, before
+    the engine is chosen: the column half of that pass is a wider claim whose
+    blast radius on existing documents is unknown, while this one can only
+    fire on a document that carries a ``code`` declaration with row roles, and
+    a run that goes ahead on a batch the function does not describe is exactly
+    the failure this rule exists to prevent.
+    """
+    if not doc.code:
+        return
+    users: dict[str, set[str]] = {}
+    for mname, im in doc.intervened_models.items():
+        for ename in im_writes(im.writes):
+            write = doc.writes.get(ename)
+            if write is None or str(write.do.mechanism) != "pytorch_fn":
+                continue
+            named = write.do.payload["code"]
+            if isinstance(named, str):
+                users.setdefault(named, set()).add(str(im.input))
+
+    for name, spec in doc.code.items():
+        declared = spec.declared_rows
+        if declared is None:
+            continue
+        for role_name in sorted(users.get(name, ())):
+            role = doc.data.get(_role_key(role_name))
+            role = _role_member(role, role_name)
+            if role is None or not isinstance(role.dataset, str):
+                continue
+            actual = len(env.datasets.rows(role.dataset))
+            if actual != declared:
+                spelled = ", ".join(f"{r.role}:{r.rows}" for r in spec.row_roles)
+                raise ValidationError(
+                    25,
+                    f"code {name!r} declares {declared} rows ({spelled}) but the "
+                    f"resolved {role_name!r} table {role.dataset!r} has {actual} — "
+                    "the row convention a local function assumes is part of the "
+                    "protocol, so a batch it does not describe is a load error "
+                    "(§2.8.1)",
+                    path=f"code.{name}.row_roles",
+                )
+
+
+_ROLE_INDEX = re.compile(r"^([A-Za-z_]+)\[(\d+)\]$")
+
+
+def _role_key(role_name: str) -> str:
+    """``counterfactual[2]`` selects a member of the ``counterfactual`` list."""
+    match = _ROLE_INDEX.match(role_name)
+    return match.group(1) if match else role_name
+
+
+def _role_member(
+    role: DataRole | tuple[DataRole, ...] | None, role_name: str
+) -> DataRole | None:
+    if isinstance(role, tuple):
+        match = _ROLE_INDEX.match(role_name)
+        index = int(match.group(2)) if match else 0
+        return role[index] if index < len(role) else None
+    return role
+
+
+def _data_roles(doc: Document) -> list[tuple[str, DataRole]]:
+    """``(path, role)`` for every data role, base first (§2.2).
+
+    The path is what an error message and a ``ValidationError.path`` should
+    say — ``data.base``, ``data.counterfactual``, ``data.counterfactual[2]`` —
+    so a rejection names the role and not just the column.
+    """
+    out: list[tuple[str, DataRole]] = []
+    for name, value in doc.data.items():
+        if isinstance(value, tuple):
+            out.extend(
+                (f"data.{name}[{index}]", role) for index, role in enumerate(value)
+            )
+        else:
+            out.append((f"data.{name}", value))
+    return out
+
+
+def _check_roles_agree_with_base(
+    columns_by_role: Mapping[str, set[str]],
+    datasets: Mapping[str, str],
+    *,
+    base: str,
+) -> None:
+    """Rule 20 — base is the schema of a paired row (§2.2).
+
+    Two claims, and the second is narrower than the first for a reason:
+
+    * every non-base role's columns are a **subset** of base's. A column only
+      a counterfactual carries is a column no metric can read, because
+      ``rows_for_metrics`` serves base rows; accepting it here only moves the
+      failure past the model load.
+    * when a role names a **different dataset** from base, the two column sets
+      are **equal**. A column position is resolved against the role of the read
+      it positions, not against base, so under a bare subset rule a position on
+      a counterfactual read could name a base-only column and still fail at
+      run time. Naming one table for both sides — every document this repo
+      ships, and the shape §3 recommends — satisfies this for free.
+    """
+    if base not in columns_by_role:
+        return
+    for where, columns in columns_by_role.items():
+        if where == base:
+            continue
+        extra = sorted(columns - columns_by_role[base])
+        if extra:
+            raise ValidationError(
+                20,
+                f"{where} carries column(s) {extra} that {base} does not — base "
+                f"is the schema of a paired row (§2.2), so a column only a "
+                f"counterfactual role has is one no metric can read. Move it to "
+                f"{base}'s dataset ({datasets[base]!r}), or drop it.",
+                path=where,
+            )
+        if datasets[where] == datasets[base]:
+            continue  # one table for both sides: nothing left to check
+        missing = sorted(columns_by_role[base] - columns)
+        if missing:
+            raise ValidationError(
+                20,
+                f"{where} names a different dataset from {base} "
+                f"({datasets[where]!r} vs {datasets[base]!r}) and is missing "
+                f"column(s) {missing}. Roles on different tables must carry "
+                f"identical column sets: a column position resolves against the "
+                f"role of the read it positions, so a base-only column would "
+                f"fail at run time rather than here (§2.2).",
+                path=where,
+            )
+
+
+def _why_not_in_base(
+    name: str,
+    columns_by_role: Mapping[str, set[str]],
+    datasets: Mapping[str, str],
+    *,
+    base: str,
+) -> str:
+    """The tail of a rule-4 rejection: why this column is not readable.
+
+    Naming the role that *does* carry it is the difference between a message
+    that reads as a typo and one that reads as the rule it is — the reference
+    resolves, just not where the run will look.
+    """
+    holders = sorted(
+        where
+        for where, columns in columns_by_role.items()
+        if where != base and name in columns
+    )
+    if not holders:
+        return (
+            f", which no resolved dataset provides (base is {base} on "
+            f"{datasets.get(base, '?')!r})"
+        )
+    named = ", ".join(f"{where} on {datasets[where]!r}" for where in holders)
+    return (
+        f", which {base} on {datasets.get(base, '?')!r} does not provide — it is "
+        f"a column of {named}. Column references resolve against base, the "
+        f"schema of a paired row (§2.2), so this would load and then fail at run "
+        f"time looking for it in a base row."
+    )
 
 
 def _role_variables(rows: list[dict[str, Any]], field: str) -> set[str]:
@@ -575,11 +1241,12 @@ def _variable_position_refs(doc: Document) -> list[tuple[str, str]]:
     def visit(where: str, spec: Any) -> None:
         if not isinstance(spec, PositionSpec):
             return
-        if isinstance(spec.variable, str):
-            found.append((where, spec.variable))
-        anchor = spec.scope if spec.scope is not None else spec.relative_to
-        if spec.anchor_source == "variable" and isinstance(anchor, str):
-            found.append((where, anchor))
+        for inner in walk(spec):  # a span's members and anchors too (§2.3)
+            if isinstance(inner.variable, str):
+                found.append((where, inner.variable))
+            anchor = inner.scope if inner.scope is not None else inner.relative_to
+            if inner.anchor_source == "variable" and isinstance(anchor, str):
+                found.append((where, anchor))
 
     for name, entry in doc.positions.items():
         visit(f"positions.{name}", entry)
@@ -593,15 +1260,22 @@ def _column_position_refs(doc: Document) -> list[tuple[str, str]]:
     """``(where, column)`` for every ``column`` position in a document — the
     named entries plus the inline specs on reads and writes (§2.3)."""
     found: list[tuple[str, str]] = []
+    if doc.segments is not None:
+        # a segment located from a column needs the column (§2.2.1)
+        if doc.segments.system is not None:
+            found.append(("segments.system", doc.segments.system.column))
+        for name, source in doc.segments.declare.items():
+            found.append((f"segments.declare.{name}", source.column))
 
     def visit(where: str, spec: Any) -> None:
         if not isinstance(spec, PositionSpec):
             return
-        if isinstance(spec.column, str):
-            found.append((where, spec.column))
-        anchor = spec.scope if spec.scope is not None else spec.relative_to
-        if spec.anchor_source == "column" and isinstance(anchor, str):
-            found.append((where, anchor))
+        for inner in walk(spec):  # a span's members and anchors too (§2.3)
+            if isinstance(inner.column, str):
+                found.append((where, inner.column))
+            anchor = inner.scope if inner.scope is not None else inner.relative_to
+            if inner.anchor_source == "column" and isinstance(anchor, str):
+                found.append((where, anchor))
 
     for name, entry in doc.positions.items():
         visit(f"positions.{name}", entry)

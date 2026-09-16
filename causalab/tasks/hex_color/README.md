@@ -16,7 +16,7 @@ Answer:
 
 the model is expected to emit the colour word — here `" red"`.
 
-The stimulus set is **bundled** as `data/hex_color.json` (600 stimuli, 100 per
+The stimulus set is **bundled** as `sources/hex_color.json` (600 stimuli, 100 per
 colour × 6), committed with the package like IOI's data files — never read from
 `external artifact storage` at runtime. The stimuli were generated for Llama-3.1-8B DAS work
 (`.../saes/llama31-8b/tasks/hex_color/das/`), but only the model-agnostic
@@ -30,12 +30,11 @@ The source dataset defined **seven** colour classes (adding `indigo`, hue 258°)
 `indigo` is **excluded at build time** because the golden fixture
 (Qwen3-4B-Instruct) cannot perceptually separate it from its neighbours (blue
 235°, purple 285°): it labels indigo swatches `"purple"` with ~0.999 confidence,
-which capped 7-colour balanced accuracy at ~0.80 (measured on an h100; SLURM
-1032794 / confusion diagnostic 1032840) — structurally below the 0.9
-runner-golden floor. Dropping indigo makes the task viable on the fixture and,
+which capped 7-colour balanced accuracy at ~0.80 — structurally below the
+0.9 floor the golden tier requires. Dropping indigo makes the task viable on the fixture and,
 as a bonus, removes the only multi-token colour word (`"indigo" → ["ind",
 "igo"]`), so the six remaining colours are all single-token and the task needs
-**no bespoke checker** (see below). Decided during epic #522 orchestration.
+**no bespoke `full_string_checker`** (see below).
 
 ## Causal Model
 
@@ -57,14 +56,13 @@ a `360.0` period (`CausalModel.periods["color"]`), so manifold/geometry analyses
 treat the class axis as the cyclic hue circle it is. This mirrors
 `natural_domains_arithmetic`'s cyclic `result`.
 
-**Scoring.** Unlike MCQA (which defaults to scoring an option *letter* and needs
-a `score_by: value` mode), the answer here *is* the colour word, so the default
-path already scores "the value". `output_tokens = build_output_tokens(COLORS)`
-on `color` drives the probability path (score-token resolution / per-class
-distributions / `prob_accuracy`) **and** the loader-*derived* string grader
-(`causalab.tasks.loader._resolve_checker` → `derive_checker`, exact stripped
-match). All six colours are single-token, so exact match suffices and the task
-ships **no bespoke `checker.py`** (the earlier one existed only to first-token-
+**Scoring.** Unlike MCQA (which scores an option *letter*), the answer here *is*
+the colour word, so the default path already scores "the value". The task's
+`ScoringSpec` (`forms={"color": build_output_tokens(COLORS)}`) drives the
+probability path (score-token resolution / per-class distributions) **and** the
+string grader (`ScoringSpec.grader`, exact stripped match). All six colours are
+single-token, so exact match suffices and the task declares **no bespoke
+`full_string_checker`** (the earlier `checker.py` existed only to first-token-
 tolerate the two-token `indigo`, which is now gone).
 
 ## Counterfactuals
@@ -93,5 +91,6 @@ tolerate the two-token `indigo`, which is now gone).
 | `causal_models.py` | `CAUSAL_MODEL` (singleton), `TARGET_VARIABLE`, `TEMPLATE`, bundled-data lookups (`HEXES`, `HEX_TO_LABEL`, `HEXES_BY_COLOR`) |
 | `counterfactuals.py` | `generate_dataset`, `COUNTERFACTUAL_GENERATORS` (`different_color`, `same_color_different_hex`, `random`) |
 | `token_positions.py` | `create_token_positions` (declarative-spec based) |
-| `data/hex_color.json` | 600 bundled stimuli (model-agnostic; indigo excluded) |
+| `data/default.json` | the shipped table: `hex_color/data/default` (256 pairs, `split all`); built with `uv run python scripts/build_task_dataset.py --task hex_color --n 256 --seed 0 --split all --target-variable color --out causalab/tasks/hex_color/data/default.json` |
+| `sources/hex_color.json` | 600 bundled stimuli (model-agnostic; indigo excluded) |
 | `summary.ipynb` | CPU-only task walkthrough (no model loaded) |

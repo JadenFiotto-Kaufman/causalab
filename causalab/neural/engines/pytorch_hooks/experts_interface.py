@@ -55,7 +55,7 @@ identity (un-sort + weight + sum reproduces the block's own output at exactly
 0.0) so a kernel that ever breaks ties differently fails loudly instead of
 attributing rows to the wrong tokens.
 
-Two guards, same philosophy as the softmax count of round 2.3:
+Two guards, same philosophy as the softmax count in ``attention_interface.py``:
 
 * ``_grouped_linear`` is counted and must fire **exactly twice** inside the
   tapped call — call 1's output is the fused ``[gate | up]`` projection, call
@@ -88,9 +88,10 @@ __all__ = [
 #: projection (its two halves are separate components, via the descriptor's
 #: fused axis); ``"activation"`` is the shared ``act_fn``'s output (the
 #: activated gate half, before the ``· up`` multiply — the same tensor
-#: ``mlp_activation`` names on the llama family); ``"down"`` is the
-#: down-projection's output **before** the routing weight is applied.
-EXPERTS_SLOTS: tuple[str, ...] = ("gate_up", "activation", "down")
+#: ``mlp_activation`` names on the llama family). ``"neuron_output"`` is
+#: ``act(gate) * up`` at the down-projection input. ``"down"`` captures the
+#: down-projection output before the routing weight is applied.
+EXPERTS_SLOTS: tuple[str, ...] = ("gate_up", "activation", "neuron_output", "down")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -257,8 +258,14 @@ def _tapped_forward(
 
     def grouped_linear(*args: Any, **kwargs: Any) -> torch.Tensor:
         nonlocal gl_calls
-        out = real_gl(*args, **kwargs)
         gl_calls += 1
+        if gl_calls == 2 and _has(entries, "neuron_output"):
+            # The down-projection consumes the complete act(gate) * up value.
+            if args:
+                args = (run("neuron_output", args[0]), *args[1:])
+            else:
+                kwargs["input"] = run("neuron_output", kwargs["input"])
+        out = real_gl(*args, **kwargs)
         if gl_calls == 1:
             return run("gate_up", out)
         if gl_calls == 2:

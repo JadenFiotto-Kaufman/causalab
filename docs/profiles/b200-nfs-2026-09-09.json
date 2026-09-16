@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source": "b200-nfs-2026-09-09 (measured on an 8x B200 node: NFS home, local xfs at /tmp; LocalBlock gds unmeasured; Ram unmeasured, merge over default_measured); io_cost_us = median cold 4 KiB pread (NFS 1117 us, local xfs 116 us)",
+  "storage": {
+    "LocalBlock": {
+      "single_file_gbps": 2.76,
+      "aggregate_gbps": [
+        {
+          "files_in_flight": 1,
+          "gbps": 2.76
+        }
+      ],
+      "split_helps": true,
+      "page_cache_gbps": null,
+      "open_cost_ms": 0.004,
+      "gds": null,
+      "io_cost_us": 116.0
+    },
+    "Nfs": {
+      "single_file_gbps": 2.0,
+      "aggregate_gbps": [
+        {
+          "files_in_flight": 1,
+          "gbps": 2.0
+        },
+        {
+          "files_in_flight": 8,
+          "gbps": 9.26
+        },
+        {
+          "files_in_flight": 16,
+          "gbps": 12.34
+        }
+      ],
+      "split_helps": true,
+      "page_cache_gbps": 29.2,
+      "open_cost_ms": 0.364,
+      "gds": {
+        "registers": false,
+        "read_gbps": null
+      },
+      "io_cost_us": 1117.0
+    }
+  },
+  "mounts": {},
+  "device": {
+    "h2d_pinned_gbps": 55.6,
+    "h2d_pageable_gbps": 27.3,
+    "pinned_alloc_ms_per_mib": 0.306
+  }
+}

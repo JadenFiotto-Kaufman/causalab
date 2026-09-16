@@ -1,10 +1,10 @@
 """CPU structural guard for the paper-golden tier (runs in default CI).
 
 Asserts the tier's bookkeeping without loading any model: every golden
-protocol document loads and digests to its pin, the pin file and the
+specification loads and digests to its pin, the pin file and the
 protocols directory cover each other exactly, and every entry in
 paper_goldens.json is claimed by exactly one golden test. The pinned
-*values* live in paper_goldens.json and trace to papers or the VeriFires
+*values* live in paper_goldens.json and trace to published papers
 task packages — never to a run of this stack; document identity is pinned
 separately in golden_digests.json (regenerate via
 ``uv run python tests/golden/update_golden_digests.py``).
@@ -86,7 +86,7 @@ def test_golden_values_carry_provenance_and_never_a_stack_run():
             assert lo < entry["value"] < hi, gid
         else:
             assert "floor" in entry, gid
-        assert "verifires" in entry, gid
+        assert entry.get("paper"), gid
 
 
 def test_fixture_datasets_referenced_by_documents_exist():

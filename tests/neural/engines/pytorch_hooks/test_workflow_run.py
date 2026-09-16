@@ -12,13 +12,16 @@ overridden**: the shipped document's own two positions are what runs here, so
 CI exercises the axis a user gets. It used to override to two plain indices,
 which is why nothing noticed that the shipped axis named a variable
 (``subject``) no task-generated table has, and that a bare variable *window* is
-ragged across weekday rows — a stated engine boundary for writes ([V19]). Both
-are fixed in the document: the second position is now the last token of the
-``entity`` span.
+ragged across weekday rows — rule 19's refusal ([V19]) for a write that
+declares no ``ragged`` policy (spec §2.8; ``test_ragged_writes.py`` runs that
+spelling under ``exact_length_buckets``). Both are fixed in the document: the
+second position is the last token of the ``entity`` span, which is the position
+the scan asks about.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -28,7 +31,7 @@ from safetensors.torch import load_file
 
 from causalab.cli import main
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
-from tests.protocol._env import FIXTURES, write_rot_fixture
+from tests.protocol._env import FIXTURES, fixture_input_overrides, write_rot_fixture
 from tests.tables import frame as table_frame
 
 pytestmark = pytest.mark.smoke
@@ -39,6 +42,11 @@ METHODS = str(
 )  # absolute: the workflow file lives in tmp
 
 OUTPUT_DIR = "tiny_weekdays"
+
+
+def _fixture_inputs(name: str) -> dict[str, str]:
+    """The shipped document's dataset refs, retargeted onto the fixture tables."""
+    return fixture_input_overrides(json.loads((Path(METHODS) / name).read_text()))
 
 
 def _tiny_workflow() -> dict:
@@ -53,7 +61,8 @@ def _tiny_workflow() -> dict:
                 "document": f"{METHODS}/weekdays_locate_scan.json",
                 "set": {
                     **tiny,
-                    "sites.target.layer": {"sweep": {"range": [0, 2]}},
+                    **_fixture_inputs("weekdays_locate_scan.json"),
+                    "sites.target.layers": {"sweep": {"range": [0, 2]}},
                 },
             },
             "best": {
@@ -63,7 +72,7 @@ def _tiny_workflow() -> dict:
                     "table": {"step": "locate", "file": "iia.json"},
                     "choose": "max",
                     "emit": {
-                        "best_layer": "sites.target.layer",
+                        "best_layer": "sites.target.layers",
                         "best_pos": "positions.tap",
                     },
                 },
@@ -79,8 +88,9 @@ def _tiny_workflow() -> dict:
                 "document": f"{METHODS}/weekdays_das_sweep.json",
                 "set": {
                     **tiny,
+                    **_fixture_inputs("weekdays_das_sweep.json"),
                     "positions.best": {"artifact": "best", "key": "best_pos"},
-                    "sites.target.layer": {"artifact": "best", "key": "best_layer"},
+                    "sites.target.layers": {"artifact": "best", "key": "best_layer"},
                     "featurizers.rot.k": 2,
                     "train.seed": 0,
                     "train.steps": {"epochs": 1},
@@ -92,7 +102,8 @@ def _tiny_workflow() -> dict:
                 "document": f"{METHODS}/weekdays_das_apply.json",
                 "set": {
                     **tiny,
-                    "sites.target.layer": {"artifact": "best", "key": "best_layer"},
+                    **_fixture_inputs("weekdays_das_apply.json"),
+                    "sites.target.layers": {"artifact": "best", "key": "best_layer"},
                     "featurizers.rot.k": 2,
                     "featurizers.rot.file_path": "fit/rot.safetensors",
                 },
@@ -103,7 +114,7 @@ def _tiny_workflow() -> dict:
                 "inputs": {
                     "table": {"step": "locate", "file": "iia.json"},
                     "plot": "heatmap",
-                    "x": "sites.target.layer",
+                    "x": "sites.target.layers",
                     "y": "positions.tap",
                 },
                 "outputs": {
@@ -117,7 +128,7 @@ def _tiny_workflow() -> dict:
                 "inputs": {
                     "table": {"step": "locate", "file": "logit_diff.json"},
                     "plot": "lines",
-                    "x": "sites.target.layer",
+                    "x": "sites.target.layers",
                     "series": "positions.tap",
                 },
                 "outputs": {
@@ -186,10 +197,15 @@ def test_every_step_publishes_a_record(pipeline_run):
     for step in ("locate", "best", "fit", "apply", "scan_heatmap"):
         record = json.loads((out / step / "_step.json").read_text())
         assert record["status"] == "completed"
+    # a protocol step's record carries the same execution block protocol.json
+    # does — the engine loaded its model, so the source is `loaded` (§8)
+    for step in ("locate", "fit", "apply"):
+        record = json.loads((out / step / "_step.json").read_text())
+        assert record["execution"]["model_source"] == "loaded"
     locate = json.loads((out / "locate/_step.json").read_text())
     # the order is the producing document's axis order, which the consumer
     # never needs to know — it groups by all of them
-    assert set(locate["axes"]) == {"sites.target.layer", "positions.tap"}
+    assert set(locate["axes"]) == {"sites.target.layers", "positions.tap"}
     assert json.loads((out / "best/_step.json").read_text())["axes"] == []
 
 
@@ -204,7 +220,7 @@ def test_select_chose_the_argmax_cell(pipeline_run):
         {"index": -1, "scope": {"variable": "entity"}},
     )
     frame = table_frame(out / "locate/iia.json")
-    grouped = frame.groupby(["sites.target.layer", "positions.tap"])["value"].mean()
+    grouped = frame.groupby(["sites.target.layers", "positions.tap"])["value"].mean()
     best_key = grouped.idxmax()
     assert chosen["best_layer"] == best_key[0]
     assert chosen["best_pos"] == json.loads(best_key[1])
@@ -220,7 +236,7 @@ def test_fit_consumed_the_selected_cell_and_stamped_it(pipeline_run):
     stamped = read_safetensors_metadata(out / "fit/rot.safetensors")
     assert stamped is not None
     site = json.loads(stamped["site"])
-    assert site["layer"] == chosen["best_layer"]
+    assert site["layers"] == [chosen["best_layer"]]  # the stamp carries the band
     assert stamped["model_key"] == TINY_LLAMA
     assert stamped["k"] == "2"
     weight = load_file(str(out / "fit/rot.safetensors"))["weight"]
@@ -230,17 +246,17 @@ def test_fit_consumed_the_selected_cell_and_stamped_it(pipeline_run):
 def test_apply_scored_the_test_split_through_the_fitted_rotation(pipeline_run):
     out, _, _ = pipeline_run
     iia = table_frame(out / "apply/iia.json")
-    assert len(iia) == 2  # the weekdays/test fixture rows
+    assert len(iia) == 2  # the weekdays/data#test fixture rows
     assert iia["value"].dtype.kind == "f"
 
 
 def test_locate_table_carries_coordinate_columns(pipeline_run):
     out, _, _ = pipeline_run
     frame = table_frame(out / "locate/iia.json")
-    assert {"sites.target.layer", "positions.tap", "value", "produced_by"} <= set(
+    assert {"sites.target.layers", "positions.tap", "value", "produced_by"} <= set(
         frame.columns
     )
-    assert len(frame) == 4 * 4  # 4 points x 4 examples
+    assert len(frame) == 4 * 2  # 4 points x 2 examples
 
 
 def test_the_plotted_table_is_the_aggregated_data(pipeline_run):
@@ -248,13 +264,13 @@ def test_the_plotted_table_is_the_aggregated_data(pipeline_run):
     out, _, _ = pipeline_run
     plotted = table_frame(out / "scan_heatmap/scan_iia.json")
     assert len(plotted) == 4  # one row per (layer, tap) cell
-    assert set(plotted.columns) == {"sites.target.layer", "positions.tap", "value"}
+    assert set(plotted.columns) == {"sites.target.layers", "positions.tap", "value"}
 
 
 def test_run_manifest_records_the_whole_run(pipeline_run):
     out, _, _ = pipeline_run
     manifest = json.loads((out / "workflow.json").read_text())
-    assert len(manifest["workflow_digest"]) == 64
+    assert "workflow_digest" not in manifest  # no run-level identity (§7)
     assert manifest["output_dir"] == OUTPUT_DIR
     assert manifest["steps"]["locate"]["points"] == 4
     assert len(manifest["steps"]["locate"]["point_digests"]) == 4  # provenance units
@@ -275,6 +291,7 @@ def test_no_save_section_and_nothing_is_copied(pipeline_run):
     top_level = {p.name for p in out.iterdir()}
     assert top_level == {
         "workflow.json",
+        "events.jsonl",  # the run's event stream, beside the manifest (§4.3)
         "locate",
         "best",
         "fit",
@@ -332,8 +349,9 @@ def test_resume_reuses_a_step_and_a_script_edit_busts_it(
                 "type": "intervention_protocol",
                 "document": f"{METHODS}/weekdays_locate_scan.json",
                 "set": {
+                    **_fixture_inputs("weekdays_locate_scan.json"),
                     "model.key": TINY_LLAMA,
-                    "sites.target.layer": 0,
+                    "sites.target.layers": 0,
                     "positions.tap": {"index": -1},
                 },
             },
@@ -355,6 +373,13 @@ def test_resume_reuses_a_step_and_a_script_edit_busts_it(
     assert _run(base, artifacts, wf) == 0
     run_root = base / "runs" / "resume_probe"
     assert table_frame(run_root / "count/count.json")["tag"].iloc[0] == "first"
+    # the first run of an unpinned workflow stamps its pins (spec §7): the
+    # script it ran is now pinned in the document
+    pins = json.loads(wf.read_text())["pins"]
+    assert (
+        pins["scripts"]["scripts/count.py"]
+        == hashlib.sha256(script.read_bytes()).hexdigest()
+    )
 
     # unchanged document + unchanged script: --resume reuses both steps
     assert _run(base, artifacts, wf, "--resume") == 0
@@ -362,8 +387,25 @@ def test_resume_reuses_a_step_and_a_script_edit_busts_it(
     assert manifest["steps"]["count"]["status"] == "reused"
     assert manifest["steps"]["locate"]["status"] == "reused"
 
-    # edit only the SCRIPT: the step digest moves, so --resume must re-run it
+    # edit only the SCRIPT: the pinned document refuses to load until the
+    # author re-stamps it (rule 21) — the edit is acknowledged in the
+    # workflow — and then the step digest has moved, so --resume re-runs it
     script.write_text(script.read_text().replace("'first'", "'second'"))
+    assert _run(base, artifacts, wf, "--resume") == 1
+    assert table_frame(run_root / "count/count.json")["tag"].iloc[0] == "first"
+    assert (
+        main(
+            [
+                "pin",
+                str(wf),
+                "--data-root",
+                str(FIXTURES / "data"),
+                "--artifacts-root",
+                str(artifacts),
+            ]
+        )
+        == 0
+    )
     assert _run(base, artifacts, wf, "--resume") == 0
     assert table_frame(run_root / "count/count.json")["tag"].iloc[0] == "second"
     manifest = json.loads((run_root / "workflow.json").read_text())

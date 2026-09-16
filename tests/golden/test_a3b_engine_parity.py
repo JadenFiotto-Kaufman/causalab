@@ -110,7 +110,10 @@ def _cases(delta_layer: int, full_layer: int) -> list[tuple[str, str, int | None
     cases: list[tuple[str, str, int | None]] = [
         ("layerless", c, None) for c in sweep.SHARED_LAYERLESS
     ]
-    cases += [("deltanet_layer", c, delta_layer) for c in sweep.SHARED_ANY_STREAM]
+    cases += [
+        ("deltanet_layer", c, delta_layer)
+        for c in sweep.SHARED_ANY_STREAM + sweep.SHARED_LINEAR_ONLY
+    ]
     cases += [
         ("full_layer", c, full_layer)
         for c in sweep.SHARED_ANY_STREAM + sweep.SHARED_FULL_ONLY
@@ -148,8 +151,8 @@ def _capture(executor_cls, bundle, cases, *, want_writes: bool) -> dict:
         "dataset": "inline",
         "field": "counterfactual_inputs[0]",
     }
-    cf_ids["reads"]["r"]["input"] = "counterfactual"
-    cf_ids["save"][0]["input"] = "counterfactual"
+    cf_ids["method"]["reads"]["r"]["input"] = "counterfactual"
+    cf_ids["method"]["save"][0]["input"] = "counterfactual"
     out["cf_input_ids"] = (
         sweep.make_executor(executor_cls, cf_ids, bundle, rows=ROWS, with_cf=True)
         .read_value("r")
@@ -181,8 +184,8 @@ def _capture_delta_family(executor_cls, bundle, layer: int, which: int) -> dict:
     """The DeltaNet interior, in whichever vocabulary this engine serves.
 
     ``which`` selects the element of each :data:`sweep.DELTA_FAMILY_PAIRS`
-    entry — 0 for the reference engine's ``delta_*``, 1 for the nnsight
-    engine's ``deltanet_*``.
+    entry — 0 for the reference engine's spelling, 1 for the nnsight
+    engine's — of the three typed pairs.
     """
     out: dict[str, torch.Tensor] = {}
     for pair in sweep.DELTA_FAMILY_PAIRS:
@@ -300,7 +303,7 @@ def _ids(kind: str) -> list[str]:
     # the full-attention ones (`full_attention_interval` 4), the rest DeltaNet.
     groups = {
         "layerless": sweep.SHARED_LAYERLESS,
-        "deltanet_layer": sweep.SHARED_ANY_STREAM,
+        "deltanet_layer": sweep.SHARED_ANY_STREAM + sweep.SHARED_LINEAR_ONLY,
         "full_layer": sweep.SHARED_ANY_STREAM + sweep.SHARED_FULL_ONLY,
     }
     return list(groups[kind])
@@ -355,12 +358,15 @@ def test_write_parity(captures, kind):
 def test_delta_family_cross_engine_agreement(
     captures, hooks_component, trace_component, relation
 ):
-    """The Gated DeltaNet interior on the real checkpoint: 30 of its 40 layers,
-    reached by two unrelated mechanisms under two vocabularies, agreeing."""
+    """The three DeltaNet tensors that stay two names on the real checkpoint —
+    the typed backend pairs (`registry.BACKEND_PAIRS`), agreed after the
+    declared transform; the eight one-name tensors are ordinary shared cases
+    of the deltanet layer above."""
+    assert sweep.backend_pair(hooks_component).relation == relation
     left, right = sweep.align_delta_pair(
         captures["hooks_delta"][hooks_component],
         captures["trace_delta"][trace_component],
-        relation,
+        hooks_component,
         captures["info"],
     )
     sweep.assert_same(

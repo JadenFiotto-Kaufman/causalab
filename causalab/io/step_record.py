@@ -31,6 +31,7 @@ __all__ = [
     "SIDECAR",
     "aggregate",
     "axes_for",
+    "implied_reduction",
     "read_sidecar",
     "write_sidecar",
 ]
@@ -64,9 +65,46 @@ def axes_for(table_path: Path) -> tuple[str, ...]:
     return tuple(str(axis) for axis in axes)
 
 
-#: The column a protocol run stamps per example. Its presence is what makes
-#: "mean over examples" a meaningful reduction.
-EXAMPLE_COLUMN = "example"
+#: The column a protocol run stamps per example (the base row's label, spec
+#: §2.2, ``protocol/examples.py``). Its presence is what makes "mean over
+#: examples" a meaningful reduction.
+EXAMPLE_COLUMN = "example_id"
+
+
+def implied_reduction(axes: tuple[str, ...]) -> dict[str, Any]:
+    """The reduction :func:`aggregate` performs, **declared** in the workflow
+    spec's §2.6 vocabulary — what a step that authors nothing implicitly does
+    in cases 1 and 2 below:
+
+    ``{estimator: mean, unit: row, group_by: <the sidecar's axes>,
+    weight: null, missing: exclude, uncertainty: none}``
+
+    The unit is ``row``, not ``example`` — and that is the finding, not a
+    typo. ``select`` describes itself as "mean over examples", and the two
+    coincide exactly when a table holds **one row per example per group**,
+    which every non-windowed metric table does. A windowed metric writes
+    several rows per example (``add_windowed``), and there the arithmetic is a
+    mean over rows: an example with more positions weighs more. The
+    declaration says what is computed; whether the unit *should* be
+    ``example`` is a numbers-moving change and is not made here.
+
+    Written as data rather than imported from the workflow layer because
+    ``io/`` sits below it (docs/CODEBASE.md §1). The equality of this
+    declaration, run through the built-in ``causalab.workflow.scripts.reduce``,
+    with :func:`aggregate`'s output on the same table is a test
+    (``tests/workflow/test_reduction.py``): if today's behaviour could not be
+    written in the vocabulary, the vocabulary would be wrong. ``aggregate``'s
+    own arithmetic is deliberately untouched — a table an unauthored step
+    reduces today reduces to the same bytes tomorrow — because this module is
+    imported by hashed script modules without being hashed itself (spec §7)."""
+    return {
+        "estimator": {"kind": "mean"},
+        "unit": {"kind": "row"},
+        "group_by": list(axes),
+        "weight": None,
+        "missing": "exclude",
+        "uncertainty": {"kind": "none"},
+    }
 
 
 def aggregate(
@@ -78,15 +116,23 @@ def aggregate(
     step that produced it (v1 special-cased a ``transform`` producer by type):
 
     1. the producer published sweep axes → group by them, mean over the rest;
-    2. no axes but an ``example`` column → the whole table is one group, so the
+    2. no axes but an ``example_id`` column → the whole table is one group, so the
        mean over examples is the single row to rank;
-    3. no axes and no ``example`` column → the rows **are** the unit. A script
+    3. no axes and no ``example_id`` column → the rows **are** the unit. A script
        that wrote one row per principal component already decided what a row
        means, and re-aggregating would collapse exactly the rows a consumer
        wants to choose between.
 
     Shared by ``select`` and ``plot`` on purpose: a figure and the value chosen
     from the same table must never disagree about what a row is.
+
+    Cases 1 and 2 are one reduction in the workflow spec's §2.6 vocabulary —
+    :func:`implied_reduction` spells it out — and pandas' ``skipna`` default is
+    its ``missing: exclude`` with the excluded count unrecorded. Case 3 is not a
+    reduction at all. A step that wants the statistical unit, the grouping, the
+    missing policy or an interval *declared* authors a ``reduction`` block on
+    the built-in ``causalab.workflow.scripts.reduce`` instead; nothing here
+    changes for a step that does not.
     """
     import pandas as pd
 

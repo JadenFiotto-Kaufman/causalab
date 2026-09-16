@@ -4,8 +4,8 @@
 box per tensor, and its lavender fill means exactly one thing: **some engine
 exposes this as a hookpoint**. That is a claim about the code, and a claim about
 the code drifts — the diagram this test guards shipped with the whole routed-
-expert interior greyed out, which was true before round 3 landed it and wrong
-after.
+expert interior greyed out, which was true before the engines exposed it and
+wrong after.
 
 So the mapping from box to component lives here, next to the engines' own
 declarations, and the test is the thing that keeps the picture honest:
@@ -13,7 +13,7 @@ declarations, and the test is the thing that keeps the picture honest:
 * a lavender box (``module``) is a component both-or-either engine serves and a
   write may target;
 * a dashed lavender box (``readonly``) is a component some engine serves that
-  ``sites.READ_ONLY_COMPONENTS`` refuses writes to;
+  the capability registry's read-only rows refuse writes to;
 * a grey box (``blocked``) is a real tensor in the forward that the vocabulary
   does not name at all.
 
@@ -30,7 +30,7 @@ import pytest
 
 from causalab.neural.engines.nnsight_tracing.engine import NnsightEngine
 from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
-from causalab.neural.shared.sites import READ_ONLY_COMPONENTS
+from causalab.protocol.registry import CAPABILITIES
 
 pytestmark = pytest.mark.unit
 
@@ -102,9 +102,8 @@ BOXES: dict[str, str | None] = {
     "gate_e": "expert_gate_proj",
     "up_e": "expert_up_proj",
     "act_e": "expert_activation",
-    # silu(gate_e) * up_e — the down-projection's input. `expert_activation` is
-    # the activation ALONE, which is `act_e` above
-    "hidden_e": None,
+    # The complete product at the routed down-projection input.
+    "hidden_e": "expert_neuron_output",
     "expert_out": "expert_output",
     "routed": "routed_output",
     "gate_s": "shared_expert_gate_proj",
@@ -177,20 +176,20 @@ def test_a_lavender_box_is_a_hookpoint_and_a_grey_box_is_not():
 
 
 def test_the_dashed_boxes_are_exactly_the_read_only_components():
-    """`readonly` is not a style choice — it is `READ_ONLY_COMPONENTS`."""
+    """`readonly` is not a style choice — it is the row's `writes is None`."""
     drawn = _drawn()
     wrong: list[str] = []
     for box, component in BOXES.items():
         if component is None:
             continue
         dashed = drawn[box] == "readonly"
-        refused = component in READ_ONLY_COMPONENTS
+        refused = CAPABILITIES[component].writes is None
         if dashed and not refused:
             wrong.append(f"{box!r} ({component!r}) is dashed but writes are legal")
         if refused and not dashed:
             wrong.append(
                 f"{box!r} ({component!r}) is solid, but a write to it is refused: "
-                f"{READ_ONLY_COMPONENTS[component][:60]}…"
+                f"{CAPABILITIES[component].why[:60]}…"
             )
     assert not wrong, "\n".join(wrong)
 
@@ -199,3 +198,4 @@ def test_mlp_activation_has_no_box():
     """The vocabulary entry this architecture has no tensor for must not be
     drawn as one — see docs/running_experiments.md §5."""
     assert "mlp_activation" not in set(BOXES.values())
+    assert "mlp_neuron_output" not in set(BOXES.values())

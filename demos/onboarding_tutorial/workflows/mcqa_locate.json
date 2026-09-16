@@ -3,23 +3,17 @@
   "description": "The 03_localize demo end to end: scan the (layer x position) grid, render it, and reduce it to the one cell the next stage would target. Nothing orders these steps -- `heatmap` and `best` both reference `scan`, so the runner derives that they may run together the moment the scan finishes.",
   "output_dir": "mcqa_locate",
   "steps": {
-    "scan": {
-      "type": "intervention_protocol",
-      "document": "../protocols/mcqa_locate_scan.json"
-    },
+    "scan": {"type": "intervention_protocol", "document": "../protocols/mcqa_locate_scan.json"},
     "heatmap": {
       "type": "script",
       "script": {"module": "causalab.io.plots.workflow_figures"},
       "inputs": {
         "table": {"step": "scan", "file": "iia.json"},
         "plot": "heatmap",
-        "x": "sites.target.layer",
+        "x": "sites.target.layers",
         "y": "positions.tap"
       },
-      "outputs": {
-        "figure": "iia_heatmap.png",
-        "plotted": {"file": "iia_heatmap.json"}
-      }
+      "outputs": {"figure": "iia_heatmap.png", "plotted": {"file": "iia_heatmap.json"}}
     },
     "best": {
       "type": "script",
@@ -27,7 +21,7 @@
       "inputs": {
         "table": {"step": "scan", "file": "iia.json"},
         "choose": "max",
-        "emit": {"best_layer": "sites.target.layer", "best_pos": "positions.tap"}
+        "emit": {"best_layer": "sites.target.layers", "best_pos": "positions.tap"}
       },
       "outputs": {
         "values": {

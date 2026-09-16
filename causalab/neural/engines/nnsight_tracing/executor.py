@@ -7,11 +7,11 @@ write math as the reference engine (all inherited from
 landing differs. Each group is **one trace**: writes assign the envoy's
 ``input``/``output`` at their address, reads ``nnsight.save`` the contract
 tensor, and a read at a written address sees the write because envoy
-assignment replaces the value later accesses observe (measured in the N4
-probes, mirroring the reference engine's write-before-capture hook order).
+assignment replaces the value later accesses observe (measured, mirroring
+the reference engine's write-before-capture hook order).
 
 Interior components — tensors ``transformers`` computes inside one call, with
-no module boundary to hook — are the third landing (N5): the address table in
+no module boundary to hook — have their own landing: the address table in
 :mod:`causalab.neural.engines.nnsight_tracing.addresses` names the op, the
 executor navigates ``envoy.source`` to it inside the trace, and the same
 ``to_contract``/``from_contract`` round-trip runs on what it finds. Only the
@@ -21,15 +21,19 @@ Operations are issued in forward-execution order (site depth, writes before
 reads at the same depth) — module-boundary envoys are order-tolerant, but the
 ``.source`` interiors are not (``OutOfOrderError``), and the renumbered
 attention band of :data:`~causalab.protocol.plan.COMPONENT_RANK` *is* the
-in-forward op order, which the test suite pins rather than assumes.
+in-forward op order, which the test suite pins rather than assumes. A
+``block_mid`` input rewrite carries its residual delta until the depth of the
+component its tap declares as the write-back target; the deferred delta lands
+before an absolute write on that target, matching the reference engine without
+reaching forward past intermediate operations.
 
 Some interior addresses only exist under a specific implementation — the
 fused attention kernels never materialize the scores — so a group whose taps
 require one switches it on around its trace and restores the model default
-after (D5). The applied set is stamped as execution metadata, never canonical
+after. The applied set is stamped as execution metadata, never canonical
 form: the document and its digest are implementation-blind.
 
-The generated frame (N8) runs the group as one ``model.generate`` trace:
+The generated frame runs the group as one ``model.generate`` trace:
 prompt-frame operations bind occurrence 0 of their locations — the prefill,
 which is the whole of "writes are prefill-only" — and the decode steps are
 walked with ``tracer.iter``, occurrence ``j`` of a per-forward location being
@@ -42,7 +46,7 @@ prompt-frame table is not evidence a tensor exists per step.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterator
 
 import torch
@@ -55,6 +59,8 @@ from causalab.neural.engines.nnsight_tracing.addresses import (
     SourceAddress,
     match_op,
 )
+from causalab.neural.engines.nnsight_tracing.loading import torch_module
+from causalab.neural.shared.kernels import torch_kernel_path
 from causalab.neural.shared.encoding import (
     EncodedBatch,
     continuation_frame,
@@ -62,6 +68,7 @@ from causalab.neural.shared.encoding import (
 )
 from causalab.neural.shared.executor_base import (
     ExecutorBase,
+    TapKey,
     refuse_unstackable,
     tap_key,
 )
@@ -87,8 +94,16 @@ class ResolvedTap:
     untouched) plus, for an interior component, its ``.source`` address."""
 
     site: ResolvedSite
-    #: ``None`` = a module boundary (the N4 path: ``envoy.input``/``.output``).
+    #: ``None`` = a module boundary (``envoy.input``/``.output``).
     source: SourceAddress | None = None
+
+
+def _writeback_name(tap: Any) -> str:
+    """``block_mid at layer 11 -> block_output`` — a refusal about a deferred
+    delta is useless without which site and which layer it belonged to."""
+    site = tap.site
+    target = site.writeback.component if site.writeback is not None else "?"
+    return f"{site.component} at layer {site.layer} -> {target}"
 
 
 class TracePointExecutor(ExecutorBase):
@@ -174,6 +189,26 @@ class TracePointExecutor(ExecutorBase):
         operations: list[tuple[int, tuple[int, int], str, ResolvedTap, list]] = []
         for tap, entries in write_taps.values():
             operations.append((0, tap.site.depth, "write", tap, entries))
+            if tap.site.writeback is not None:
+                # A write-back site is a module boundary (`block_mid` is the
+                # norm's input), so it has no `.source` and cannot be per-fire.
+                # That is what makes one deferred delta per key sound: a
+                # per-fire write would take `_land_per_fire_writes`, return no
+                # delta, and be misreported as an ordering failure.
+                assert tap.source is None, tap.site.component
+                # The input rewrite produces this delta at its own site, but
+                # touching the target envoy's output there would advance the
+                # trace past every same-layer operation between the two.
+                # Issue a synthetic landing at the target's own depth instead.
+                operations.append(
+                    (
+                        -1,
+                        replace(tap.site, component=tap.site.writeback.component).depth,
+                        "writeback",
+                        tap,
+                        [],
+                    )
+                )
         seen_keys: set = set()
         for tap in read_taps.values():
             key = tap_key(tap.site, tap.source)
@@ -197,6 +232,7 @@ class TracePointExecutor(ExecutorBase):
         # reached), so a fire-index miss detected at build time is carried out
         # by hand and raised after.
         fire_miss: list[tuple[ResolvedTap, OutOfOrderError]] = []
+        writeback_errors: list[str] = []
         gen_sinks: dict = {}
         gen_result: Any = None
         inputs = {
@@ -208,15 +244,35 @@ class TracePointExecutor(ExecutorBase):
             # prompt-frame operations first: everything here binds occurrence
             # 0 of its location — the prefill — which is the whole of "writes
             # are prefill-only"
+            deferred_writebacks: dict[TapKey, Any] = {}
             for _, _, op_kind, tap, entries in operations:
                 per_fire = tap.source is not None and tap.source.fires != "once"
                 try:
-                    if op_kind == "write" and per_fire:
+                    if op_kind == "writeback":
+                        key = tap_key(tap.site, tap.source)
+                        if key not in deferred_writebacks:
+                            writeback_errors.append(
+                                f"{_writeback_name(tap)}: the target was reached "
+                                "before the input write that produces its delta"
+                            )
+                            continue
+                        self._land_writeback(tap, deferred_writebacks.pop(key))
+                    elif op_kind == "write" and per_fire:
                         self._land_per_fire_writes(
                             tracer, tap, entries, input_role, batch
                         )
                     elif op_kind == "write":
-                        self._land_writes(tap, entries, input_role, batch)
+                        delta = self._land_writes(tap, entries, input_role, batch)
+                        if delta is not None:
+                            key = tap_key(tap.site, tap.source)
+                            if key in deferred_writebacks:
+                                writeback_errors.append(
+                                    f"{_writeback_name(tap)}: the input fired twice "
+                                    "before the target — a residual delta would be "
+                                    "lost"
+                                )
+                            else:
+                                deferred_writebacks[key] = delta
                     elif per_fire:
                         saves[tap_key(tap.site, tap.source)] = self._collect_per_fire(
                             tracer, tap
@@ -230,6 +286,17 @@ class TracePointExecutor(ExecutorBase):
                         raise
                     fire_miss.append((tap, error))
                     break
+            if deferred_writebacks and not fire_miss:
+                writeback_errors.extend(
+                    f"{_writeback_name(pending)}: the delta was never applied — "
+                    "the target did not run"
+                    for pending in (
+                        tap
+                        for _, _, op_kind, tap, _ in operations
+                        if op_kind == "writeback"
+                        and tap_key(tap.site, tap.source) in deferred_writebacks
+                    )
+                )
             if not depth:
                 return None
             # decode steps: occurrence j of a per-forward location is the
@@ -269,7 +336,12 @@ class TracePointExecutor(ExecutorBase):
             return nnsight.save(tracer.result)
 
         with torch.no_grad():
-            with self._switched_implementations(required):
+            # a model off CUDA runs transformers' torch kernels whatever the
+            # environment installed (shared/kernels.py)
+            with (
+                torch_kernel_path(torch_module(self.bundle.model)),
+                self._switched_implementations(required),
+            ):
                 if depth:
                     # depth+1 forwards give every generated position its
                     # activations, the last token's included (the extra draw
@@ -300,6 +372,10 @@ class TracePointExecutor(ExecutorBase):
                 "past the kernel's last — a tracer.iter body there never "
                 f"runs, so it is refused rather than silently skipped ({error})",
             )
+        if writeback_errors:
+            # internal invariants, not a document error — but all of them, so a
+            # group that mis-sequenced twice does not read as one failure
+            raise RuntimeError("; ".join(writeback_errors))
         for component, wanted, count in self._fire_checks:
             if wanted >= int(count):
                 raise ProtocolError(
@@ -337,18 +413,20 @@ class TracePointExecutor(ExecutorBase):
         self._groups_run.add((model, input_role))
 
     # ------------------------------------------------------------------ #
-    # interior addressing (N5)
+    # interior addressing
     # ------------------------------------------------------------------ #
 
     def _wrap(self, site: ResolvedSite) -> ResolvedTap:
         """Pair the shared resolution with this engine's landing.
 
         An ``interface_slot`` marks a component with no module boundary (the
-        four function-interior slots, and the pattern — whose *write* has no
-        boundary; this engine serves its read from the same op); those are
-        looked up in the per-stream address table. ``kind="interior"`` marks
+        four function-interior slots, the delta kernel's boundary — kind
+        ``"delta"``, the reference engine's global swap, which this engine
+        lands as a ``.source`` line of the same name — and the pattern, whose
+        *write* has no boundary; this engine serves its read from the same
+        op); those are looked up in the per-stream address table. ``kind="interior"`` marks
         a fused-forward interior keyed by component, and ``kind="experts"``
-        is the routed-expert interior's shared resolution (round 3's dispatch
+        is the routed-expert interior's shared resolution (the dispatch
         wrapper on the reference engine) — this engine lands the same
         components through the ``MOE_EXPERTS`` addresses. Everything else is
         the envoy path unchanged.
@@ -364,6 +442,7 @@ class TracePointExecutor(ExecutorBase):
                     f"{site.component!r}, and the nnsight engine does not "
                     "serve the ragged 'expert:' face — read the token-major "
                     "form here, or route to the reference engine.",
+                    reason="component_unavailable",
                 )
             # the expert interior lives under mlp; the DeltaNet interior on
             # the mixer, keyed by its stream — one lookup covers both
@@ -384,6 +463,7 @@ class TracePointExecutor(ExecutorBase):
                 f"{where} of the nnsight engine "
                 "(neural/engines/nnsight_tracing/addresses.py) — extend the "
                 "table, or route to the reference engine.",
+                reason="component_unavailable",
             )
         return ResolvedTap(site=site, source=address)
 
@@ -512,7 +592,7 @@ class TracePointExecutor(ExecutorBase):
             ) from error
 
     # ------------------------------------------------------------------ #
-    # per-fire taps (N7): ops that fire once per kernel chunk
+    # per-fire taps: ops that fire once per kernel chunk
     # ------------------------------------------------------------------ #
 
     def _navigate_fire_ops(self, tap: ResolvedTap) -> tuple[Any, Any]:
@@ -684,7 +764,7 @@ class TracePointExecutor(ExecutorBase):
         return [[index % n_fires]] * n_rows
 
     # ------------------------------------------------------------------ #
-    # the generated frame (N8): step-anchored reads under model.generate
+    # the generated frame: step-anchored reads under model.generate
     # ------------------------------------------------------------------ #
 
     def _wrap_generated(self, site: ResolvedSite) -> ResolvedTap:
@@ -697,7 +777,10 @@ class TracePointExecutor(ExecutorBase):
         chunked one), so a prompt-frame address is not evidence the tensor
         exists per step.
         """
-        if site.kind in ("interior", "experts"):
+        if site.kind in ("interior", "experts", "delta"):
+            # a kernel-boundary component (kind "delta") is served in the
+            # prompt frame through the chunked kernel's address; decode runs
+            # the recurrent kernel, so it too needs a verified decode address
             stream = self.bundle.stream_at(site.layer)
             address = GENERATED_ADDRESSES.get(stream, {}).get(site.component)
             if address is None:
@@ -819,7 +902,7 @@ class TracePointExecutor(ExecutorBase):
         📐 The runtime switch is verified on the real A3B and the fixture
         (`set_attn_implementation` both directions). The model default is
         restored afterwards, so a document that never touches the pattern
-        keeps whatever the checkpoint prefers (sdpa) — D5, decided: on demand.
+        keeps whatever the checkpoint prefers (sdpa) — switched on demand.
         """
         model = self.bundle.model
         previous_attn: str | None = None
@@ -874,10 +957,12 @@ class TracePointExecutor(ExecutorBase):
         entries: list[tuple[str, WriteSpec, ResolvedSite]],
         input_role: str,
         batch: EncodedBatch,
-    ) -> None:
+    ) -> Any:
         """Apply every write at one address (shared class-ordered math) and
         assign the result back — to the envoy, or into the interior op's
-        tensor.
+        tensor. An input site with a declared ``writeback`` returns its rewrite
+        delta so the operation loop can land it at the enclosing output's own
+        forward depth.
 
         The interior landing is an in-place fill (``value[:] = new``): the op
         has already produced its tensor when the write runs, and everything
@@ -916,10 +1001,11 @@ class TracePointExecutor(ExecutorBase):
         envoy = site.module
         if site.kind == "out":
             payload = envoy.output
-            native = tap_tensor(payload, site.tuple_index).clone()
+            original_native = tap_tensor(payload, site.tuple_index)
         else:
             payload = None
-            native = envoy.input.clone()
+            original_native = envoy.input
+        native = original_native.clone()
         contract = to_contract(native, site.shape, batch_size=batch_size)
         self._apply_writes_to_contract(entries, input_role, batch, contract)
         new_native = from_contract(
@@ -927,5 +1013,20 @@ class TracePointExecutor(ExecutorBase):
         )
         if site.kind == "out":
             envoy.output = rebuild_payload(payload, site.tuple_index, new_native)
-        else:
-            envoy.input = new_native
+            return None
+        envoy.input = new_native
+        if site.writeback is not None:
+            return new_native - original_native
+        return None
+
+    @staticmethod
+    def _land_writeback(tap: ResolvedTap, delta: Any) -> None:
+        """Add a deferred input rewrite to its declared target's output, at the
+        payload element that target's own tap names."""
+        writeback = tap.site.writeback
+        assert writeback is not None
+        payload = writeback.module.output
+        native = tap_tensor(payload, writeback.tuple_index)
+        writeback.module.output = rebuild_payload(
+            payload, writeback.tuple_index, native + delta
+        )

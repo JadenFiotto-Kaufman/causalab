@@ -112,8 +112,8 @@ def load_block_sae_frame(checkpoint_path: str, block_id: int) -> tuple[Tensor, d
     shape ``(n_groups, d_model, K)``; each block ``B_raw[block_id]`` is already a
     K-dim orthonormal Stiefel frame (the SAE trains with ``enforce_ortho=True``).
     This returns that frame restricted to its **alive** columns
-    (``dim_mask[block_id] > 0``; faithfulness step F3) and unit-normalized per
-    column (F1 — exact for K=1, a no-op when columns are already orthonormal).
+    (``dim_mask[block_id] > 0``) and unit-normalized per column (exact for
+    K=1, a no-op when columns are already orthonormal).
 
     ``block_id`` indexes the ``n_groups`` axis — one block = one K-dim subspace.
     This is deliberately NOT ``feature_id`` (which, in :func:`read_sae_decoder`'s
@@ -169,7 +169,7 @@ def load_block_sae_frame(checkpoint_path: str, block_id: int) -> tuple[Tensor, d
         )
     frame = b_raw[bid].to(torch.float32)  # (d_model, K)
 
-    # F3: restrict to alive dims. `dim_mask` zeroes dead columns within a block,
+    # restrict to alive dims. `dim_mask` zeroes dead columns within a block,
     # so the effective subspace spans only the alive columns.
     dim_mask = state_dict.get("dim_mask")
     dim_mask_block = None
@@ -184,7 +184,7 @@ def load_block_sae_frame(checkpoint_path: str, block_id: int) -> tuple[Tensor, d
             )
         frame = frame[:, alive]
 
-    # F1: unit-normalize columns. Block frames are already orthonormal
+    # unit-normalize columns. Block frames are already orthonormal
     # (enforce_ortho=True), so this is a no-op for K>1 and exactly the K=1
     # normalization. We do NOT QR / cross-orthogonalize here — basis math stays
     # in methods/, and these frames are orthonormal by construction.

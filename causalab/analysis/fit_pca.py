@@ -31,23 +31,18 @@ from typing import Any, Mapping
 
 from causalab.io.step_io import StepError, write_table, write_tensor
 
-__all__ = ["main"]
+__all__ = ["fit", "main"]
 
 
-def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
+def fit(acts: Any, k: int) -> tuple[Any, Any, list[dict[str, Any]]]:
+    """Centered PCA for one declared population; return mean, (d,k) basis, spectrum."""
     import torch
 
-    from causalab.io.step_io import read_tensor
-
-    acts = inputs["acts"]
-    if isinstance(acts, (str, Path)):
-        acts = read_tensor(Path(acts), what="fit_pca: 'acts'")
     if acts.ndim < 2:
         raise StepError(
             f"fit_pca: 'acts' needs at least 2 dimensions, got shape "
             f"{tuple(acts.shape)}"
         )
-    k = int(inputs["k"])
     if k < 1:
         raise StepError(f"fit_pca: k must be >= 1, got {k}")
     # float64 throughout: the fit is the numerically delicate part, and a
@@ -61,7 +56,8 @@ def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
         )
     if n < 2:
         raise StepError("fit_pca: a variance needs at least 2 rows")
-    centered = rows - rows.mean(dim=0, keepdim=True)
+    mean = rows.mean(dim=0)
+    centered = rows - mean
     _, singular, vh = torch.linalg.svd(centered, full_matrices=False)
     components = vh[:k].clone()
     # sign convention: SVD fixes each component only up to a sign, so pin it —
@@ -75,18 +71,9 @@ def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
     total = variance.sum()
     ratio = variance / total if total > 0 else torch.zeros_like(variance)
 
-    # (d, k), not (k, d): a featurizer's weight maps d -> k, and matching that
-    # convention is what lets a protocol step load this bundle unchanged
-    write_tensor(
-        outputs["weight"],
+    return (
+        mean,
         components.T.contiguous().to(torch.float32),
-        slot="weight",
-        # the rank is a parameter, not something inheritable from the input, and
-        # a consuming `pca` featurizer's identity check requires it
-        identity={"k": k},
-    )
-    write_table(
-        Path(outputs["spectrum"]),
         [
             {
                 "pc": i,
@@ -96,3 +83,38 @@ def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
             for i in range(k)
         ],
     )
+
+
+def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
+    import torch
+
+    from causalab.io.step_io import read_tensor
+
+    acts = inputs["acts"]
+    if isinstance(acts, (str, Path)):
+        acts = read_tensor(Path(acts), what="fit_pca: 'acts'")
+    k = int(inputs["k"])
+    mean, basis, spectrum = fit(acts, k)
+    # (d, k), not (k, d): a featurizer's weight maps d -> k, and matching that
+    # convention is what lets a protocol step load this bundle unchanged
+    write_tensor(
+        outputs["weight"],
+        basis,
+        slot="weight",
+        # the rank is a parameter, not something inheritable from the input, and
+        # a consuming `pca` featurizer's identity check requires it
+        identity={"k": k},
+    )
+    write_table(
+        Path(outputs["spectrum"]),
+        spectrum,
+    )
+    if "mean" in outputs:
+        write_tensor(outputs["mean"], mean, slot="mean")
+    if "coordinates" in outputs:
+        # Project with the saved basis, so reapplying it reproduces this output.
+        write_tensor(
+            outputs["coordinates"],
+            (acts.to(torch.float64) - mean) @ basis.to(torch.float64),
+            slot="coordinates",
+        )

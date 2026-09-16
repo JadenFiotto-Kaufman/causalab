@@ -10,7 +10,7 @@ They never touch pyvene.
 A test built on these helpers asserts a behavioural contract on causalab's
 *public wrappers* (``run_interchange_interventions``, ``collect_features``,
 ``run_steering_interventions``, …), not on pyvene's internals. So the contract
-survives a backbone swap: when pyvene is replaced by nnsight (GH #380), the same
+survives a backbone swap: when pyvene is replaced by nnsight, the same
 oracle tests re-run unchanged and verify the new backbone reproduces the same
 activations and logits. The pyvene→hook→test coverage map lives in
 ``docs/PYVENE_HOOK_COVERAGE.md``.
@@ -35,6 +35,7 @@ Design notes
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 from collections.abc import Iterator, Mapping
 from typing import Any, Callable
 
@@ -159,7 +160,7 @@ def random_rotation(d: int, *, seed: int = 0) -> torch.Tensor:
 #  Module resolvers — the modules the backbone taps, addressed by hand         #
 #                                                                              #
 #  Two architecture families are covered so the oracle stays backbone- AND     #
-#  model-family-independent (GH #380):                                         #
+#  model-family-independent:                                                   #
 #    * Llama-family (Llama / Qwen3 / Gemma / Mistral): ``model.model.layers[L]``#
 #      with separate ``self_attn.{q,k,v,o}_proj`` and ``.mlp``;                #
 #    * GPT-2: ``model.transformer.h[L]`` with a fused ``attn.c_attn`` (QKV) and #
@@ -185,10 +186,41 @@ def decoder_block(pipeline: LMPipeline, layer: int) -> torch.nn.Module:
 
 
 def _attn_module(pipeline: LMPipeline, layer: int) -> torch.nn.Module:
-    """The self-attention submodule of ``layer`` (``attn`` on GPT-2,
-    ``self_attn`` on Llama-family)."""
+    """The token-mixer submodule of ``layer`` (``attn`` on GPT-2,
+    ``self_attn`` on Llama-family, ``linear_attn`` on a Gated DeltaNet layer
+    of the hybrid tower).
+
+    A block carrying children of *both* kinds is refused rather than probed
+    in a fixed order, the rule ``causalab.neural.shared.streams`` follows: a
+    wrong tap produces plausible numbers.
+    """
     blk = decoder_block(pipeline, layer)
-    return blk.attn if _is_gpt2(pipeline) else blk.self_attn
+    if _is_gpt2(pipeline):
+        return blk.attn
+    has_full = hasattr(blk, "self_attn")
+    has_linear = hasattr(blk, "linear_attn")
+    if has_full and has_linear:
+        raise AssertionError(
+            f"layer {layer} carries both self_attn and linear_attn; the oracle "
+            "cannot say which mixer the block runs"
+        )
+    if has_linear:
+        return blk.linear_attn
+    return blk.self_attn
+
+
+def is_deltanet_layer(pipeline: LMPipeline, layer: int) -> bool:
+    """Whether ``layer``'s mixer is a Gated DeltaNet (``linear_attn``) block."""
+    return hasattr(decoder_block(pipeline, layer), "linear_attn")
+
+
+def module_path(pipeline: LMPipeline, module: torch.nn.Module) -> str:
+    """The qualified name of ``module`` inside the model — the *hook name*
+    a certification record carries."""
+    for name, candidate in pipeline.hf_model.named_modules():
+        if candidate is module:
+            return name or "<model>"
+    raise AssertionError(f"module {type(module).__name__} is not in the tree")
 
 
 def o_proj(pipeline: LMPipeline, layer: int) -> torch.nn.Module:
@@ -266,7 +298,7 @@ def layer_fire_counts(pipeline: LMPipeline) -> Iterator[list[int]]:
 
     ``counts[L]`` is how many times block ``L``'s forward *completed* while
     the context was open — the ground truth for the early-stop contract
-    (``tracer.stop()``, CAP6 #459): a stopped forward leaves every block past
+    (``tracer.stop()``): a stopped forward leaves every block past
     the deepest tap at zero. The block that carries the deepest tap itself
     still counts (its forward completes before nnsight's output hook raises
     the stop); only the blocks *after* it never run. The counters register
@@ -524,3 +556,279 @@ def capture_with_writes(
         for h in write_handles:
             h.remove()
     return grabbed["v"]
+
+
+# --------------------------------------------------------------------------- #
+#  The hybrid tower's DeltaNet interior — the kernel boundary                  #
+#                                                                              #
+#  A Gated DeltaNet mixer computes its recurrence inside one module-global      #
+#  call (``torch_chunk_gated_delta_rule`` in ``modeling_qwen3_5_moe.py``) that  #
+#  no forward hook reaches. The oracle reaches it the only raw way there is:    #
+#  it swaps the mixer's own modeling module's global for the enclosed forwards  #
+#  and records every call the tapped mixer makes — arguments as the kernel      #
+#  received them, return as the model consumed it. Independent of the engine's  #
+#  ``delta_interface.py``: same physical boundary, separate code.               #
+#                                                                              #
+#  The per-step interior (state, memory readout, update) exists only in the     #
+#  recurrent formulation, so the oracle *is* that formulation, transcribed from  #
+#  ``torch_recurrent_gated_delta_rule`` operation for operation (§ delta_       #
+#  recurrence below). The failure mode is an oracle hand-expanded in a          #
+#  different association than the model; the certification's bit-exact band on  #
+#  fp32 is what makes that failure visible, and the 1-ulp reassociation test    #
+#  (test_family_certification.py, T6) is the mutation that proves it bites.     #
+# --------------------------------------------------------------------------- #
+
+#: The chunked kernel the mixer calls at prefill — the boundary the oracle swaps.
+DELTA_KERNEL = "torch_chunk_gated_delta_rule"
+
+
+@dataclasses.dataclass
+class DeltaKernelCall:
+    """One call the tapped mixer made to the delta-rule kernel: the arguments
+    exactly as the kernel received them (post-conv, post-GVA-tiling,
+    **pre**-l2norm; ``g`` and ``beta`` per head), and what the model consumed
+    as its return."""
+
+    query: torch.Tensor
+    key: torch.Tensor
+    value: torch.Tensor
+    g: torch.Tensor
+    beta: torch.Tensor
+    kwargs: dict[str, Any]
+    out: torch.Tensor
+    state: torch.Tensor | None
+
+
+#: ``(query, key, value, g, beta) -> the same five``, applied before the kernel
+#: runs — the write surface for the kernel's *argument* slots.
+DeltaArgsEdit = Callable[
+    [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+]
+#: ``(query, key, value, g, beta, kwargs) -> (out, final_state)``, replacing the
+#: kernel's return — the write surface for the *interior* (a state edit must
+#: feed forward, so it can only be expressed by running the recurrence).
+DeltaSubstitute = Callable[
+    [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict],
+    tuple[torch.Tensor, torch.Tensor | None],
+]
+
+
+def delta_kernel_hook_name(pipeline: LMPipeline, layer: int, slot: str) -> str:
+    """The hook name of one kernel-boundary slot: the mixer's module path, the
+    global that was swapped, and the slot — e.g.
+    ``model.layers.0.linear_attn:torch_chunk_gated_delta_rule[state]``."""
+    mixer = _attn_module(pipeline, layer)
+    return f"{module_path(pipeline, mixer)}:{DELTA_KERNEL}[{slot}]"
+
+
+@contextlib.contextmanager
+def delta_kernel_boundary(
+    pipeline: LMPipeline,
+    layer: int,
+    *,
+    edit_args: DeltaArgsEdit | None = None,
+    substitute: DeltaSubstitute | None = None,
+) -> Iterator[list[DeltaKernelCall]]:
+    """Tap the delta-rule kernel calls of ``layer``'s mixer for the enclosed
+    forwards.
+
+    Yields the list the calls are appended to (in call order). ``edit_args``
+    rewrites the kernel's arguments before it runs; ``substitute`` replaces the
+    kernel entirely. Calls made by *other* mixers of the same modeling module
+    fall straight through to the real kernel — the mixer's own forward pre/post
+    hooks mark the dynamic extent, so ``layer`` is what is tapped and nothing
+    else. The global is restored on exit.
+    """
+    import importlib
+
+    mixer = _attn_module(pipeline, layer)
+    modeling = importlib.import_module(type(mixer).__module__)
+    if not hasattr(modeling, DELTA_KERNEL):
+        raise AssertionError(
+            f"{type(mixer).__name__}'s modeling module exports no {DELTA_KERNEL}; "
+            "this is not a Gated DeltaNet mixer the oracle knows"
+        )
+    real = getattr(modeling, DELTA_KERNEL)
+    calls: list[DeltaKernelCall] = []
+    active = {"on": False}
+
+    def wrapped(
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        g: torch.Tensor | None = None,
+        beta: torch.Tensor | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        if not active["on"]:
+            return real(query, key, value, g=g, beta=beta, **kwargs)
+        assert g is not None and beta is not None
+        if edit_args is not None:
+            query, key, value, g, beta = edit_args(query, key, value, g, beta)
+        if substitute is not None:
+            out, state = substitute(query, key, value, g, beta, dict(kwargs))
+        else:
+            out, state = real(query, key, value, g=g, beta=beta, **kwargs)
+        calls.append(
+            DeltaKernelCall(
+                query=query.detach().clone(),
+                key=key.detach().clone(),
+                value=value.detach().clone(),
+                g=g.detach().clone(),
+                beta=beta.detach().clone(),
+                kwargs=dict(kwargs),
+                out=out.detach().clone(),
+                state=None if state is None else state.detach().clone(),
+            )
+        )
+        return out, state
+
+    def enter(_m, _args):
+        active["on"] = True
+
+    def leave(_m, _args, _out):
+        active["on"] = False
+
+    pre = mixer.register_forward_pre_hook(enter)
+    post = mixer.register_forward_hook(leave)
+    setattr(modeling, DELTA_KERNEL, wrapped)
+    try:
+        yield calls
+    finally:
+        setattr(modeling, DELTA_KERNEL, real)
+        pre.remove()
+        post.remove()
+
+
+def l2norm(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """The modeling file's ``l2norm`` (FLA-aligned): ``x · rsqrt(Σx² + eps)``
+    over the last axis, in ``x``'s own dtype — transcribed, so the oracle's k̂
+    is formed by the same operations as the kernel's."""
+    return x * torch.rsqrt((x * x).sum(dim=-1, keepdim=True) + eps)
+
+
+def delta_kv_mem(decayed_state: torch.Tensor, k_hat: torch.Tensor) -> torch.Tensor:
+    """The memory readout ``(S_{t-1}·exp(g_t) · k̂_t).sum over d_k`` — one
+    multiply and one reduction, in the kernel's association. Kept as its own
+    function so a test can reassociate exactly this sum (T6)."""
+    return (decayed_state * k_hat.unsqueeze(-1)).sum(dim=-2)
+
+
+@dataclasses.dataclass
+class DeltaRecurrence:
+    """Every per-step tensor of the recurrent formulation, stacked on a steps
+    axis at ``dim=1``: ``out (b, s, h, d_v)`` in the input dtype; ``states
+    (b, s, h, d_k, d_v)``, ``kv_mems`` / ``deltas (b, s, h, d_v)`` in fp32;
+    ``final_state (b, h, d_k, d_v)``."""
+
+    out: torch.Tensor
+    states: torch.Tensor
+    kv_mems: torch.Tensor
+    deltas: torch.Tensor
+    final_state: torch.Tensor
+
+
+def delta_recurrence(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    g: torch.Tensor,
+    beta: torch.Tensor,
+    *,
+    initial_state: torch.Tensor | None = None,
+    use_qk_l2norm: bool = True,
+    edit_state: Callable[[int, torch.Tensor], torch.Tensor] | None = None,
+) -> DeltaRecurrence:
+    """``torch_recurrent_gated_delta_rule`` one step at a time, operation for
+    operation, keeping the interior.
+
+    Arguments are the kernel's own (``(b, s, h, d)`` layout, pre-l2norm, the
+    input dtype; ``g``/``beta`` ``(b, s, h)``). Per step ``t``, in the kernel's
+    order: l2-normalize ``q_t``/``k_t`` in the input dtype, cast everything to
+    fp32, scale ``q_t`` by ``d_k^-½``; decay ``S ← S·exp(g_t)``; read
+    ``kv_mem = Σ_dk S·k̂_t``; form ``delta = (v_t − kv_mem)·β_t``; write
+    ``S ← S + k̂_t ⊗ delta``; emit ``out_t = Σ_dk S·q̂_t``. ``edit_state`` (a
+    state write) is applied to ``S_t`` *after* ``out_t`` is emitted and before
+    it threads into step ``t+1`` — the engine's own contract for the one write
+    that must feed forward.
+    """
+    initial_dtype = query.dtype
+    batch, seq_len, heads, d_k = key.shape
+    d_v = value.shape[-1]
+    scale = 1 / (query.shape[-1] ** 0.5)
+    state = (
+        torch.zeros(batch, heads, d_k, d_v, dtype=torch.float32, device=value.device)
+        if initial_state is None
+        else initial_state.to(torch.float32)
+    )
+    outs: list[torch.Tensor] = []
+    states: list[torch.Tensor] = []
+    kv_mems: list[torch.Tensor] = []
+    deltas: list[torch.Tensor] = []
+    for t in range(seq_len):
+        q_t, k_t, v_t = query[:, t], key[:, t], value[:, t]
+        if use_qk_l2norm:
+            q_t, k_t = l2norm(q_t), l2norm(k_t)
+        q_t = q_t.to(torch.float32) * scale
+        k_t = k_t.to(torch.float32)
+        v_t = v_t.to(torch.float32)
+        g_t = g[:, t].to(torch.float32).exp().unsqueeze(-1).unsqueeze(-1)
+        beta_t = beta[:, t].to(torch.float32).unsqueeze(-1)
+        state = state * g_t
+        kv_mem = delta_kv_mem(state, k_t)
+        delta = (v_t - kv_mem) * beta_t
+        state = state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
+        out_t = (state * q_t.unsqueeze(-1)).sum(dim=-2)
+        if edit_state is not None:
+            state = edit_state(t, state)
+        outs.append(out_t.to(initial_dtype))
+        states.append(state)
+        kv_mems.append(kv_mem)
+        deltas.append(delta)
+    return DeltaRecurrence(
+        out=torch.stack(outs, dim=1),
+        states=torch.stack(states, dim=1),
+        kv_mems=torch.stack(kv_mems, dim=1),
+        deltas=torch.stack(deltas, dim=1),
+        final_state=state,
+    )
+
+
+def capture_many_with_writes(
+    pipeline: LMPipeline,
+    inputs: Mapping,
+    captures: Mapping[str, tuple[torch.nn.Module, HookKind]],
+    writes: list[WriteSpec] = (),  # type: ignore[assignment]
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """One forward: every ``writes`` entry applied, every ``captures`` entry
+    (``name -> (module, kind)``) grabbed, and the **all-position** logits
+    returned beside them. The many-capture form of :func:`capture_with_writes`,
+    for a certification that compares intermediate components and logits from
+    the same pass."""
+    grabbed: dict[str, torch.Tensor] = {}
+    handles = []
+    for name, (module, kind) in captures.items():
+        if kind == "out":
+
+            def cap(_m, _i, out, name=name):
+                grabbed[name] = hidden_of(out).detach().clone()
+
+            handles.append(module.register_forward_hook(cap))
+        else:
+
+            def cap_pre(_m, args, name=name):
+                grabbed[name] = args[0].detach().clone()
+
+            handles.append(module.register_forward_pre_hook(cap_pre))
+    handles += [_install(m, kind, write) for (m, kind, write) in writes]
+    try:
+        with torch.no_grad():
+            logits = pipeline.hf_model(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+            ).logits
+    finally:
+        for h in handles:
+            h.remove()
+    return logits.detach().clone(), grabbed

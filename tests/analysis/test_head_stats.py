@@ -17,11 +17,11 @@ from tests.step_scripts import put_table, run_step
 pytestmark = pytest.mark.numerical_unit
 
 ROWS = [
-    {"sites.target.layer": 0, "sites.target.head": 0, "value": 1.0},
-    {"sites.target.layer": 0, "sites.target.head": 0, "value": 3.0},
-    {"sites.target.layer": 1, "sites.target.head": 0, "value": 5.0},
-    {"sites.target.layer": 1, "sites.target.head": 1, "value": 2.0},
-    {"sites.target.layer": 1, "sites.target.head": 1, "value": 4.0},
+    {"sites.target.layers": 0, "sites.target.head": 0, "value": 1.0},
+    {"sites.target.layers": 0, "sites.target.head": 0, "value": 3.0},
+    {"sites.target.layers": 1, "sites.target.head": 0, "value": 5.0},
+    {"sites.target.layers": 1, "sites.target.head": 1, "value": 2.0},
+    {"sites.target.layers": 1, "sites.target.head": 1, "value": 4.0},
 ]
 
 

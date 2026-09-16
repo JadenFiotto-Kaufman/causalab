@@ -78,7 +78,7 @@ NONCYCLIC_DOMAINS = ("integer", "alphabet", "age")
 # Domains where create_random_causal_model fits within RANDOM_WORD_POOL (≤24).
 RANDOM_BASELINE_DOMAINS = ("weekdays", "months", "hours", "integer")
 
-# Per-domain expected cyclic-variable sets (per the plan).
+# Per-domain expected cyclic-variable sets.
 EXPECTED_CYCLIC: dict[str, set[str]] = {
     "weekdays": {"entity", "number", "result"},
     "months": {"entity", "result"},
@@ -88,7 +88,7 @@ EXPECTED_CYCLIC: dict[str, set[str]] = {
     "age": set(),
 }
 
-# Per-domain expected periodic info (per the plan).
+# Per-domain expected periodic info.
 EXPECTED_PERIODIC: dict[str, dict[str, int] | None] = {
     "weekdays": {"entity": 7, "number": 7, "result": 7},
     "months": {"entity": 12, "result": 12},
@@ -381,7 +381,7 @@ class TestNaturalDomainsArithmeticDynamicGettersProperty:
         assert isinstance(GET_TEMPLATE(model), str)
 
     def test_output_tokens_include_canonical_and_bare_forms(self) -> None:
-        """``output_tokens["result"]["Monday"]`` declares both BPE spacings (#296)."""
+        """``output_tokens["result"]["Monday"]`` declares both BPE spacings."""
         model, _ = _make_model("weekdays")
         assert model.output_tokens["result"]["Monday"] == [" Monday", "Monday"]
 
@@ -389,7 +389,7 @@ class TestNaturalDomainsArithmeticDynamicGettersProperty:
         """Declared forms carry no lowercase variant — case-sensitive class columns.
 
         The lowercase tolerance lives in the probability grader's
-        ``answer_token_forms`` pass, not the declaration (#291).
+        ``answer_token_forms`` pass, not the declaration.
         """
         model, _ = _make_model("weekdays")
         assert " monday" not in model.output_tokens["result"]["Monday"]
@@ -445,20 +445,20 @@ class TestNaturalDomainsArithmeticFactoryBranchProperty:
         )
 
     def test_grouped_output_tokens_dedup_via_form_groups(self) -> None:
-        """Grouped ``output_tokens`` collapse the (entity, group) fan-out via form-groups.
+        """Grouped forms collapse the (entity, group) fan-out via form-groups.
 
         The 2D ``result`` has ``N_entities × N_groups`` tuple keys, but all groups
         of one entity share its forms — so the distinct form-groups reduce back to
         the ``N_entities`` score tokens the removed ``output_token_values`` used to
-        encode (#296).
+        encode. The groups are the spec's own derivation
+        (``ScoringSpec.form_groups``), so they cannot drift from the grader.
         """
-        from causalab.causal.causal_utils import form_groups
-
         model, cfg = _grouped_weekdays_model()
         entities = list(cfg.result_entities or cfg.entities)
         var_map = model.output_tokens["result"]
         assert all(isinstance(k, tuple) and len(k) == 2 for k in var_map)
-        groups = form_groups(var_map)
+        assert model.scoring is not None
+        groups = model.scoring.form_groups("result")
         assert len(groups) == len(entities)
         assert groups == [[f" {e}", e] for e in entities]
 

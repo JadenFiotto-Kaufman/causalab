@@ -1,9 +1,9 @@
-"""The ``causalab`` CLI: ``run · validate · explain · digest``.
+"""The ``causalab`` CLI: ``run · validate · explain · dry-run · digest · migrate``.
 
 One entry point over **two document types**. Argument parsing and the
 resolution environment are shared; the verbs themselves are not:
 
-* an **intervention protocol** document → :mod:`causalab.protocol.cli`
+* an **intervention specification** → :mod:`causalab.protocol.cli`
 * a **workflow** document → :mod:`causalab.workflow.cli`
 
 Dispatch is on the document's ``steps`` section (workflow spec §1). Keeping it
@@ -24,9 +24,12 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+from causalab.protocol.engine import DEFAULT_ENGINE, ENGINE_CHOICES
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
 from causalab.protocol.schema import PRECISION_DTYPES
+
+from causalab.tasks import TASKS_ROOT
 
 __all__ = ["ensure_model_registered", "load_engines", "main", "register_model_key"]
 
@@ -65,10 +68,31 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="causalab",
-        description="Intervention protocols: run, validate, explain, digest "
-        "(docs/intervention_protocol.md).",
+        description="Intervention specifications and workflows: run, validate, "
+        "explain, dry-run, digest, pin, migrate (docs/intervention_protocol.md, "
+        "docs/workflow_protocol.md).",
     )
     sub = parser.add_subparsers(dest="verb", required=True)
+    migrate = sub.add_parser(
+        "migrate",
+        help="rewrite earlier-version intervention specifications (v1's flat "
+        "sections, v2's scalar site 'layer'), a workflow's dotted "
+        "sites.<name>.layer ids, and the fenced JSON examples in markdown "
+        "files, as the current protocol_version, in place",
+    )
+    migrate.add_argument(
+        "paths",
+        type=Path,
+        nargs="+",
+        help="JSON documents or markdown files (a YAML document is refused: "
+        "regroup it by hand); a document already at the current version is "
+        "left as it is",
+    )
+    migrate.add_argument(
+        "--check",
+        action="store_true",
+        help="write nothing; exit 1 if any file would change",
+    )
     for verb, help_text in (
         ("run", "validate, expand, plan, execute, stamp"),
         ("validate", "the §5 load-error checklist"),
@@ -76,12 +100,31 @@ def _build_parser() -> argparse.ArgumentParser:
             "explain",
             "models, forward plan, point count, requires, digest, save products",
         ),
+        (
+            "dry-run",
+            "resolve everything a run decides before weights load, and report it",
+        ),
         ("digest", "the campaign digest"),
+        (
+            "pin",
+            "stamp a workflow's `pins` section — the digests of every document, "
+            "script, table, code module and file it touches — into the "
+            "workflow file (workflow documents only; `run` stamps an unpinned "
+            "workflow on its first run)",
+        ),
     ):
         p = sub.add_parser(verb, help=help_text)
         p.add_argument("document", type=Path, help="a protocol JSON (or YAML) file")
         p.add_argument("--set", action="append", default=[], metavar="PATH=VALUE")
-        p.add_argument("--data-root", type=Path, default=Path("."))
+        p.add_argument(
+            "--data-root",
+            type=Path,
+            default=TASKS_ROOT,
+            help="where dataset refs resolve (`<root>/<ref>.json`). Defaults to "
+            "the task packages themselves, so a shipped document resolves "
+            "with no flag: `<task>/data/<variant>#<split>` names the table "
+            "the task ships under causalab/tasks/<task>/data/",
+        )
         p.add_argument("--artifacts-root", type=Path, default=Path("."))
         p.add_argument(
             "--max-points",
@@ -105,13 +148,44 @@ def _build_parser() -> argparse.ArgumentParser:
         if verb == "explain":
             p.add_argument(
                 "--engine",
-                choices=("pytorch_hooks", "nnsight", "auto"),
+                choices=ENGINE_CHOICES,
                 default=None,
                 help="also route the document and print which engine would "
                 "serve it (or the §8 refusal). Loads engines, so `explain` "
                 "without it stays torch-free",
             )
+        if verb == "dry-run":
+            p.add_argument(
+                "--engine",
+                choices=ENGINE_CHOICES,
+                default=None,
+                help="also ask check_engine, per candidate engine, what it would "
+                "refuse — reported as a capability_shortfall, not raised; a "
+                "pinned engine's shortfall exits 1, under 'auto' only no "
+                "candidate serving does. Builds engines (no weights), so "
+                "`dry-run` without it stays torch-free",
+            )
+            p.add_argument(
+                "--data",
+                action="store_true",
+                help="also check column and prompt-variable references and the "
+                "declared row roles at every point (the `validate --data` pass); "
+                "a refusal is reported and exits 1",
+            )
+            p.add_argument(
+                "--shard-size",
+                type=_positive_int,
+                default=None,
+                metavar="N",
+                help="plan `--points` shards of at most N points and report how "
+                "many the campaign needs (ceil(points / N))",
+            )
         if verb == "run":
+            p.add_argument(
+                "--cuda-graphs",
+                action="store_true",
+                help="use CUDA replay for supported pytorch_hooks workloads",
+            )
             p.add_argument(
                 "--out",
                 type=Path,
@@ -139,8 +213,8 @@ def _build_parser() -> argparse.ArgumentParser:
             )
             p.add_argument(
                 "--engine",
-                choices=("pytorch_hooks", "nnsight", "auto"),
-                default="auto",
+                choices=ENGINE_CHOICES,
+                default=DEFAULT_ENGINE,
                 help="execution engine: 'auto' (default) is every installed "
                 "engine with the reference FIRST, routed by choose_engine "
                 "(§8); name one to pin it. Routing is §8's own answer, and "
@@ -165,17 +239,60 @@ def _build_parser() -> argparse.ArgumentParser:
                 "expanded campaign — the seam external schedulers shard on "
                 "(document runs only; digests and stamps are unaffected)",
             )
+            p.add_argument(
+                "--batch-rows",
+                type=_positive_int,
+                default=None,
+                metavar="N",
+                help="reference engine: run a forward group over more than N "
+                "rows as several forwards of at most N rows each, captures "
+                "concatenated in row order (§8, execution scale). Execution "
+                "only — the numbers equal the single-forward run up to dtype "
+                "rounding, and digests and stamps are unaffected. Bounds "
+                "no-grad forwards, including train.eval passes; a training "
+                "minibatch keeps its train.batch.pairs rows",
+            )
+            p.add_argument(
+                "--fit-rows",
+                type=_positive_int,
+                default=None,
+                metavar="N",
+                help="reference engine: bound how many rows one grad forward "
+                "of a fit covers — the members of a fit cohort are packed into "
+                "forwards of at most N rows each, a member's own minibatch "
+                "(train.batch.pairs rows) is never split, and without the flag "
+                "the bound is measured on the cohort's first step from the "
+                "device's free memory and recorded as "
+                "execution.fit_rows_resolved (§8, execution scale). Execution "
+                "only — digests and stamps are unaffected, and the receipt "
+                "records the bound as execution.fit_rows",
+            )
     return parser
+
+
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"expected a positive row count, got {text}")
+    return value
 
 
 def _env(args: argparse.Namespace) -> ResolutionEnv:
     return ResolutionEnv(
-        datasets=FileDatasets(root=args.data_root),
+        # the shipped task tables stay reachable behind any --data-root
+        datasets=FileDatasets(root=args.data_root, fallback_roots=(TASKS_ROOT,)),
         artifacts=FileArtifacts(root=args.artifacts_root),
     )
 
 
-def load_engines(choice: str, device: str) -> list[Any]:
+def load_engines(
+    choice: str,
+    device: str,
+    *,
+    cuda_graphs: bool = False,
+    batch_rows: int | None = None,
+    fit_rows: int | None = None,
+) -> list[Any]:
     """Build the ``run`` verb's engine list — lazily, so the pure verbs stay
     torch-free (importlib keeps the layering honest: ``protocol/`` never
     links against an execution engine).
@@ -183,7 +300,12 @@ def load_engines(choice: str, device: str) -> list[Any]:
     ``auto`` is every installed engine with the reference first — list order
     is routing preference (§8), so pytorch_hooks serves what it can and the
     nnsight engine picks up what it refuses. A missing optional engine is
-    only an error when named explicitly."""
+    only an error when named explicitly.
+
+    ``batch_rows`` is the reference engine's microbatch bound (``--batch-rows``)
+    and ``fit_rows`` its rows-per-grad-forward bound for a fit (``--fit-rows``);
+    the nnsight engine runs each group as one batch, has no grad path, and is
+    built without either."""
     import importlib
 
     engines: list[Any] = []
@@ -196,7 +318,15 @@ def load_engines(choice: str, device: str) -> list[Any]:
                 f"no execution engine available ({err}) — 'run' needs the "
                 "reference engine causalab.neural.engines.pytorch_hooks",
             ) from err
-        engines.append(hooks.PytorchHooksEngine(device=device))
+        # `fit_rows` only when set: the engine's default is None already, and
+        # passing it explicitly would make the kwarg part of the constructor
+        # contract for every stand-in
+        extra = {"fit_rows": fit_rows} if fit_rows is not None else {}
+        if cuda_graphs:
+            extra["cuda_graphs"] = True
+        engines.append(
+            hooks.PytorchHooksEngine(device=device, batch_rows=batch_rows, **extra)
+        )
     if choice in ("nnsight", "auto"):
         try:
             tracing = importlib.import_module("causalab.neural.engines.nnsight_tracing")
@@ -233,16 +363,17 @@ def ensure_model_registered(args: argparse.Namespace) -> None:
     Called for ``run`` unconditionally and for the pure verbs only under
     ``--register-from-hf``, so the invariant survives: without the flag a
     digest never depends on the network."""
-    from causalab.protocol.loader import apply_overrides, flatten, load_text
+    from causalab.protocol.compile import read_document
 
-    # flatten first: in a split document the model lives in the `application`
-    # half (§1.1), and `--set model.key=…` addresses the composition
-    raw = dict(load_text(args.document))
+    # read through the compiler's own prefix, so `--set model.key=…` is applied
+    # and the key read here is the one the compile will read
     try:
-        raw, _, _ = flatten(raw, base_dir=args.document.resolve().parent)
+        authored = read_document(
+            args.document, args.document.resolve().parent, dict(args.parsed_set)
+        )
     except ProtocolError:
-        return  # a malformed document refuses properly in the real load
-    register_model_key(apply_overrides(raw, dict(args.parsed_set)))
+        return  # a malformed document refuses properly in the real compile
+    register_model_key(dict(authored.raw))
 
 
 def register_model_key(raw: dict[str, Any]) -> None:
@@ -252,7 +383,7 @@ def register_model_key(raw: dict[str, Any]) -> None:
         register_model,
     )
 
-    model = raw.get("model", raw.get("neural_model", {}))
+    model = raw.get("model", {})
     key = model.get("key") if isinstance(model, dict) else None
     if not isinstance(key, str):
         return
@@ -268,7 +399,28 @@ def register_model_key(raw: dict[str, Any]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse, build the environment, and dispatch on document type."""
-    args = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.verb == "migrate":
+        # a rewrite of files, not a compile: no environment, no dispatch
+        from causalab.protocol.migrate import main as migrate_main
+
+        return migrate_main(args)
+    if getattr(args, "engine", None) == "nnsight":
+        # fail closed: both bounds are the reference engine's, and a pinned
+        # nnsight run would drop them silently while the receipt said null
+        if getattr(args, "batch_rows", None) is not None:
+            parser.error(
+                "--batch-rows bounds only the reference engine, and --engine "
+                "nnsight pins an engine that runs every group as one batch, so "
+                "the two flags cannot be combined"
+            )
+        if getattr(args, "fit_rows", None) is not None:
+            parser.error(
+                "--fit-rows bounds only the reference engine's grad forwards, "
+                "and --engine nnsight pins an engine with no grad path, so the "
+                "two flags cannot be combined"
+            )
     args.parsed_set = _overrides(args)
     env = _env(args)
     try:
@@ -276,9 +428,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         from causalab.workflow.document import is_workflow
 
         if is_workflow(load_text(args.document)):
+            if args.verb == "dry-run":
+                print(
+                    "refused: dry-run is per intervention specification; the "
+                    "workflow has no dry run of its own — validate or explain "
+                    "the workflow, and dry-run its documents one by one",
+                    file=sys.stderr,
+                )
+                return 1
             from causalab.workflow import cli as workflow_cli
 
             return workflow_cli.main(args, env)
+        if args.verb == "pin":
+            print(
+                "refused: pins are a workflow's — an intervention specification "
+                "carries no pins section and is pinned by the workflow that "
+                "runs it (workflow spec §7). Wrap the document in a workflow "
+                "step and pin that",
+                file=sys.stderr,
+            )
+            return 1
+        if getattr(args, "resume", False):
+            print(
+                "refused: --resume is a workflow flag — it reuses a published "
+                "step whose identity and files still match, and an intervention "
+                "specification run has no step boundaries to resume at (IM spec "
+                "§9). Wrap the document in a workflow step, or shard it with "
+                "--points",
+                file=sys.stderr,
+            )
+            return 1
         from causalab.protocol import cli as protocol_cli
 
         return protocol_cli.main(args, env)

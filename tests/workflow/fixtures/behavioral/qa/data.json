@@ -1,0 +1,206 @@
+[
+ {
+  "answer": " Friday",
+  "answer_forms": [
+   " Friday",
+   "Friday"
+  ],
+  "entity": "Thursday",
+  "input": "If today is Thursday, tomorrow is",
+  "input_variables": {
+   "entity": "Thursday",
+   "result": "Friday"
+  },
+  "result": "Friday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "development",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Tuesday",
+  "answer_forms": [
+   " Tuesday",
+   "Tuesday"
+  ],
+  "entity": "Monday",
+  "input": "If today is Monday, tomorrow is",
+  "input_variables": {
+   "entity": "Monday",
+   "result": "Tuesday"
+  },
+  "result": "Tuesday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "development",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Sunday",
+  "answer_forms": [
+   " Sunday",
+   "Sunday"
+  ],
+  "entity": "Saturday",
+  "input": "If today is Saturday, tomorrow is",
+  "input_variables": {
+   "entity": "Saturday",
+   "result": "Sunday"
+  },
+  "result": "Sunday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "development",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Wednesday",
+  "answer_forms": [
+   " Wednesday",
+   "Wednesday"
+  ],
+  "entity": "Tuesday",
+  "input": "If today is Tuesday, tomorrow is",
+  "input_variables": {
+   "entity": "Tuesday",
+   "result": "Wednesday"
+  },
+  "result": "Wednesday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "development",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Thursday",
+  "answer_forms": [
+   " Thursday",
+   "Thursday"
+  ],
+  "entity": "Wednesday",
+  "input": "If today is Wednesday, tomorrow is",
+  "input_variables": {
+   "entity": "Wednesday",
+   "result": "Thursday"
+  },
+  "result": "Thursday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "reserve",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Saturday",
+  "answer_forms": [
+   " Saturday",
+   "Saturday"
+  ],
+  "entity": "Friday",
+  "input": "If today is Friday, tomorrow is",
+  "input_variables": {
+   "entity": "Friday",
+   "result": "Saturday"
+  },
+  "result": "Saturday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "reserve",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Monday",
+  "answer_forms": [
+   " Monday",
+   "Monday"
+  ],
+  "entity": "Sunday",
+  "input": "If today is Sunday, tomorrow is",
+  "input_variables": {
+   "entity": "Sunday",
+   "result": "Monday"
+  },
+  "result": "Monday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "reserve",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Wednesday",
+  "answer_forms": [
+   " Wednesday",
+   "Wednesday"
+  ],
+  "entity": "Monday",
+  "input": "If today is Monday, the day after tomorrow is",
+  "input_variables": {
+   "entity": "Monday",
+   "result": "Wednesday"
+  },
+  "result": "Wednesday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "reserve",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Thursday",
+  "answer_forms": [
+   " Thursday",
+   "Thursday"
+  ],
+  "entity": "Tuesday",
+  "input": "If today is Tuesday, the day after tomorrow is",
+  "input_variables": {
+   "entity": "Tuesday",
+   "result": "Thursday"
+  },
+  "result": "Thursday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "confirmation",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Saturday",
+  "answer_forms": [
+   " Saturday",
+   "Saturday"
+  ],
+  "entity": "Thursday",
+  "input": "If today is Thursday, the day after tomorrow is",
+  "input_variables": {
+   "entity": "Thursday",
+   "result": "Saturday"
+  },
+  "result": "Saturday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "confirmation",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Monday",
+  "answer_forms": [
+   " Monday",
+   "Monday"
+  ],
+  "entity": "Saturday",
+  "input": "If today is Saturday, the day after tomorrow is",
+  "input_variables": {
+   "entity": "Saturday",
+   "result": "Monday"
+  },
+  "result": "Monday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "confirmation",
+  "string_mode": "exact"
+ },
+ {
+  "answer": " Sunday",
+  "answer_forms": [
+   " Sunday",
+   "Sunday"
+  ],
+  "entity": "Friday",
+  "input": "If today is Friday, the day after tomorrow is",
+  "input_variables": {
+   "entity": "Friday",
+   "result": "Sunday"
+  },
+  "result": "Sunday",
+  "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb",
+  "split": "confirmation",
+  "string_mode": "exact"
+ }
+]

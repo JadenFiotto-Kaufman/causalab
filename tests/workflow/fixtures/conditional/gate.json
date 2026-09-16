@@ -1,0 +1,47 @@
+{
+  "version": "1",
+  "description": "The conditional chain on CPU: a script measures, a decision step holds the measurement to a rule, a conditional gates two sides on the decision's outcome, and a report follows the gated fit (workflow spec §2.8).",
+  "output_dir": "gated",
+  "steps": {
+    "measure": {
+      "type": "script",
+      "script": {"path": "scripts/measure.py"},
+      "inputs": {"measurement": {"path": "measurement.json"}},
+      "outputs": {
+        "values": {"file": "values.json", "keys": {"score": 0.5, "k": 8}},
+        "table": {"file": "scores.json", "columns": {"score": "float64"}}
+      }
+    },
+    "gate_k": {
+      "type": "decision",
+      "values": {"step": "measure", "file": "values.json"},
+      "rule": {"score": {"ge": 0.5}, "k": {"in": [4, 8]}},
+      "decision": {"on_pass": "advance", "on_fail": "narrow"}
+    },
+    "gate": {
+      "type": "conditional",
+      "predicate": {"decision": {"step": "gate_k"}, "field": "outcome", "eq": "pass"},
+      "on_true": ["fit"],
+      "on_false": ["probe"],
+      "scope": "global"
+    },
+    "fit": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {"k": {"step": "measure", "file": "values.json", "key": "k"}},
+      "outputs": {"out": {"file": "fit.json", "keys": {"ran": true}}}
+    },
+    "probe": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {},
+      "outputs": {"out": {"file": "probe.json", "keys": {"ran": true}}}
+    },
+    "report": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {"k": {"step": "fit", "file": "fit.json", "key": "ran"}},
+      "outputs": {"out": {"file": "report.json", "keys": {"ran": true}}}
+    }
+  }
+}

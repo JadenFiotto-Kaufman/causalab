@@ -11,7 +11,7 @@ Coverage map:
   exported hooks (``EXAMPLE_TO_CLASS``, ``GET_VARIABLE_VALUES``,
   ``GET_PERIODIC_INFO``) and the ``output_tokens`` coordinate→concept map.
   ``SCORE_TOKEN_IDS_FROM_MODEL`` needs a loaded pipeline and is deferred
-  to runner-tier coverage (gap, per the plan).
+  to runner-tier coverage.
 * ``config.py`` — ``GraphWalkConfig.__post_init__`` invariants and the
   ``DEFAULT_CONCEPTS`` pool-shape contract.
 * ``counterfactuals.py`` — ``generate_graph_walk_dataset`` /
@@ -32,8 +32,8 @@ Coverage map:
 
 Numerical-direct cell (``tests/tasks/graph_walk/pinned_samples.json``
 + ``test_graph_walk_numerical.py``) is **blocked** on the factory-task
-walker shim in ``tests/_helpers/task_pins.py`` — see the plan's
-"Known gap" section. No per-module numerical class is added here.
+walker shim in ``tests/_helpers/task_pins.py``. No per-module numerical
+class is added here.
 
 Standards: ``tasks/`` requires ``[smoke-transitive, property-direct,
 numerical-direct]``. Smoke-transitive comes from
@@ -86,7 +86,7 @@ from tests._helpers.tasks import get_task
 #     hex/torus adjacency-symmetry sweeps walk O(n*m) neighbours, so the
 #     default 200ms deadline can flake on cold caches.
 #   - max_examples=30 + dimensions in [2, 5] keep the property suite
-#     sub-second (see "Hypothesis seed sweep cost" risk in the plan).
+#     sub-second (a seed sweep over Hypothesis examples adds up quickly).
 _HYPOTHESIS_SETTINGS = settings(
     deadline=None,
     max_examples=30,
@@ -363,8 +363,8 @@ class TestGraphWalkRawOutputProperty:
 class TestGraphWalkExportHooksProperty:
     """Module-level exports consumed by the loader / scorer contract.
 
-    ``SCORE_TOKEN_IDS_FROM_MODEL`` needs a loaded pipeline; per the plan it
-    is deferred to runner-tier coverage and not exercised here.
+    ``SCORE_TOKEN_IDS_FROM_MODEL`` needs a loaded pipeline; it is deferred to
+    runner-tier coverage and not exercised here.
     """
 
     pytestmark = pytest.mark.property
@@ -391,22 +391,33 @@ class TestGraphWalkExportHooksProperty:
         info = GET_PERIODIC_INFO(_cylinder_handle())
         assert isinstance(info, dict) and info
 
-    def test_output_tokens_map_coords_to_concepts(self) -> None:
-        """``output_tokens`` is a plain ``{coordinate: [concept]}`` map (#296).
+    def test_forms_are_declared_per_concept_on_raw_output(self) -> None:
+        """The answer forms are a plain ``{concept: [concept]}`` map on
+        ``raw_output`` — the variable whose value (a list of every valid next
+        node's concept) is the answer.
 
-        Replaces the former ``id()``-keyed result_token_pattern whose
-        object-identity lookup broke on reconstructed coordinate tuples (#258):
-        the declared map is keyed by the coordinate tuple's value, so a rebuilt
-        tuple resolves by equality.
+        Keyed by value, never by ``id()``, and on the
+        answer rather than on the current node's coordinate: a row's
+        ``raw_output`` list resolves to the union of its members' forms, so the
+        string grader and the serialized ``*_forms`` both say "any valid
+        neighbour".
         """
         model = _ring_handle()
-        coord_forms = model.output_tokens["node_coordinates"]
-        coords = model.values["node_coordinates"]
+        spec = model.scoring
+        assert spec is not None and spec.answer_variable == "raw_output"
+        forms = model.output_tokens["raw_output"]
         concepts = model.values["concepts"]
-        assert coord_forms[coords[0]] == [concepts[0]]
-        # A freshly-built (non-identical) tuple still resolves by value.
-        assert coord_forms[tuple(coords[0])] == [concepts[0]]
-        assert len(coord_forms) == len(coords)
+        assert set(forms) == set(concepts)
+        assert all(forms[c] == [c] for c in concepts)
+        trace = model.new_trace(
+            {"node_coordinates": model.values["node_coordinates"][0]}
+        )
+        neighbours = trace["raw_output"]
+        assert isinstance(neighbours, list) and len(neighbours) == 2  # a ring
+        assert spec.forms_of(neighbours) == tuple(neighbours)
+        assert all(spec.grade(n, neighbours) == 1.0 for n in neighbours)
+        other = next(c for c in concepts if c not in neighbours)
+        assert spec.grade(other, neighbours) == 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -629,8 +640,7 @@ class TestGraphTopologyProperty:
 
     Test methods are grouped by builder; each method stays ≤ 15 lines per
     the recipe. ``Graph.random_walk_fast`` is pinned against ``random_walk``
-    even though it has no in-repo caller besides this class — see the
-    "Dead modules" section of the plan.
+    even though it has no in-repo caller besides this class.
     """
 
     pytestmark = pytest.mark.property

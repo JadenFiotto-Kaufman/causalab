@@ -375,7 +375,7 @@
   node('gu_e', 1400, 3075, 'gate_up_e', '(seq, 8, 1024)');
   node('gate_e', 1320, 3195, 'gate_e', '(seq, 8, 512)');
   node('up_e', 1490, 3195, 'up_e', '(seq, 8, 512)');
-  node('hidden_e', 1400, 3320, 'hidden_e', '(seq, 8, 512)', 'blocked');
+  node('hidden_e', 1400, 3320, 'hidden_e', '(seq, 8, 512)');
   node('expert_out', 1400, 3440, 'expert_out', '(seq, 8, 2048)');
   node('routed', 1400, 3540, 'routed_out', '(seq, 2048)');
   node('gate_s', 1720, 3110, 'gate_s', '(seq, 512)');
@@ -395,9 +395,8 @@
   label(1258, 3140, 'gather e in top-8');
   vedge('gu_e', 'gate_e', 'chunk[0]');
   vedge('gu_e', 'up_e', 'chunk[1]');
-  // `expert_activation` names silu(gate_e) ALONE — the shared act_fn's output,
-  // before the `* up_e` multiply. The product below it is the down-projection's
-  // input, which the vocabulary does not name.
+  // expert_activation captures silu(gate_e). expert_neuron_output captures
+  // its product with up_e at the down-projection input.
   node('act_e', 1240, 3258, 'act_e', '(seq, 8, 512)');
   edge('M1288 3216 C 1268 3228, 1252 3234, 1242 3236');
   label(1210, 3226, 'silu');
@@ -481,12 +480,12 @@
   redArrow('M1322 2248 C 1500 2200, 1650 2170, 1782 2150');
 
   ann(2090, 2990, [
-    'Expert activations keep an explicit experts',
-    'dimension: index hidden_e[:, j] to probe the',
-    'j-th routed expert. The weights are 3D',
-    'tensors - gate_up_proj (256, 1024, 2048),',
-    'down_proj (256, 2048, 512) - gathered by',
-    'expert_idx.'
+    'hidden_e is expert_neuron_output:',
+    'silu(gate_e) * up_e before down_proj.',
+    'Each slot holds one routed expert.',
+    'Use expert_idx to find its ID.',
+    'The weights have one matrix per expert:',
+    'down_proj (256, 2048, 512).'
   ]);
   redArrow('M1458 3068 C 1600 3030, 1850 2995, 2082 2988');
 

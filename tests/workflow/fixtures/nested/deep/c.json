@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "description": "The innermost of three levels (workflow spec §2.10): one script step, reached from a.json as x/y/z.",
+  "output_dir": "c_alone",
+  "steps": {
+    "z": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {},
+      "outputs": {"out": {"file": "z.json", "keys": {"ran": true}}}
+    }
+  }
+}

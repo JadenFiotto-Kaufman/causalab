@@ -13,7 +13,7 @@
       "inputs": {
         "table": {"step": "locate", "file": "iia.json"},
         "choose": "max",
-        "emit": {"best_layer": "sites.target.layer", "best_pos": "positions.tap"}
+        "emit": {"best_layer": "sites.target.layers", "best_pos": "positions.tap"}
       },
       "outputs": {
         "values": {
@@ -27,7 +27,7 @@
       "document": "../protocols/weekdays_das_sweep.json",
       "set": {
         "positions.best": {"artifact": "best", "key": "best_pos"},
-        "sites.target.layer": {"artifact": "best", "key": "best_layer"}
+        "sites.target.layers": {"artifact": "best", "key": "best_layer"}
       }
     },
     "best_fit": {
@@ -40,10 +40,7 @@
         "emit": {"best_k": "featurizers.rot.k", "best_seed": "train.seed"}
       },
       "outputs": {
-        "values": {
-          "file": "values.json",
-          "keys": {"best_k": 8, "best_seed": 0}
-        }
+        "values": {"file": "values.json", "keys": {"best_k": 8, "best_seed": 0}}
       }
     },
     "apply": {
@@ -64,13 +61,10 @@
       "inputs": {
         "table": {"step": "locate", "file": "iia.json"},
         "plot": "heatmap",
-        "x": "sites.target.layer",
+        "x": "sites.target.layers",
         "y": "positions.tap"
       },
-      "outputs": {
-        "figure": "scan_iia.png",
-        "plotted": {"file": "scan_iia.json"}
-      }
+      "outputs": {"figure": "scan_iia.png", "plotted": {"file": "scan_iia.json"}}
     },
     "iia_by_k": {
       "type": "script",
@@ -81,10 +75,7 @@
         "x": "featurizers.rot.k",
         "series": "train.seed"
       },
-      "outputs": {
-        "figure": "iia_by_k.png",
-        "plotted": {"file": "iia_by_k.json"}
-      }
+      "outputs": {"figure": "iia_by_k.png", "plotted": {"file": "iia_by_k.json"}}
     }
   }
 }

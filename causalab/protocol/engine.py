@@ -1,6 +1,6 @@
 """The engine contract: capabilities, `requires`, and routing (spec §8).
 
-An engine is anything that can execute point protocols — nnsight, Megatron,
+An engine is anything that can execute compiled interventions — nnsight, Megatron,
 SGLang, or the in-repo reference over native pytorch hooks
 (:mod:`causalab.neural.engines.pytorch_hooks`). The document never knows which one
 runs it: ``requires`` derives the capability set a document needs, each
@@ -18,33 +18,61 @@ from typing import Any, Mapping, Sequence
 
 from causalab.protocol.errors import ValidationError
 from causalab.protocol.plan import generated_budget
+from causalab.protocol.registry import ENGINES, capability, write_capabilities
+from causalab.protocol.resolution import Denominator, Resolution
 from causalab.protocol.resolve import ResolutionEnv
 from causalab.protocol.schema import Document, MetricSpec
 
 __all__ = [
     "Engine",
     "CAPABILITIES",
+    "CONTINUATIONS_FILE",
     "ExecutionRequest",
     "RunResult",
     "choose_engine",
     "component_capability",
     "requires",
     "requires_campaign",
+    "train_capabilities",
 ]
+
+#: The engine *names* ``--engine`` accepts, and the default selection.
+#: ``"auto"`` means "every installed engine, reference first" — routing rather
+#: than a pin (§8). One definition because it had three: the parser's default
+#: and two `getattr(args, "engine", …)` fallbacks, which had drifted to
+#: disagree (`"auto"` vs `"pytorch_hooks"`), so a non-argparse caller got
+#: routing on one path and a silent pin to the reference engine on the other.
+#: The names themselves are the capability registry's
+#: (:data:`~causalab.protocol.registry.ENGINES`) — the rows name engines, so
+#: the flag and the rows cannot disagree about which exist.
+ENGINE_CHOICES: tuple[str, ...] = (*ENGINES, "auto")
+DEFAULT_ENGINE = "auto"
 
 #: The closed capability vocabulary (§8). Component capabilities
 #: (``component:<name>``, ``component:<name>:write``) are *generated*, one per
 #: entry of the closed :data:`~causalab.protocol.schema.Component` vocabulary —
 #: two engines with different site surfaces route on them, and the vocabulary
-#: stays closed because ``Component`` already is.
+#: stays closed because ``Component`` already is. The one component-shaped
+#: verb (``writable_attention_probs``: the pattern's write goes through the
+#: attention function, not a hook) is likewise generated — from the
+#: ``write_capability`` cell of the capability rows — so the verb exists
+#: because a row says a write there costs more than the component entry.
 CAPABILITIES: tuple[str, ...] = (
     "grad",
     "paired_forward",
     "full_logits",
-    "writable_attention_probs",
+    *sorted(write_capabilities()),
     "pytorch_fn_local",
     "generate",
     "quantized_weights",
+    # the three training facts a fit can author that an engine's loop may not
+    # honour (§2.11, rule 30): a free ``params`` tensor in ``train.params``, a
+    # ``train.precision`` other than fp32, an ``updates``-counted ``eval``.
+    # Neither shipped engine offers them, and each used to be refused inside
+    # the train loop, after the weights had loaded.
+    "train_free_params",
+    "train_loss_precision",
+    "train_eval_updates",
 )
 
 
@@ -96,6 +124,7 @@ def requires(doc: Document) -> frozenset[str]:
     needed: set[str] = set()
     if doc.train is not None:
         needed.add("grad")
+        needed.update(train_capabilities(doc))
     for read in doc.reads.values():
         needed.add(component_capability(doc.sites[str(read.site)].component))
     for write in doc.writes.values():
@@ -126,8 +155,10 @@ def requires(doc: Document) -> frozenset[str]:
             if write.do.mechanism == "pytorch_fn":
                 needed.add("pytorch_fn_local")
             site = doc.sites[str(write.site)]
-            if site.component == "attention_probs":
-                needed.add("writable_attention_probs")
+            if isinstance(site.component, str):
+                verb = capability(site.component).write_capability
+                if verb is not None:
+                    needed.add(verb)
     saved = {entry.value for entry in doc.save}
     for rname, read in doc.reads.items():
         if rname in saved and read.dims is None:
@@ -147,12 +178,58 @@ def requires(doc: Document) -> frozenset[str]:
     return frozenset(needed)
 
 
+def train_capabilities(doc: Document) -> frozenset[str]:
+    """The training verbs a fit's own fields oblige (§2.11): each is a fact
+    the document decides and an engine's loop may not implement, so it is
+    routed on here and refused by name under rule 30 when the routed engine
+    lacks it (:func:`causalab.protocol.validate.check_engine_support`) — the
+    one derivation both read, so routing and the rule cannot disagree.
+
+    * ``train_free_params`` — a ``train.params`` entry names a ``params``
+      entry (a free tensor, §2.6) rather than a featurizer or a slot;
+    * ``train_loss_precision`` — ``train.precision.feature`` or ``.loss`` is
+      authored as anything but ``fp32``;
+    * ``train_eval_updates`` — ``train.eval.every`` counts ``updates``.
+    """
+    train = doc.train
+    if train is None:
+        return frozenset()
+    needed: set[str] = set()
+    if any(pname in doc.params for pname in train.params):
+        needed.add("train_free_params")
+    if train.precision is not None and any(
+        isinstance(value, str) and value != "fp32" for value in train.precision.values()
+    ):
+        needed.add("train_loss_precision")
+    if train.eval is not None and "updates" in train.eval["every"]:
+        needed.add("train_eval_updates")
+    return frozenset(needed)
+
+
+#: The request-keyed engine output a decode writes when
+#: :attr:`ExecutionRequest.decoding` is set: one row per generated row of every
+#: decoding group — ``point``, ``point_digest``, ``model``, ``input``,
+#: ``example``, ``steps`` (the budget), ``width``, ``truncated``, the real
+#: ``token_ids``, ``text`` and per-token char ``offsets``. Not a ``save`` kind:
+#: the document's ``save`` section is unchanged, so no document digest moves.
+CONTINUATIONS_FILE = "continuations.json"
+
+
 @dataclasses.dataclass(frozen=True)
 class ExecutionRequest:
     """Everything an engine needs to run one document: the concrete points
     (raw trees, artifact fields resolved), their canonical forms and
     digests, coordinates per point, the resolution environment, and where
-    outputs land."""
+    outputs land.
+
+    ``execution`` is the request's own execution parameters — ``batch_rows``
+    (rows per no-grad forward) and ``fit_rows`` (rows per grad forward of a
+    fit), each a positive integer or ``None`` for unbounded — which override
+    the engine's constructor defaults for this request and nothing else; an
+    absent key leaves the engine's value in force. A workflow step's
+    ``execution`` block arrives here (workflow spec §2.2). It is execution,
+    never identity (§8): it enters no canonical form, no digest and no
+    stamp, and the run receipt is its one recorder."""
 
     points: tuple[Mapping[str, Any], ...]
     canonical: tuple[Mapping[str, Any], ...]
@@ -161,6 +238,17 @@ class ExecutionRequest:
     document_digest: str
     env: ResolutionEnv
     output_dir: Path
+    execution: Mapping[str, Any] = dataclasses.field(default_factory=dict)
+    #: How the request's ``generated`` frames are decoded — a workflow
+    #: ``behavioral`` step's ``decoding`` block (workflow spec §2.7):
+    #: ``{"mode": "deterministic"}`` or ``{"mode": "sampled", "seed", "temperature",
+    #: "top_p"}``. ``None`` — every other door — is the greedy decode the
+    #: document alone specifies, byte for byte what it produced before this
+    #: field existed. Set, the engine also writes :data:`CONTINUATIONS_FILE`
+    #: into its result. Execution, not identity: the block enters no
+    #: canonical document, no document digest and no stamp; the step record
+    #: is its one recorder (``execution.decoding``).
+    decoding: Mapping[str, Any] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -179,6 +267,19 @@ class RunResult:
     #: group digests (:func:`causalab.protocol.plan.interned_groups`). The
     #: inner passes of a fit are not forward groups and are not counted.
     forwards: int = 0
+    #: One :data:`~causalab.protocol.resolution.Resolution` per result cell —
+    #: every ``save`` entry of every executed point, in run order. An
+    #: ``Unavailable`` cell is a legal cell with nothing to measure (a scoped
+    #: slice that selected no rows); it is in the result with its reason code
+    #: and it is in the denominator. Never an ``Invalid``: a defect stops
+    #: validation before anything executes (spec §4.1).
+    cells: tuple[Resolution, ...] = ()
+
+    @property
+    def denominator(self) -> Denominator:
+        """``eligible`` of ``total`` cells, the excluded ones by reason — the
+        numbers a summary reads instead of keeping its own books."""
+        return Denominator.of(self.cells)
 
 
 class Engine(abc.ABC):

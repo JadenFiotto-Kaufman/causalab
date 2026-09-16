@@ -17,7 +17,7 @@ import pickle
 from typing import Any, Callable, Dict, Tuple
 
 import torch
-from safetensors.torch import save_file, load_file
+from causalab.io.tensor_files import load_file, save_file
 
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ def save_intervention_results(
             - raw_results: dict with "string" and "sequences" — the legacy
               one-synthetic-batch view producers emit via
               :meth:`~causalab.neural.pipeline.GenerationResult.to_raw_results`
-              (EU5b, #487; the stored-artifact schema is unchanged for runs
+              (the stored-artifact schema is unchanged for runs
               with ``batch_size >= n_examples`` — legacy multi-batch runs
               stored one inner ``"string"`` list per batch, and
               single-example batches a bare str, where ``to_raw_results()``

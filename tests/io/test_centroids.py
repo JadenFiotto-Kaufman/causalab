@@ -1,4 +1,4 @@
-"""Tests for ``causalab.io.centroids`` categorical-target handling (#260).
+"""Tests for ``causalab.io.centroids`` categorical-target handling.
 
 The geometry/centroid pipeline turns causal parameters into numeric
 coordinates. A categorical (string) target with no embedding used to hit a bare

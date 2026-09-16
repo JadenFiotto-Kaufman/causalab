@@ -2,15 +2,37 @@
 
 Each task is a self-contained package under `causalab/tasks/<name>/` that
 defines a causal model, counterfactual generation, and tokenization helpers.
-Tasks are loaded via `load_task()` in `causalab.tasks.loader`. A protocol
-document does not import a task: it names a **dataset ref**, and the ref
-resolves to a serialized table that `causalab.tasks.serialize` built from the
-task ahead of time (spec §2.2). That is the seam between the two halves — the
+Tasks are loaded via `load_task()` in `causalab.tasks.loader`. An
+intervention specification does not import a task: it names a **dataset ref**,
+and the ref resolves to a serialized table that `causalab.tasks.serialize`
+built from the task ahead of time (spec §2.2). That is the seam between the two halves — the
 task owns generation and answer semantics, the document owns the intervention.
 
 Standing up a usable task has three parts: (1) the task **package**
 (`causalab/tasks/<name>/`), (2) a **serialized table** a document can name, and
 (3) **validation** against a model. All three are described below.
+
+## Local task packages
+
+For intermediate-variable hypotheses, use the
+[saved comparison guide](../../docs/hypothesis_analysis.md). The exporter keeps
+pair IDs, family, endpoints, and splits alongside each target's labels.
+
+A task can live outside the installed CausaLab source. Create
+`<code_root>/tasks/__init__.py` and `tasks/<name>/` with the same modules and
+exports described below, then make that code root importable:
+
+```bash
+export CAUSALAB_SESSION_CODE="/absolute/path/to/code_root"
+export PYTHONPATH="$CAUSALAB_SESSION_CODE${PYTHONPATH:+:$PYTHONPATH}"
+```
+
+`CAUSALAB_SESSION_CODE` enables the local-task fallback; `PYTHONPATH` supplies
+the import path. `load_task(name)` first tries `causalab.tasks.<name>`, then
+`tasks.<name>`. Use a unique name because a local task cannot shadow a shipped
+one. The same resolution applies to token positions and counterfactual generators.
+Keep task definitions as Python source; token-position instances may hold a
+loaded pipeline and should be recreated from their definitions.
 
 ## 1. The task package (`causalab/tasks/<name>/`)
 
@@ -23,10 +45,11 @@ Create a directory `causalab/tasks/<name>/` with these modules:
 | `token_positions.py` | for interventions | Maps variable names → token positions |
 | `config.py` | yes | Constants: task name, value lists, token budgets |
 | `templates.py` | yes | Input text templates + fill function |
-| `checker.py` | optional | Custom output matcher (see below) |
 | `metrics.py` | optional | Task-specific metric helpers |
 | `__init__.py` | yes | Package exports |
 | `summary.ipynb` | optional | CPU-only task overview notebook (no model load) |
+| `data/<variant>.json` | yes, once serialized (§2) | the table(s) a document names — `<task>/data/<variant>#<split>` |
+| `sources/` | if the generator reads files | stimulus inputs (`hex_color/sources/hex_color.json`, `IOI/sources/names.json`); never named by a document |
 
 ### causal_models.py (required)
 
@@ -46,13 +69,11 @@ Defines the causal model and exports that `load_task()` reads by convention.
 | `RANDOM_CAUSAL_MODEL` | `CausalModel` — random baseline model | no |
 | `RANDOM_VARIABLE_VALUES` | `dict[str, list[str]]` — values for random baseline | no |
 
-The per-value output forms used for scoring are **not** a task export — they are
-declared on the `CausalModel` itself via `output_tokens` (`{variable: {value:
-[surface form, ...]}}`; build the mechanical `[" v", v]` map with
-`build_output_tokens`). The probability-path score tokens and the string
-`checker` are both derived from it, so a task that declares `output_tokens` needs
-no `checker.py`. Optional `match_modes={variable: "prefix"}` accepts output that
-continues past the answer.
+What counts as a correct answer is **not** a task export either — it is declared
+on the `CausalModel` itself, once, as its `ScoringSpec`
+(`causalab.causal.scoring`; see "Scoring" below). The probability-path score
+tokens, the string grader (`Task.checker`) and the serialized answer-form
+columns are all derived from it.
 
 **Factory tasks** (parameterized, e.g. graph_walk, natural_domains_arithmetic):
 
@@ -100,22 +121,52 @@ in a template must correspond to at most one causal-model variable — don't
 pre-concatenate variables into intermediate strings; the template's `.format()`
 is the formatting step.
 
-### checker.py (optional)
+### Scoring — the `ScoringSpec` (required, on the `CausalModel`)
 
 ```python
-checker(neural_output: dict, causal_output: str) -> bool
+from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
+
+CAUSAL_MODEL = CausalModel(
+    mechanisms,
+    values,
+    id=TASK_NAME,
+    scoring=ScoringSpec(
+        forms={"weekday": build_output_tokens(WEEKDAYS)},  # {variable: {value: [forms]}}
+        string_mode="exact",  # or "prefix" for a task whose model continues past the answer
+    ),
+)
 ```
 
-Decides whether the model's output (`neural_output["string"]`) matches the
-expected answer. `checker.py` is **optional**: when a task declares
-`output_tokens` on its `CausalModel`, the string checker (and the
-probability-path score tokens) are derived from it automatically. Ship a
-`checker.py` only when you need a genuinely-custom matcher — it takes precedence
-over the derived one. A task that offers **neither** `output_tokens` **nor**
-`checker.py` for its target variable cannot grade its output and fails to load.
-Pick the semantics your task needs: exact stripped equality for single-token
-answers, `actual.startswith(expected)` for `max_new_tokens > 1` tasks whose model
-continues past the answer, etc.
+One immutable object is the task's definition of correct: it is frozen, its
+mappings are read-only, and its content digest is derived at construction, so
+nothing downstream can edit the declaration or hold a stale copy of it. A task
+whose causal model declares no `ScoringSpec` cannot grade its output and fails
+to load. The fields (`tests/protocol/test_vocabulary_census.py` holds this table
+to `SCORING_FIELDS`):
+
+| field | type | what it retires |
+|---|---|---|
+| `forms` | `{variable: {value: [surface form, …]}}` | the `output_tokens` constructor argument and the mutable attribute it became; build the mechanical `[" v", v]` map with `build_output_tokens` |
+| `answer_variable` | `str`, optional when one variable declares forms | the loader keying the string checker on `TARGET_VARIABLE`: this is the variable the graded string (`raw_output`) is a form of — MCQA grades `answer`, the letter, while an interchange targets `answer_position` |
+| `string_mode` | `exact` or `prefix` | the `match_modes` map: one mode per task, whether a generated string must equal a form or merely start with one |
+| `protocol_mode` | derived: `exact` or `first_token` | the `prefix` → `first_token` bridge that lived in a parse-error string; the `mode` a `match` metric over this task's table declares (spec §2.10's translation table) |
+| `full_string_checker` | dotted locator `package.module.function`, optional | the bespoke `checker.py` that silently won over the derived checker; declared here it is versioned with the spec |
+| `checker_digest` | derived: sha256 of the checker's source, or `null` | an unversioned override: a checker whose source moved after the spec was built is refused, not run |
+| `undeclared_value` | `refuse` or `literal` | the checker's silent literal-match fallback on an expected value it did not know — `refuse` (default) is what the serializer always did, `literal` is stated rather than inherited |
+| `invalid_output` | `incorrect` or `unscored` | nothing: the grade of a generation naming no declared value — `0.0`, or `null` so "never said it" stays distinct from "said it and scored 0" |
+| `version` | `int`, from 1 | nothing: bumped when the meaning of correctness changes under an unchanged declaration |
+| `digest` | derived: sha256 over every other field | the advisory manifest key: this is what a built table records in every row as `scoring_digest` |
+
+`ScoringSpec.grader()` is the `checker(neural_output, causal_output) -> bool`
+the task exposes as `Task.checker`; `ScoringSpec.grade(generated, expected)`
+is the same decision as `1.0` / `0.0` / `None`; `ScoringSpec.forms_of(value)`
+is the answer-form group a row carries and the probability path scores;
+`ScoringSpec.form_groups()` the distinct groups. An expected value resolves by
+identity, by its spelling, or by being one of its forms; a *list* is a list of
+acceptable answers (graph_walk's `raw_output` is every valid next node).
+`CausalModel.output_tokens` and `CausalModel.match_modes` remain as read-only
+derived views for the readers that grew up on those names.
 
 ### metrics.py / __init__.py / summary.ipynb
 
@@ -126,13 +177,24 @@ counterfactuals) on CPU — it must not load a language model.
 
 ## 2. Serializing a table a document can name
 
-A task becomes usable by a protocol document when its counterfactual dataset
-exists as a table under the document's data root:
+A task becomes usable by an intervention specification when its counterfactual dataset
+exists as a table, and **the task ships that table itself**: under
+`causalab/tasks/<name>/data/<variant>.json`, with the builder invocation
+recorded in the task's README (§2 below shows the shape). Nothing sits
+beside the table (spec §2.2). `causalab/tasks/` is the CLI's default
+`--data-root`, so a document names the table as `<name>/data/<variant>#<split>`
+with no flag. A variant is named for the *configuration* it was built from
+(`default`; a factory task's domain, `weekdays`), never for its parameters —
+`n`, `seed` and fractions are the builder's arguments, so a table can grow
+without every document that names it changing its ref. One task may ship
+several variants (a `default` table and a `small` smoke table side by side);
+a hand-authored table that no task generates (`pile/data/sample`) is a table
+like any other.
 
 ```bash
 uv run python scripts/build_task_dataset.py \
-    --task <name> --n 64 --seed 0 --target-variable <var> \
-    --out <data-root>/<name>/train.json
+    --task <name> --n 64 --seed 0 --split all --target-variable <var> \
+    --out causalab/tasks/<name>/data/default.json
 ```
 
 Factory tasks take their config through `--set key=value` (resolved against the
@@ -141,8 +203,27 @@ Factory tasks take their config through `--set key=value` (resolved against the
 ```bash
 uv run python scripts/build_task_dataset.py \
     --task natural_domains_arithmetic --set domain_type=weekdays \
-    --n 64 --seed 0 --target-variable result --out data/weekdays/train.json
+    --n 64 --seed 0 --split all --target-variable result \
+    --out causalab/tasks/natural_domains_arithmetic/data/weekdays.json
 ```
+
+`--split` is required and has no default. `all` says the table is one undivided
+pool — which is a claim, not a formality: a table that declines to say is
+exactly what the column exists to rule out, and the resolver refuses one (§2.2
+rule 22).
+
+**For a train/test table, build one table, not two.** A split table
+partitions the task's unique inputs into disjoint groups and pairs
+counterfactuals *within* each split, so the rows carry their own partition in
+a `split` column. The shipped
+`causalab/tasks/natural_domains_arithmetic/data/weekdays.json` is one: seed 0,
+fractions `train=0.6` / `test=0.4`, 49 rows (`{'test': 19, 'train': 30}`).
+
+Documents then name `natural_domains_arithmetic/data/weekdays#train` and
+`natural_domains_arithmetic/data/weekdays#test`. Two *files*
+called train and test assert their relationship in their names and nowhere a
+reader can reach; two splits of one table cannot share a row, and whether they
+share a prompt is checked from the bytes every time the table is read.
 
 What the builder writes, and why it is a *build step* rather than something a
 load does:
@@ -155,21 +236,62 @@ load does:
   variable as a per-row column for position resolution. See
   `causalab/tasks/serialize.py` for the full vocabulary.
 - **Deterministic bytes**, so the content digest a document's canonical form
-  stamps (§7) is reproducible from the parameters recorded in the
-  `<ref>.manifest.json` sidecar written beside the table. `--check` rebuilds
-  and fails instead of writing — the guard for a committed table.
+  stamps (§7) is reproducible from the command line that built the table —
+  which the task's README records (the examples above). **A committed table
+  is a build product**, and it is also exactly the bytes a document names:
+  nothing sits beside it, and no CI guard rebuilds it (spec §2.2). A change
+  to a task's generator or causal model therefore moves no committed table
+  by itself; when the table should follow, rebuild it with the recorded
+  command (`--check` proves nothing drifted), then repin the documents that
+  name the table (`tests/protocol/update_*_digests.py`) and re-stamp the
+  workflows that pin it (`causalab pin`). `tests/tasks/test_shipped_tables.py`
+  keeps the one invariant that needs no recipe: every task package ships a
+  table or says why it cannot yet.
 - **No model, no tokenizer.** Tables are text and variable strings, which is
   what lets `causalab validate` / `explain` / `digest` run without either, and
   lets one table run under different models.
+- **The sidecar is a recipe, not a pin.** Nothing at run time reads it: a run
+  consumes the table's bytes, whose content digest is already in every
+  document's canonical form (spec §2.2, §7). The pin that says *this table, at
+  these bytes* lives in the **workflow** that consumes it — its `pins`
+  section, stamped on the first run and checked on every later load
+  (workflow spec §7) — beside the pins of every document and script the
+  workflow touches. So a rebuilt table is caught twice: here by the rebuild
+  guard (the bytes moved under their recipe), and in every pinned workflow
+  that names it (rule 21, naming `pins.datasets.<ref>`), until its author
+  re-stamps with `causalab pin`.
 
-Two things a task therefore declares for itself, rather than a document
-computing them:
+Two things a task therefore declares for itself, in its `ScoringSpec`, rather
+than a document computing them:
 
-- `output_tokens` — which surface strings count as one answer. A `match` metric
+- `forms` — which surface strings count as one answer. A `match` metric
   consumes the serialized group, so synonyms and casings are task data (§2.10).
-- `match_modes` — `prefix` for a task whose answers are not single-token. The
-  builder records it in the manifest as `declared_match_mode`; the document
-  spelling is `"mode": "first_token"`.
+- `string_mode` — `prefix` for a task whose answers are not single-token. The
+  builder writes it into every row as `string_mode` beside the spec's
+  `scoring_digest` (and keeps a human-readable copy in the manifest); the
+  document spelling is `"mode": "first_token"` (§2.10's translation table), and
+  a document declaring `"exact"` over a `prefix` table is refused before any
+  forward. A table built before these two columns existed is *unrecorded* and
+  runs as it always did.
+
+A generator may additionally declare **which spans of a pair move together**
+(`causalab/causal/pairs.py`; spec §2.2): attach an `edit_groups` key to the
+example it returns — a list of `{"name", "atomic", "spans": {"base": [[start,
+end], …], "counterfactual": [[start, end], …]}}`, character spans into the two
+prompts, one constituent per span pair — and the serializer writes it into the
+row as the `edit_groups` column after checking the spans against the texts. A
+relation word and the total it changes, or the two entries of a swapped
+mapping, are one `atomic` group: the pair was validated as one coordinated
+edit, so a run that addresses one constituent without the others is refused
+before its first forward (rule 27) instead of reporting a number for an
+intervention the pair does not license; `atomic: false` declares the spans
+and asks for nothing. No shipped generator declares groups, so no shipped
+table carries the column. `scripts/build_task_dataset.py --validate-pairs
+--tokenizer <key> --revision <rev>` runs the pair-validity checks that need
+only the rows and a tokenizer — every row's answers differ; every declaring
+row carries its edit in tokens and no edit outside its spans — writes nothing
+if a row fails, and prints the tokenizer it validated under — record it where
+the table's command line is recorded, so a reader knows.
 
 ## 3. Validating a new task
 
@@ -200,14 +322,14 @@ correct; update `templates.py` / `config.py` to match.
 
 ## Active tasks
 
-| Task | Description | Dimensionality |
-|------|-------------|----------------|
-| `natural_domains_arithmetic` | Unified weekdays/months/hours/age/integer/alphabet | factory, 1D (cyclic or linear) |
-| `graph_walk` | Next-node prediction on graphs | factory, 1D or 2D |
-| `entity_binding` | Positional entity retrieval | — |
-| `hierarchical_equality` | Hierarchical variable equality | — |
-| `identity_naming` | Entity → canonical name lookup (factory) | — |
-| `MCQA` | Multiple-choice question answering | — |
-| `IOI` | Indirect object identification (coverage-oriented runner) | — |
-| `hex_color` | Hex-code → color-name mapping | — |
-| `subject_object_relations` | Subject→object relation recall (LRE-style) | factory |
+| Task | Description | Dimensionality | Ships (`<task>/data/<variant>`) |
+|------|-------------|----------------|------|
+| `natural_domains_arithmetic` | Unified weekdays/months/hours/age/integer/alphabet | factory, 1D (cyclic or linear) | `weekdays`, `months` — whole pool, `#train`/`#test` |
+| `graph_walk` | Next-node prediction on graphs | factory, 1D or 2D | none yet: the answer is a *set* of neighbours, which the v1 row vocabulary (one answer + its forms) cannot carry |
+| `entity_binding` | Positional entity retrieval | — | none yet: `output_tokens` is keyed by `positional_answer` (an index) with entity-name forms — declare it on `raw_output` first |
+| `hierarchical_equality` | Hierarchical variable equality | — | `default` (256, no forms declared) |
+| `identity_naming` | Entity → canonical name lookup (factory) | — | `pitch_midi` (256) |
+| `MCQA` | Multiple-choice question answering | — | `default` — 192 rows, `#train` 128 / `#test` 64 (the onboarding demo's table) |
+| `IOI` | Indirect object identification (coverage-oriented runner) | — | `default` (256) |
+| `hex_color` | Hex-code → color-name mapping | — | `default` (256) |
+| `subject_object_relations` | Subject→object relation recall (LRE-style) | factory | `word_first_letter` (256; `match` wants `"mode": "first_token"`) |

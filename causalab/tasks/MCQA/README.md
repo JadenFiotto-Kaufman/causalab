@@ -70,8 +70,12 @@ All positions are built declaratively via `causalab.neural.token_positions.build
 
 ## How to Run
 
+The task runs from an intervention document that names its table
+(`MCQA/data/default#train`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
+
 ```bash
-./scripts/run_exp.sh mcqa_locate    # locate analysis on Llama-3.1 8B
+uv run causalab run <document.json>
 ```
 
 Outputs land under `artifacts/MCQA/<model>/<analysis>/...` per `docs/CODEBASE.md` invariant 7.
@@ -83,4 +87,5 @@ Outputs land under `artifacts/MCQA/<model>/<analysis>/...` per `docs/CODEBASE.md
 | `causal_models.py` | `positional_causal_model`, `OBJECTS`, `COLORS`, `TEMPLATES`, `ALPHABET`, plus the loader hooks (`CAUSAL_MODEL`, `TARGET_VARIABLE`, `PREDICT_CLASS`, `CLASS_TOKEN_IDS`) |
 | `counterfactuals.py` | `sample_answerable_question`, `different_symbol`, `same_symbol_different_position`, `random_counterfactual`, `generate_dataset` |
 | `token_positions.py` | `create_token_positions` |
+| `data/default.json` | the shipped table: `MCQA/data/default#train` (128) / `#test` (64) — the onboarding demo's table, same bytes; built as a split table: task `MCQA`, seed 1, `train=128` / `test=64` of at most 192 unique inputs, target variable `answer_position` |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

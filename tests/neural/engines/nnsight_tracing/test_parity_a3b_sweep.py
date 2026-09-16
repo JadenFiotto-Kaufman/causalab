@@ -177,19 +177,37 @@ def test_write_parity_full_attention_layer(
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.parametrize("component", sweep.SHARED_LINEAR_ONLY)
+def test_read_parity_deltanet_interior(hooks_qwen, trace_qwen, layers, component):
+    """The Gated DeltaNet interior under its one name: the same
+    document, read through the reference engine's hooks and kernel-global swaps
+    and through the nnsight engine's envoys and ``.source`` lines — two
+    unrelated mechanisms, one tensor, one spelling. Was the eight ``identical``
+    pairs of the two-vocabulary table."""
+    delta_layer, _ = layers
+    _read_both(component, delta_layer, hooks_qwen, trace_qwen)
+
+
+@pytest.mark.parametrize("component", sweep.write_cases(sweep.SHARED_LINEAR_ONLY))
+def test_write_parity_deltanet_interior(
+    hooks_qwen, trace_qwen, layers, unpatched_logits, component
+):
+    delta_layer, _ = layers
+    _write_both(component, delta_layer, hooks_qwen, trace_qwen, unpatched_logits)
+
+
 @pytest.mark.parametrize(
     "hooks_component,trace_component,relation", sweep.DELTA_FAMILY_PAIRS
 )
 def test_delta_family_cross_engine_agreement(
     hooks_qwen, trace_qwen, layers, hooks_component, trace_component, relation
 ):
-    """The Gated DeltaNet interior, agreed across engines despite no shared name.
-
-    Neither engine declares the other's spelling — the reference engine reaches
-    the kernel by swapping the modeling file's module globals, nnsight by
-    drilling ``.source`` — so this is the only cross-engine check available for
-    30 of the target's 40 layers, and it is a strong one: two unrelated
-    mechanisms, one tensor.
+    """The three DeltaNet tensors that stay two names — the typed backend pairs
+    (``registry.BACKEND_PAIRS``): the reference engine's post-tiling q/k and
+    per-step state against the nnsight engine's pre-tiling q/k and per-chunk
+    state, agreed after the declared transform. The relation is read from the
+    registry by the alignment helper, not passed in: a wrong address cannot be
+    massaged into agreement here.
     """
     delta_layer, _ = layers
     hooked = _hooks(
@@ -204,7 +222,10 @@ def test_delta_family_cross_engine_agreement(
         rows=LONG_ROWS,
         with_cf=False,
     ).read_value("r")
-    left, right = sweep.align_delta_pair(hooked, traced, relation, hooks_qwen.info)
+    assert sweep.backend_pair(hooks_component).relation == relation
+    left, right = sweep.align_delta_pair(
+        hooked, traced, hooks_component, hooks_qwen.info
+    )
     sweep.assert_same(
         left,
         right,
@@ -214,12 +235,15 @@ def test_delta_family_cross_engine_agreement(
 
 
 def test_the_delta_family_tensors_are_not_all_the_same_tensor(hooks_qwen, layers):
-    """Anti-vacuity for the pair table: the eleven captures must be eleven
-    different tensors, or 'they agree' would be satisfiable by a tap that
-    returns the same thing for every component."""
+    """Anti-vacuity for the DeltaNet interior: the eleven captures (the eight
+    one-name components and the three paired ones) must be eleven different
+    tensors, or 'they agree' would be satisfiable by a tap that returns the
+    same thing for every component."""
     delta_layer, _ = layers
     seen: list[tuple[str, torch.Tensor]] = []
-    for hooks_component, _trace_component, _relation in sweep.DELTA_FAMILY_PAIRS:
+    for hooks_component in sweep.SHARED_LINEAR_ONLY + tuple(
+        pair[0] for pair in sweep.DELTA_FAMILY_PAIRS
+    ):
         value = _hooks(
             sweep.read_doc(hooks_component, delta_layer, pos="all"),
             hooks_qwen,
@@ -308,6 +332,7 @@ def test_the_buckets_match_what_the_engines_declare():
         set(sweep.SHARED_LAYERLESS)
         | set(sweep.SHARED_ANY_STREAM)
         | set(sweep.SHARED_FULL_ONLY)
+        | set(sweep.SHARED_LINEAR_ONLY)
     )
     both_declared = set(hooks.components) & set(trace.components)
     # `mlp_activation` is declared by both engines and exists on neither of this

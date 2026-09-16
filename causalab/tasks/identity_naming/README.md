@@ -57,10 +57,12 @@ Built declaratively via `causalab.neural.token_positions.build_token_position_fa
 
 ## How to Run
 
+The task runs from an intervention document that names its table
+(`identity_naming/data/pitch_midi`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
+
 ```bash
-./scripts/run_exp.sh identity_naming_pitch_midi   # if a runner preset exists
-# or compose ad-hoc:
-./scripts/run_exp.sh <preset> task=identity_naming_pitch_midi
+uv run causalab run <document.json>
 ```
 
 Outputs land under `artifacts/identity_naming/<model>/<analysis>/...` per `docs/CODEBASE.md` invariant 7.
@@ -73,5 +75,6 @@ Outputs land under `artifacts/identity_naming/<model>/<analysis>/...` per `docs/
 | `causal_models.py` | `create_causal_model` plus the `GET_*` accessors used by `tasks/loader.py` |
 | `counterfactuals.py` | `generate_dataset` (template-cycling) |
 | `token_positions.py` | `create_token_positions` |
-| `checker.py`, `metrics.py` | Task-specific accuracy / scoring helpers |
+| `data/pitch_midi.json` | the shipped table: `identity_naming/data/pitch_midi` (256 pairs, `split all`); built with `uv run python scripts/build_task_dataset.py --task identity_naming --set domain_type=pitch_midi --n 256 --seed 0 --split all --target-variable result --out causalab/tasks/identity_naming/data/pitch_midi.json` |
+| `metrics.py` | Task-specific accuracy / scoring helpers |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

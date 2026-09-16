@@ -1,10 +1,26 @@
-"""``causalab validate`` of a script workflow must not import torch.
+"""``causalab validate`` of a script workflow must not import numerics.
 
-This is the property checklist rule 6 exists for: a script is **hashed, never
-imported**, so a document is refused — or accepted — on a laptop with no
-accelerator, before a single step runs. It is also what lets the script's
-content hash sit in the digest without costing anything: hashing needs no
-import.
+This is the property checklist rule 6 exists for: a document is refused — or
+accepted — on a laptop with no accelerator, before a single step runs. It is
+also what lets the script's content hash sit in the digest without costing
+anything: hashing needs no import.
+
+**The guarantee, stated as weakly as it can be while still buying that.** Not
+"nothing is imported" — resolving a ``{"module": …}`` locator calls
+:func:`importlib.util.find_spec`, and the stdlib imports the target's *parent
+packages* ("If the name is for a submodule (contains a dot), the parent package
+is automatically imported"). So the property is about *what* is imported:
+
+1. the script **module** itself is found and hashed, never imported; and
+2. every **package that may contain a shipped script** is importable without
+   numerics.
+
+(2) is the obligation the ``{"path": …}`` case below cannot see, and it was
+unmet: ``causalab.io.plots.workflow_figures`` is a shipped script and
+``causalab/io/plots/__init__.py`` eagerly imported the plotting stack, so
+``validate`` of the shipped ``weekdays_8b.json`` reached torch. That package is
+lazy now (PEP 562), and the two tests added here are what keep it so — one per
+numbered clause.
 
 The v1 version of this test guarded the transform-op registry's record/body
 split. The registry is gone; the guarantee it protected is not, and this is
@@ -30,8 +46,7 @@ from tests.protocol._env import FIXTURES
 pytestmark = pytest.mark.unit
 
 REPO = Path(__file__).resolve().parents[2]
-#: the full protocol documents. `configs/methods/` now holds method
-#: HALVES (§1.1), so the shipped documents moved to `configs/protocols/`.
+#: the shipped intervention specifications, one file per experiment.
 METHODS = REPO / "causalab/configs/protocols"
 
 _PROBE = """
@@ -99,4 +114,108 @@ def test_validate_of_a_script_workflow_never_imports_torch(tmp_path: Path) -> No
     assert not result["torch"], (
         "validate imported torch — a script must be hashed and parsed, never "
         "imported (workflow spec §4.2)"
+    )
+
+
+#: Packages that hold a shipped step script, so a `{"module": …}` locator can
+#: name something inside them. Derived from the shipped locators rather than
+#: listed by hand — see `test_the_script_packages_are_the_shipped_ones`.
+SCRIPT_PACKAGES = (
+    "causalab.analysis",
+    "causalab.io.plots",
+    "causalab.workflow.scripts",
+)
+
+_IMPORT_PROBE = """
+import importlib, json, sys
+
+importlib.import_module(sys.argv[1])
+heavy = sorted(m for m in ("torch", "numpy", "pandas", "matplotlib", "scipy",
+                           "sklearn", "safetensors")
+               if m in sys.modules)
+print(json.dumps({"heavy": heavy}))
+"""
+
+
+def _shipped_script_modules() -> set[str]:
+    """Every `{"module": …}` locator the shipped workflows name."""
+    out: set[str] = set()
+    for shipped in sorted((REPO / "causalab" / "configs" / "workflows").glob("*.json")):
+        document = json.loads(shipped.read_text())
+        for step in document.get("steps", {}).values():
+            locator = step.get("script")
+            if isinstance(locator, dict) and "module" in locator:
+                out.add(locator["module"])
+    return out
+
+
+def test_the_script_packages_are_the_shipped_ones() -> None:
+    """`SCRIPT_PACKAGES` covers every shipped `{"module": …}` locator.
+
+    Without this the list below is a hand-maintained allowlist, and the next
+    shipped script under a new package would be unguarded — silently, which is
+    the failure mode this whole area keeps producing.
+    """
+    modules = _shipped_script_modules()
+    assert modules, "no shipped `{'module': …}` locators found — the reader is wrong"
+    uncovered = sorted(
+        module
+        for module in modules
+        if not any(module.startswith(f"{package}.") for package in SCRIPT_PACKAGES)
+    )
+    assert not uncovered, (
+        f"shipped scripts live outside SCRIPT_PACKAGES: {uncovered} — add the "
+        "package here so importing it stays numerics-free"
+    )
+
+
+@pytest.mark.parametrize("package", SCRIPT_PACKAGES)
+def test_a_script_package_is_importable_without_numerics(package: str) -> None:
+    """Clause 2: importing a script's parent package imports no numerics.
+
+    A subprocess for the same reason as the test above — `conftest.py` has
+    already imported torch in this process.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-c", _IMPORT_PROBE, package],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+    assert completed.returncode == 0, completed.stderr
+    heavy = json.loads(completed.stdout.strip().splitlines()[-1])["heavy"]
+    assert not heavy, (
+        f"importing {package} pulls {heavy} — a `{{'module': …}}` locator under "
+        "it makes `validate` pay for the numerics stack, because find_spec "
+        "imports parent packages (workflow spec §4.2)"
+    )
+
+
+def test_validate_of_a_shipped_module_locator_never_imports_torch() -> None:
+    """Clause 1+2 together, through the real CLI on the real shipped workflow.
+
+    `weekdays_8b.json` names `causalab.io.plots.workflow_figures`, which is the
+    locator that broke the guarantee. The `{"path": …}` case above could not see
+    it: a path locator has no parent package to import.
+    """
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            _PROBE,
+            str(REPO / "causalab/configs/workflows/weekdays_8b.json"),
+            str(FIXTURES / "data"),
+            str(FIXTURES / "artifacts"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert result["code"] == 0, "the shipped workflow should validate"
+    assert not result["torch"], (
+        "validate of the shipped workflow imported torch — resolving its "
+        "`causalab.io.plots.workflow_figures` locator imported the parent "
+        "package eagerly (workflow spec §4.2)"
     )

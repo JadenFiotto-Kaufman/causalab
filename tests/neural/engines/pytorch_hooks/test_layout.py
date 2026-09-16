@@ -35,7 +35,7 @@ BATCH, SEQ, FEATURE = 2, 3, 5
 HEADS, HEAD_DIM = 4, 2
 
 #: ``name -> (shape, native shape, contract feature width)``. Every shape the
-#: constructors build, including the four round 2 introduces, so that a new
+#: constructors build, including the four attention-interior ones, so that a new
 #: descriptor cannot be added without the generic properties covering it.
 SHAPES: dict[str, tuple[FeatureShape, tuple[int, ...], int]] = {
     "bsd": (sh.bsd(FEATURE), (BATCH, SEQ, FEATURE), FEATURE),

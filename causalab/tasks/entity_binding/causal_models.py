@@ -10,6 +10,7 @@ import random
 from typing import Any
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 
 from .config import EntityBindingTaskConfig, create_sample_love_config
@@ -48,7 +49,9 @@ def sample_valid_entity_binding_input(
         if config.fixed_query_indices is not None:
             query_indices = config.fixed_query_indices
         else:
-            query_indices = tuple([random.randint(0, config.max_entities_per_group - 1)])
+            query_indices = tuple(
+                [random.randint(0, config.max_entities_per_group - 1)]
+            )
 
         if config.fixed_answer_index is not None:
             answer_index = config.fixed_answer_index
@@ -82,12 +85,15 @@ def sample_valid_entity_binding_input(
                 if e in config.entity_pools:
                     available = config.entity_pools[e][:]
                     available = [
-                        ent for ent in available if ent not in used_entities_per_group[g]
+                        ent
+                        for ent in available
+                        if ent not in used_entities_per_group[g]
                     ]
 
                     if ensure_positional_uniqueness:
                         available = [
-                            ent for ent in available
+                            ent
+                            for ent in available
                             if ent not in used_entities_per_position[e]
                         ]
 
@@ -121,7 +127,9 @@ def sample_valid_entity_binding_input(
 # =============================================================================
 
 
-def _compute_query_entity(t: CausalTrace, entity_pos: int, config: EntityBindingTaskConfig) -> Any:
+def _compute_query_entity(
+    t: CausalTrace, entity_pos: int, config: EntityBindingTaskConfig
+) -> Any:
     """Compute query_e{entity_pos} — entity from the query group at that position."""
     query_group = t["query_group"]
     active_groups = t["active_groups"]
@@ -220,7 +228,9 @@ def _compute_raw_input(t: CausalTrace, config: EntityBindingTaskConfig) -> str:
         for g in range(active_groups):
             for e in range(entities_per_group):
                 entity = t[f"entity_g{g}_e{e}"]
-                values[f"g{g}_e{e}"] = entity if entity is not None else f"MISSING_{g}_{e}"
+                values[f"g{g}_e{e}"] = (
+                    entity if entity is not None else f"MISSING_{g}_{e}"
+                )
 
         # Fill question entity role names from query_e{e} computed variables
         values["query_entity"] = t[f"query_e{query_indices[0]}"]
@@ -231,6 +241,7 @@ def _compute_raw_input(t: CausalTrace, config: EntityBindingTaskConfig) -> str:
         return config.fill_template(mega_template_str, values)
     except Exception as e:
         import warnings
+
         warnings.warn(f"Failed to compute raw_input: {e}")
         return "Invalid configuration"
 
@@ -329,7 +340,8 @@ def create_positional_entity_causal_model(
     for e in range(config.max_entities_per_group):
         key = f"query_e{e}"
         mechanisms[key] = Mechanism(
-            parents=[f"entity_g{g}_e{e}" for g in range(config.max_groups)] + ["query_group", "active_groups"],
+            parents=[f"entity_g{g}_e{e}" for g in range(config.max_groups)]
+            + ["query_group", "active_groups"],
             compute=lambda t, e=e: _compute_query_entity(t, e, config),
         )
         if e in config.entity_pools:
@@ -432,11 +444,20 @@ def create_positional_entity_causal_model(
 
     # The answer is a bound entity name (any of the pooled entities). Declare its
     # surface forms once: the deduped union of all entity pools, each as its
-    # ``[" entity", "entity"]`` forms (#296). The probability path reads these
+    # ``[" entity", "entity"]`` forms. The probability path reads these
     # (dedup of the 12 answer tokens falls out of the distinct form-groups), and
-    # the derived checker uses ``prefix`` — the entity may be followed by
+    # the grader uses ``string_mode="prefix"`` — the entity may be followed by
     # continuation tokens under the multi-token (``max_new_tokens=4``) contract,
     # which is exactly what the former checker.py's ``startswith`` accepted.
+    #
+    # Declared on ``raw_output`` — the variable that *holds* the answer entity —
+    # not on ``positional_answer``, the interchange target, whose values are
+    # group indices (``0``, ``1``, …). The former declaration keyed entity
+    # names under ``positional_answer``: the string checker still graded (its
+    # literal fallback never looked the value up) while the serializer, keying
+    # each row by the variable's actual value, refused every row as
+    # undeclared. One declaration, on the variable it describes, and the two
+    # paths cannot disagree.
     all_entities: list[str] = []
     for pool in config.entity_pools.values():
         all_entities.extend(pool)
@@ -445,8 +466,10 @@ def create_positional_entity_causal_model(
         mechanisms,
         values,
         id=model_id,
-        output_tokens={"positional_answer": build_output_tokens(all_entities)},
-        match_modes={"positional_answer": "prefix"},
+        scoring=ScoringSpec(
+            forms={"raw_output": build_output_tokens(all_entities)},
+            string_mode="prefix",
+        ),
     )
 
 

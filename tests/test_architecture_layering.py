@@ -45,6 +45,27 @@ HEAVY_MODULES = ("torch", "numpy", "pandas", "scipy", "sklearn", "safetensors")
 IO_DIR = Path(causalab.io.__file__).parent
 ANALYSIS_DIR = Path(causalab.analysis.__file__).parent
 SCRIPTS_DIR = Path(causalab.workflow.scripts.__file__).parent
+
+#: The third shipped step script. It lives beside the other plot modules rather
+#: than in a scripts package, so a directory-shaped parametrize missed it while
+#: `docs/CODEBASE.md` §1 named it among the torch-free three — the prose claimed
+#: an enforcement that stopped one file short.
+#:
+#: **What this target does and does not establish.** The check below is a
+#: per-file AST walk of *absolute* module-level imports, so it buys "no *new*
+#: stray top-level import in this file" — not importability. It cannot see a
+#: parent `__init__`, and it skips relative imports (`node.level == 0` below).
+#:
+#: Importability is a separate, behavioural claim, and it is checked separately:
+#: `tests/protocol/test_load_is_torch_free.py::test_a_script_package_is_
+#: importable_without_numerics` imports each script-holding package in a
+#: subprocess. That test exists because this one could not see the defect —
+#: `io/plots/__init__.py` used to import the plotting stack eagerly, so
+#: resolving this file's locator pulled torch into `validate`. It is lazy now.
+FIGURES_FILE = IO_DIR / "plots" / "workflow_figures.py"
+
+#: Repo root, for offender labels that read the same for a file and a directory.
+REPO = IO_DIR.parents[1]
 PROTOCOL_DIR = Path(causalab.protocol.__file__).parent
 
 
@@ -65,6 +86,12 @@ def _module_level_imports(path: Path) -> list[tuple[int, str]]:
         if id(node) in nested:
             continue
         if isinstance(node, ast.ImportFrom):
+            # Only absolute imports (`node.level == 0`). Under a directory
+            # target that loses nothing — a relative import lands on a sibling
+            # the rglob scans anyway — but for a single-file target like
+            # FIGURES_FILE a `from .pca_scatter import …` is invisible.
+            # Widening it would mean resolving relative targets; the property
+            # that actually matters for a lone file is stated on FIGURES_FILE.
             if node.level == 0 and node.module is not None:
                 found.append((node.lineno, node.module))
         elif isinstance(node, ast.Import):
@@ -77,9 +104,11 @@ def _matches(module: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def _offenders(root: Path, prefixes: tuple[str, ...]) -> list[str]:
+    """Module-level imports matching ``prefixes``, under a directory or in one file."""
+    sources = [root] if root.is_file() else sorted(root.rglob("*.py"))
     return [
-        f"{path.relative_to(root.parent.parent)}:{lineno} imports {module}"
-        for path in sorted(root.rglob("*.py"))
+        f"{path.relative_to(REPO)}:{lineno} imports {module}"
+        for path in sources
         for lineno, module in _module_level_imports(path)
         if _matches(module, prefixes)
     ]
@@ -88,13 +117,15 @@ def _offenders(root: Path, prefixes: tuple[str, ...]) -> list[str]:
 def test_io_has_no_upward_imports():
     offenders = _offenders(IO_DIR, FORBIDDEN_PREFIXES)
     assert not offenders, (
-        "docs/CODEBASE.md invariant 3 violated — io/ must not import from a "
+        "docs/CODEBASE.md invariant 1 violated — io/ must not import from a "
         "higher layer:\n  " + "\n  ".join(offenders)
     )
 
 
-@pytest.mark.parametrize("directory", [ANALYSIS_DIR, SCRIPTS_DIR])
-def test_step_scripts_are_torch_free_at_module_level(directory):
+@pytest.mark.parametrize(
+    "target", [ANALYSIS_DIR, SCRIPTS_DIR, FIGURES_FILE], ids=lambda p: p.name
+)
+def test_step_scripts_are_torch_free_at_module_level(target):
     """A step script's numerics belong inside its ``main``.
 
     Without this, one stray top-level ``import torch`` in a new shipped script
@@ -102,10 +133,10 @@ def test_step_scripts_are_torch_free_at_module_level(directory):
     silently, since every test process has torch loaded already. A script is
     *found and hashed* at load, never imported, but a document may name any
     module, so the discipline has to hold for every one that ships."""
-    offenders = _offenders(directory, HEAVY_MODULES)
+    offenders = _offenders(target, HEAVY_MODULES)
     assert not offenders, (
-        f"{directory.name}/ must stay importable without numerics — move the "
-        "import inside the function that needs it:\n  " + "\n  ".join(offenders)
+        f"{target.relative_to(REPO)} must stay importable without numerics — move "
+        "the import inside the function that needs it:\n  " + "\n  ".join(offenders)
     )
 
 

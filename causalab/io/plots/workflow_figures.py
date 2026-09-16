@@ -5,7 +5,7 @@
   "type": "script",
   "script": {"module": "causalab.io.plots.workflow_figures"},
   "inputs": {"table": {"step": "locate", "file": "iia.json"},
-             "plot": "heatmap", "x": "sites.target.layer", "y": "positions.tap"},
+             "plot": "heatmap", "x": "sites.target.layers", "y": "positions.tap"},
   "outputs": {"figure": "scan_iia.png", "plotted": {"file": "scan_iia.json"}}
 }
 ```

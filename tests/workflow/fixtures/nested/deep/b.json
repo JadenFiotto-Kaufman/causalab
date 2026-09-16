@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "description": "The middle of three levels (workflow spec §2.10): nests c.json as y.",
+  "output_dir": "b_alone",
+  "steps": {
+    "y": {
+      "type": "workflow",
+      "document": "c.json"
+    }
+  }
+}

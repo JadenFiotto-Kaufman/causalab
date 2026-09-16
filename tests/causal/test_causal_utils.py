@@ -147,7 +147,7 @@ def mock_raw_results():
                                 ],
                             },
                         ],
-                        "metadata": {"layer": 5, "position": "last"},
+                        "metadata": {"layers": [5], "position": "last"},
                         "feature_indices": None,
                     }
                 }

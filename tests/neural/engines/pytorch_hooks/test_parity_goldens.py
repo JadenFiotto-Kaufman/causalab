@@ -4,8 +4,9 @@
 output of the canonical per-mode parity cases, captured from the raw-hook
 oracle on fresh seeded tiny-random models (eager attention forced). They are
 the pyvene-era numerical anchor; this test re-drives every portable pinned
-case through the NEW stack — a protocol document executed by
-``causalab.neural.engines.pytorch_hooks`` — and asserts the pinned values verbatim
+case through the NEW stack — an intervention specification executed by
+``causalab.neural.engines.pytorch_hooks`` — and asserts the pinned values
+verbatim
 (default tolerance 1e-4, per-key overrides honored, shapes exact).
 
 Old mode → protocol ``do`` mapping (docs/intervention_protocol.md §2.5, §2.8):
@@ -76,8 +77,7 @@ N_PROBES = 8
 #: listed explicitly so nothing is silently dropped (a coverage test below
 #: cross-checks this table against the golden files).
 #:
-#: ✅ **Empty as of round 2.2**, which is the concrete discharge of PR20
-#: deviation #7. The two entries that lived here named the pyvene ``value``
+#: ✅ **Empty since the attention interior landed.** The two entries that lived here named the pyvene ``value``
 #: kind — a KV-head slice of ``v_proj``'s output — and were skipped because the
 #: §2.4 vocabulary had no such site: ``attention_premix`` is the o-projection's
 #: *input*, in query-head space, which is a different tensor in a different
@@ -195,7 +195,7 @@ def _golden_gate(width: int) -> Gate:
 
 
 # --------------------------------------------------------------------------- #
-# case realization — one protocol document per pinned case
+# case realization — one intervention specification per pinned case
 # --------------------------------------------------------------------------- #
 
 
@@ -210,12 +210,14 @@ def _save(value: str, model: str) -> dict[str, str]:
 
 def _doc_skeleton() -> dict[str, Any]:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {},
-        "reads": {},
-        "save": [],
+        "method": {
+            "sites": {},
+            "reads": {},
+            "save": [],
+        },
     }
 
 
@@ -240,27 +242,29 @@ def _run_sub3_case(
     q = _golden_subspace_q(bundle.info.hidden_size, SUB3_K)
     tensors: dict[str, dict[str, torch.Tensor]] = {"rot.safetensors": {"weight": q}}
     doc = _doc_skeleton()
-    doc["sites"]["dst"] = {"component": "block_output", "layer": DST_LAYER}
-    doc["featurizers"] = {"rot": {"kind": "subspace", "file_path": "rot.safetensors"}}
+    doc["method"]["sites"]["dst"] = {"component": "block_output", "layers": [DST_LAYER]}
+    doc["method"]["featurizers"] = {
+        "rot": {"kind": "subspace", "file_path": "rot.safetensors"}
+    }
 
     if mode == "collect":
-        doc["reads"]["out"] = _read("dst", "original", featurizer="rot")
-        doc["save"] = [_save("out", "original")]
+        doc["method"]["reads"]["out"] = _read("dst", "original", featurizer="rot")
+        doc["method"]["save"] = [_save("out", "original")]
         executor = executor_for(
             doc, bundle, base_texts=[BASE_TEXT], load_tensors=bundle_loader(tensors)
         )
         return executor.read_value("out"), None
 
-    doc["sites"]["lm_head"] = {"component": "lm_head"}
-    doc["reads"]["out"] = _read("lm_head", "patched")
-    doc["reads"]["clean"] = _read("lm_head", "original")
-    doc["save"] = [_save("out", "patched"), _save("clean", "original")]
+    doc["method"]["sites"]["lm_head"] = {"component": "lm_head"}
+    doc["method"]["reads"]["out"] = _read("lm_head", "patched")
+    doc["method"]["reads"]["clean"] = _read("lm_head", "original")
+    doc["method"]["save"] = [_save("out", "patched"), _save("clean", "original")]
     write: dict[str, Any] = {"site": "dst", "pos": {"index": -1}, "featurizer": "rot"}
 
     if mode in ("replace", "steer"):
         lo, hi = CONSTANT_SPANS[mode]
         tensors["vec.safetensors"] = {"value": torch.linspace(lo, hi, SUB3_K)}
-        doc["params"] = {"vec": {"file_path": "vec.safetensors"}}
+        doc["method"]["params"] = {"vec": {"file_path": "vec.safetensors"}}
         write["do"] = (
             {"swap": "vec"}
             if mode == "replace"
@@ -275,11 +279,14 @@ def _run_sub3_case(
             }
         }
     else:  # interchange / interpolate / mask — donor-reading modes
-        doc["sites"]["donor"] = {"component": "block_output", "layer": DONOR_LAYER}
+        doc["method"]["sites"]["donor"] = {
+            "component": "block_output",
+            "layers": [DONOR_LAYER],
+        }
         chain: Any = ["rot", "gate"] if mode == "mask" else "rot"
-        doc["reads"]["v_cf"] = _read("donor", "original", featurizer=chain)
+        doc["method"]["reads"]["v_cf"] = _read("donor", "original", featurizer=chain)
         if mode == "mask":
-            doc["featurizers"]["gate"] = {"kind": "gate"}
+            doc["method"]["featurizers"]["gate"] = {"kind": "gate"}
             write["featurizer"] = ["rot", "gate"]
         write["do"] = (
             {"lerp": {"op": "v_cf", "alpha": ALPHA}}
@@ -287,8 +294,8 @@ def _run_sub3_case(
             else {"swap": "v_cf"}
         )
 
-    doc["writes"] = {"e": write}
-    doc["intervened_models"] = {"patched": {"input": "base", "writes": ["e"]}}
+    doc["method"]["writes"] = {"e": write}
+    doc["method"]["intervened_models"] = {"patched": {"input": "base", "writes": ["e"]}}
     executor = executor_for(
         doc, bundle, base_texts=[BASE_TEXT], load_tensors=bundle_loader(tensors)
     )
@@ -305,7 +312,7 @@ def _run_sub3_case(
 #: The two pyvene head kinds, and the §2.4 component each one is.
 #:
 #: 📐 They are **different tensors in different head spaces**, which is why the
-#: second could not be replayed until round 2.2 and why reusing one name for
+#: second could not be replayed until the attention interior landed and why reusing one name for
 #: both would have been wrong: ``head_attention_value`` is the o-projection's
 #: input, ``num_heads`` wide per head; ``head_value`` is ``v_proj``'s output,
 #: ``num_key_value_heads`` wide. On this GQA fixture (H 4, H_kv 2) that is a 2x
@@ -325,30 +332,32 @@ def _run_head_case(
     HeadSite semantics that a component plus ``head`` carries in the protocol
     vocabulary."""
     doc = _doc_skeleton()
-    doc["sites"]["dst"] = {
+    doc["method"]["sites"]["dst"] = {
         "component": component,
-        "layer": DST_LAYER,
+        "layers": [DST_LAYER],
         "head": HEAD_DST,
     }
     if mode == "collect":
-        doc["reads"]["out"] = _read("dst", "original")
-        doc["save"] = [_save("out", "original")]
+        doc["method"]["reads"]["out"] = _read("dst", "original")
+        doc["method"]["save"] = [_save("out", "original")]
         executor = executor_for(doc, bundle, base_texts=[BASE_TEXT])
         return executor.read_value("out"), None
 
     assert mode == "interchange", mode
-    doc["sites"]["donor"] = {
+    doc["method"]["sites"]["donor"] = {
         "component": component,
-        "layer": DST_LAYER,
+        "layers": [DST_LAYER],
         "head": HEAD_DONOR,
     }
-    doc["sites"]["lm_head"] = {"component": "lm_head"}
-    doc["reads"]["v_cf"] = _read("donor", "original")
-    doc["reads"]["out"] = _read("lm_head", "patched")
-    doc["reads"]["clean"] = _read("lm_head", "original")
-    doc["writes"] = {"e": {"site": "dst", "pos": {"index": -1}, "do": {"swap": "v_cf"}}}
-    doc["intervened_models"] = {"patched": {"input": "base", "writes": ["e"]}}
-    doc["save"] = [_save("out", "patched"), _save("clean", "original")]
+    doc["method"]["sites"]["lm_head"] = {"component": "lm_head"}
+    doc["method"]["reads"]["v_cf"] = _read("donor", "original")
+    doc["method"]["reads"]["out"] = _read("lm_head", "patched")
+    doc["method"]["reads"]["clean"] = _read("lm_head", "original")
+    doc["method"]["writes"] = {
+        "e": {"site": "dst", "pos": {"index": -1}, "do": {"swap": "v_cf"}}
+    }
+    doc["method"]["intervened_models"] = {"patched": {"input": "base", "writes": ["e"]}}
+    doc["method"]["save"] = [_save("out", "patched"), _save("clean", "original")]
     executor = executor_for(doc, bundle, base_texts=[BASE_TEXT])
     out = executor.read_value("out")[:, 0, :]
     clean = executor.read_value("clean")[:, 0, :]

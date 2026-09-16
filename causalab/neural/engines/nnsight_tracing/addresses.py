@@ -1,7 +1,7 @@
 """Interior addresses over nnsight ``.source`` — the upstreamable half.
 
 The module-boundary vocabulary needs no table: envoys mirror the module tree,
-so the shared site map addresses them directly (N4). The *interiors* — tensors
+so the shared site map addresses them directly. The *interiors* — tensors
 ``transformers`` computes inside one function call — are reached through
 nnsight's ``.source``, which names every call and assignment in a forward.
 This module is the table of those names and the matcher that resolves them,
@@ -43,7 +43,7 @@ attention function ``attn_weights_1`` is the post-mask softmax input and
 ``attn_weights_2`` the softmax output (``softmax(attn_weights_1) ==
 attn_weights_2`` exactly); the interface call's ``output[0]`` is z, already
 transposed back to ``(b, s, H, d)``; and both delta kernels need an
-``implementation_0`` peel (the N7 table's first entries).
+``implementation_0`` peel (the first entries of the DeltaNet table).
 """
 
 from __future__ import annotations
@@ -88,21 +88,21 @@ class SourceAddress:
     op_pattern: str
     #: Call ops to drill *through*, one ``.source`` level per element, each
     #: matched by the same substring rule. 📐 ``("implementation_0",)`` is
-    #: required on both delta kernels on transformers 5.16.1 (N7).
+    #: required on both delta kernels on transformers 5.16.1.
     peel: tuple[str, ...] = ()
     #: The assignment/op *inside* the drilled source that carries the value,
     #: e.g. ``"attn_weights_1"`` — same substring rule. ``None`` means the
     #: matched op's own output is the value.
     field: str | None = None
     #: ``(positional_index, keyword)`` into the op's ``inputs`` instead of its
-    #: output — how a kernel's in-place-updated argument is reached (N7's
-    #: ``initial_state``).
+    #: output — how a kernel's in-place-updated argument is reached (the
+    #: delta kernel's ``initial_state``).
     arg: tuple[int, str] | None = None
     #: Which element of a tuple-valued output the component means.
     tuple_index: int | None = None
     #: How often the op fires per forward: ``"once"`` | ``"per_chunk"`` |
     #: ``"per_step"`` | ``"per_expert"``. Everything but ``"once"`` needs
-    #: ``tracer.iter`` loop machinery (N7/N6).
+    #: ``tracer.iter`` loop machinery.
     fires: str = "once"
     #: Implementation switches the address is only valid under —
     #: ``{"attn_eager"}``: the fused kernels never materialize the tensor;
@@ -111,7 +111,7 @@ class SourceAddress:
     requires: frozenset[str] = frozenset()
     #: The value's rows are expert rows — ``(batch·position·top_k, …)`` — and
     #: the executor re-packs them token-major to the declared 2-D native
-    #: shape ``(batch·position, top_k·…)`` (N6). Pure row bookkeeping; the
+    #: shape ``(batch·position, top_k·…)``. Pure row bookkeeping; the
     #: declared :class:`FeatureShape` stays the semantic description.
     expert_rows: bool = False
     #: Op pattern (same substring rule, matched on the same drilled source as
@@ -167,7 +167,7 @@ def match_op(
 # the tables, keyed by the shared stream vocabulary
 # --------------------------------------------------------------------------- #
 
-#: The full-attention mixer's interior (N5). All five live in ``self_attn``'s
+#: The full-attention mixer's interior. All five live in ``self_attn``'s
 #: forward or inside its ``attention_interface(...)`` call. ``attention_z`` is
 #: the call's own return (``output[0]``, already ``(b, s, H, d)``) — the
 #: drilled ``attn_output_0`` is the pre-transpose ``(b, H, s, d)`` tensor, a
@@ -209,8 +209,8 @@ FULL_ATTENTION: dict[str, SourceAddress] = {
     ),
 }
 
-#: The Gated DeltaNet interior (N7) — 30 of the 40 target layers, and the
-#: engine-plan payoff: none of these tensors crosses a module boundary.
+#: The Gated DeltaNet interior — 30 of Qwen3.6-35B-A3B's 40 layers, and this
+#: engine's reason to exist: none of these tensors crosses a module boundary.
 #:
 #: 📐 Measured on ``tiny-random/qwen3.5-moe`` and the real A3B (transformers
 #: 5.16.1): the mixer projects ``mixed_qkv`` and the gate ``z`` first, runs the
@@ -226,23 +226,23 @@ FULL_ATTENTION: dict[str, SourceAddress] = {
 #: states — runs only at ``seq_len == 1`` under a cache: decode-only by the
 #: modeling code's own dispatch, with no switch to force it in prefill
 #: (modeling_qwen3_5_moe.py:507), so per-token prefill state is refused by
-#: name rather than served at a granularity the kernel does not have (D12).
+#: name rather than served at a granularity the kernel does not have.
 #:
-#: Two suffixed patterns are load-bearing: ``z_reshape_0`` (the gate's
-#: ``(b, s, H_v, d_v)`` view; ``_1`` is the flatten before the norm) and
-#: ``core_attn_out_reshape_1`` (the post-norm, post-gate flatten; ``_0`` is
-#: the 2-D view the norm consumes). Neither pair is a call, so the call-op
-#: rule cannot separate them — the canary is what guards the suffixes.
+#: (The gate's ``z_reshape_0`` view and the post-norm ``core_attn_out_reshape_1``
+#: flatten used to be addressed here; both are module boundaries — ``in_proj_z``'s
+#: output and ``out_proj``'s input — and land on envoys.)
 LINEAR_ATTENTION: dict[str, SourceAddress] = {
-    "deltanet_qkv": SourceAddress(
-        module="linear_attn",
-        op_pattern="self_in_proj_qkv",
-    ),
-    "deltanet_gate": SourceAddress(
-        module="linear_attn",
-        op_pattern="z_reshape_0",
-    ),
-    "deltanet_qkv_conv": SourceAddress(
+    # The three module boundaries of this mixer (`delta_qkv` = in_proj_qkv's
+    # output, `delta_gate` = in_proj_z's output, `delta_premix` = out_proj's
+    # input) need no entry: envoys serve them, as every module boundary. The
+    # kernel boundary below is keyed by the protocol's one name per tensor
+    # (the `deltanet_*` spellings that named the same tensors are
+    # aliases now — `deltanet_qkv_conv`, `deltanet_value`, `deltanet_beta`,
+    # `deltanet_decay`, `deltanet_core_out` fold onto these at parse); the two
+    # pre-tiling faces and the per-chunk state keep their own names because
+    # their tensors differ from the reference engine's in shape or timing
+    # (`registry.BACKEND_PAIRS`).
+    "delta_conv": SourceAddress(
         module="linear_attn",
         # ⚠️ channels-first (b, width, s) — the declared shape carries it
         op_pattern="causal_conv1d_fn",
@@ -255,15 +255,15 @@ LINEAR_ATTENTION: dict[str, SourceAddress] = {
         module="linear_attn",
         op_pattern="key_reshape",
     ),
-    "deltanet_value": SourceAddress(
+    "delta_value": SourceAddress(
         module="linear_attn",
         op_pattern="value_reshape",
     ),
-    "deltanet_beta": SourceAddress(
+    "delta_beta": SourceAddress(
         module="linear_attn",
         op_pattern="b_sigmoid",
     ),
-    "deltanet_decay": SourceAddress(
+    "delta_decay": SourceAddress(
         module="linear_attn",
         # the kernel's own `g=` argument. An op's inputs must be requested
         # before anything drills into its source (measured: OutOfOrderError
@@ -279,18 +279,14 @@ LINEAR_ATTENTION: dict[str, SourceAddress] = {
         fires="per_chunk",
         trip="range_1",
     ),
-    "deltanet_core_out": SourceAddress(
+    "delta_kernel_output": SourceAddress(
         module="linear_attn",
         op_pattern="chunk_gated_delta_rule",
         tuple_index=0,
     ),
-    "deltanet_gated_out": SourceAddress(
-        module="linear_attn",
-        op_pattern="core_attn_out_reshape_1",
-    ),
 }
 
-#: The per-expert MoE interior (N6). Not a mixer stream: the ops live under
+#: The per-expert MoE interior. Not a mixer stream: the ops live under
 #: ``mlp.experts``, so the executor keys into this table by component (a
 #: ``kind="interior"`` site) rather than by ``stream_at``.
 #:
@@ -307,7 +303,7 @@ MOE_EXPERTS: dict[str, SourceAddress] = {
     # The two halves of the fused [gate_e | up_e] projection are ONE capture —
     # the first _grouped_linear's return (`proj_out_0`, pre-chunk) — with two
     # addresses through the declared fused axis: the same one-capture
-    # presentation the reference engine's dispatch wrapper serves (round 3).
+    # presentation the reference engine's dispatch wrapper serves.
     # The `_0` suffix is load-bearing the way `inv_perm_1`'s is: `proj_out` is
     # reassigned down the forward (`proj_out_3` is the down-projection).
     "expert_gate_proj": SourceAddress(
@@ -331,10 +327,18 @@ MOE_EXPERTS: dict[str, SourceAddress] = {
         op_pattern="experts_forward",
         # the act call INSIDE _apply_gate: act_fn(gate) alone, before the
         # `· up` multiply — the same tensor `mlp_activation` names on the
-        # llama family (the registry's round-3 semantics; the _apply_gate
+        # llama family (the registry's semantics; the _apply_gate
         # call's own return is act(gate)·up, a different tensor).
         peel=("self__apply_gate",),
         field="self_act_fn",
+        expert_rows=True,
+        align="torch_sort",
+        requires=frozenset({"experts_grouped"}),
+    ),
+    "expert_neuron_output": SourceAddress(
+        module="mlp.experts",
+        op_pattern="experts_forward",
+        field="self__apply_gate",
         expert_rows=True,
         align="torch_sort",
         requires=frozenset({"experts_grouped"}),
@@ -371,7 +375,7 @@ ADDRESSES: Mapping[str, Mapping[str, SourceAddress]] = {
     "linear_attention": LINEAR_ATTENTION,
 }
 
-#: Interior addresses in the **generated frame** (N8), where decode dispatches
+#: Interior addresses in the **generated frame**, where decode dispatches
 #: different code than prefill. 📐 The one entry so far is the reason the table
 #: exists: at ``seq_len == 1`` under a cache the DeltaNet mixer runs the
 #: *recurrent* kernel (``modeling_qwen3_5_moe.py:507``) — a different function

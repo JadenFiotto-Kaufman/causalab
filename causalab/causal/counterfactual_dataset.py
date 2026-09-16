@@ -6,7 +6,15 @@ if TYPE_CHECKING:
     from causalab.causal.trace import CausalTrace
 
 
-class CounterfactualExample(TypedDict):
+class _PairIdentity(TypedDict, total=False):
+    example_id: str
+    pair_id: str
+    family: str
+    base_id: str
+    donor_id: str
+
+
+class CounterfactualExample(_PairIdentity):
     """
     Type for counterfactual example dictionaries.
 

@@ -21,13 +21,13 @@ from tests.step_scripts import put_sidecar, put_table, run_step
 pytestmark = pytest.mark.unit
 
 GRID = [
-    {"sites.target.layer": 1, "positions.tap": 0, "value": 0.1, "example": 0},
-    {"sites.target.layer": 1, "positions.tap": 0, "value": 0.3, "example": 1},
-    {"sites.target.layer": 2, "positions.tap": 0, "value": 0.8, "example": 0},
-    {"sites.target.layer": 2, "positions.tap": 1, "value": 0.5, "example": 0},
-    {"sites.target.layer": 1, "positions.tap": 1, "value": 0.2, "example": 0},
+    {"sites.target.layers": 1, "positions.tap": 0, "value": 0.1, "example_id": "0"},
+    {"sites.target.layers": 1, "positions.tap": 0, "value": 0.3, "example_id": "1"},
+    {"sites.target.layers": 2, "positions.tap": 0, "value": 0.8, "example_id": "0"},
+    {"sites.target.layers": 2, "positions.tap": 1, "value": 0.5, "example_id": "0"},
+    {"sites.target.layers": 1, "positions.tap": 1, "value": 0.2, "example_id": "0"},
 ]
-AXES = ["sites.target.layer", "positions.tap"]
+AXES = ["sites.target.layers", "positions.tap"]
 
 
 @pytest.fixture()
@@ -47,7 +47,7 @@ def test_heatmap_writes_the_image_and_the_plotted_table(grid, tmp_path):
         {
             "table": grid,
             "plot": "heatmap",
-            "x": "sites.target.layer",
+            "x": "sites.target.layers",
             "y": "positions.tap",
         },
         {"figure": tmp_path / "out" / "scan.png", "plotted": out},
@@ -58,7 +58,7 @@ def test_heatmap_writes_the_image_and_the_plotted_table(grid, tmp_path):
     # one row per (layer, tap) cell, mean over examples
     assert len(rows) == 4
     cell = next(
-        r for r in rows if r["sites.target.layer"] == 1 and r["positions.tap"] == 0
+        r for r in rows if r["sites.target.layers"] == 1 and r["positions.tap"] == 0
     )
     assert cell["value"] == pytest.approx(0.2)
 
@@ -93,7 +93,7 @@ def test_an_uncovered_axis_is_refused(grid, tmp_path):
     with pytest.raises(StepError) as err:
         run_step(
             plot,
-            {"table": grid, "plot": "lines", "x": "sites.target.layer"},
+            {"table": grid, "plot": "lines", "x": "sites.target.layers"},
             {"figure": tmp_path / "out.png"},
         )
     assert "positions.tap" in str(err.value)
@@ -104,7 +104,7 @@ def test_heatmap_needs_y(grid, tmp_path):
     with pytest.raises(StepError):
         run_step(
             plot,
-            {"table": grid, "plot": "heatmap", "x": "sites.target.layer"},
+            {"table": grid, "plot": "heatmap", "x": "sites.target.layers"},
             {"figure": tmp_path / "out.png"},
         )
 
@@ -113,7 +113,7 @@ def test_unknown_kind_is_refused(grid, tmp_path):
     with pytest.raises(StepError):
         run_step(
             plot,
-            {"table": grid, "plot": "violin", "x": "sites.target.layer"},
+            {"table": grid, "plot": "violin", "x": "sites.target.layers"},
             {"figure": tmp_path / "out.png"},
         )
 
@@ -125,7 +125,7 @@ def test_the_static_formats_are_accepted(grid, tmp_path, suffix):
         {
             "table": grid,
             "plot": "heatmap",
-            "x": "sites.target.layer",
+            "x": "sites.target.layers",
             "y": "positions.tap",
         },
         {"figure": tmp_path / f"fig{suffix}"},
@@ -142,7 +142,7 @@ def test_html_is_refused_by_this_renderer(grid, tmp_path):
             {
                 "table": grid,
                 "plot": "heatmap",
-                "x": "sites.target.layer",
+                "x": "sites.target.layers",
                 "y": "positions.tap",
             },
             {"figure": tmp_path / "fig.html"},
@@ -159,7 +159,7 @@ def test_a_non_visualization_suffix_is_refused(grid, tmp_path):
             {
                 "table": grid,
                 "plot": "heatmap",
-                "x": "sites.target.layer",
+                "x": "sites.target.layers",
                 "y": "positions.tap",
             },
             {"figure": tmp_path / "fig.svg"},
@@ -173,7 +173,7 @@ def test_a_missing_figure_output_is_refused(grid, tmp_path):
             {
                 "table": grid,
                 "plot": "heatmap",
-                "x": "sites.target.layer",
+                "x": "sites.target.layers",
                 "y": "positions.tap",
             },
             {"plotted": tmp_path / "out.json"},

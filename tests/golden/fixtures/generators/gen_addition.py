@@ -2,8 +2,7 @@
 
 Writes tests/golden/fixtures/data/addition/pairs.json: N seeded addition
 prompts "{a}+{b}=" with a, b drawn from the paper's full operand range
-{1, ..., 199} (App. G.1 — the VeriFires checklist explicitly forbids a
-truncated 1-100 range), plus the pre-modulo sum column the Fourier probes
+{1, ..., 199} (App. G.1 — a truncated 1-100 range would not match the paper), plus the pre-modulo sum column the Fourier probes
 regress against. Purely templatic — no tokenizer or model involved.
 
 Run: uv run python tests/golden/fixtures/generators/gen_addition.py

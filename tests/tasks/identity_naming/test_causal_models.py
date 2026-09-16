@@ -148,7 +148,7 @@ def test_get_template(model_and_config):
 
 
 def test_output_tokens_declare_prefixed_result_forms(model_and_config):
-    """``output_tokens["result"]`` declares ``output_prefix + name`` per value (#296)."""
+    """``output_tokens["result"]`` declares ``output_prefix + name`` per value."""
     model, cfg = model_and_config
     ot = model.output_tokens["result"]
     assert set(ot) == set(model.values["result"])

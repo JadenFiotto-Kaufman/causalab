@@ -21,7 +21,7 @@ from safetensors.torch import load_file
 from causalab.cli import main
 
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
-from tests.protocol._env import FIXTURES
+from tests.protocol._env import FIXTURES, fixture_input_overrides
 from tests.tables import frame as table_frame
 
 pytestmark = pytest.mark.smoke
@@ -44,7 +44,13 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> Path:
             continue
         # absolute, because the copy runs from a tmp directory
         step["document"] = str(PROTOCOLS / Path(step["document"]).name)
-        step["set"] = {**step.get("set", {}), **TINY, "sites.target.layer": 0}
+        shipped = json.loads(Path(step["document"]).read_text())
+        step["set"] = {
+            **step.get("set", {}),
+            **TINY,
+            **fixture_input_overrides(shipped),
+            "sites.target.layers": 0,
+        }
     wf_dir = base / "workflows"
     wf_dir.mkdir()
     path = wf_dir / "mean_ablation.json"
@@ -82,5 +88,5 @@ def test_the_ablation_consumed_the_harvested_mean(run):
     manifest = json.loads((run / "workflow.json").read_text())
     assert manifest["steps"]["ablate"]["status"] == "completed"
     scores = table_frame(run / "ablate/ld.json")
-    assert len(scores) == 2  # the weekdays/test fixture rows
+    assert len(scores) == 2  # the weekdays/data#test fixture rows
     assert scores["value"].dtype.kind == "f"

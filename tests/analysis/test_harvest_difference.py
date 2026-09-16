@@ -2,8 +2,9 @@
 
 This closes a real stub: "harvest activations on two contrasting corpora and
 subtract the means" is the direction half of every steering experiment, and it
-was expressible nowhere before. Not a protocol document (it touches no network
-through the intervention vocabulary), and not a registry op (a one-off
+was expressible nowhere before. Not an intervention specification (it touches
+no network through the intervention vocabulary), and not a registry op (a
+one-off
 reduction could not be admitted by pull request).
 
 The oracle is deliberate arithmetic rather than a pinned run: positive rows mean

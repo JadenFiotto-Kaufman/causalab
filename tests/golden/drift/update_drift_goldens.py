@@ -1,4 +1,4 @@
-"""Capture (or refresh) the chat-coherent drift pins on the canonical GPU.
+"""Capture (or refresh) the chat-coherent drift pins on a cuda device.
 
     uv run python tests/golden/drift/update_drift_goldens.py \\
         --device cuda --i-have-reviewed-the-diff
@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 # repo root (NOT tests/ — putting tests/ itself on sys.path would shadow the
 # top-level `tasks` package with tests/tasks and break task resolution)
@@ -56,6 +59,43 @@ def _document_dtype() -> str:
     return dtypes.pop()
 
 
+def non_finite_keys(values: Mapping[str, Any]) -> list[str]:
+    """The keys whose value is not finite — a coordinate with every row
+    excluded means a ``NaN`` mean. A list value is the shape pin
+    (``interchange.acts_mid.shape``): its elements are checked only when
+    they are floats, never a str. One census for the gate path and for
+    ``serialise_pins`` so the two cannot drift."""
+    bad: list[str] = []
+    for key, value in values.items():
+        scalars = value if isinstance(value, list) else [value]
+        if any(isinstance(v, float) and not math.isfinite(v) for v in scalars):
+            bad.append(key)
+    return sorted(bad)
+
+
+def gate_refuses(acc: float) -> bool:
+    """The baseline-accuracy gate. A non-finite accuracy — every example
+    excluded — is refused like one below the gate: ``nan < gate`` is False
+    and would pass it."""
+    return not math.isfinite(acc) or acc < ACCURACY_GATE
+
+
+def serialise_pins(pins: dict[str, Any]) -> str:
+    """The pins file's bytes, or a ``ValueError`` naming every non-finite
+    value in ``pins["values"]`` — pure, so test_extract_labels.py calls it
+    on the CPU instead of grepping this file's source."""
+    bad = non_finite_keys(pins["values"])
+    if bad:
+        raise ValueError(
+            f"non-finite pin value(s): {', '.join(bad)} — a coordinate with "
+            "every row excluded; refusing to write"
+        )
+    # a NaN value — a coordinate with every row excluded — is refused at
+    # capture rather than written as a token no other JSON parser accepts
+    # (tables.py); compare() would name it on replay, the pin never gets it
+    return json.dumps(pins, indent=2, allow_nan=False) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", required=True)
@@ -66,8 +106,16 @@ def main() -> int:
     values = extract_values(dirs)
 
     acc = values["interchange.acc.mean"]
-    if acc < ACCURACY_GATE:
+    if gate_refuses(acc):
         print(f"REFUSED: baseline accuracy {acc:.4f} < gate {ACCURACY_GATE}")
+        return 1
+    # before the key diff, so the refusal names the coordinate rather than
+    # dying in json.dumps after the wall of - / + lines
+    bad = non_finite_keys(values)
+    if bad:
+        print(
+            f"REFUSED: non-finite value(s) {bad} — a coordinate with every row excluded"
+        )
         return 1
 
     pins = load_pins(PINS)
@@ -86,7 +134,7 @@ def main() -> int:
     # precision is the documents' own (§2.1) — only placement is the
     # capture's, and only placement can differ run to run
     pins["capture"] = {"device": args.device, "dtype": _document_dtype()}
-    PINS.write_text(json.dumps(pins, indent=2) + "\n")
+    PINS.write_text(serialise_pins(pins))
     print(f"wrote {PINS} ({len(values)} keys, acc {acc:.4f})")
     return 0
 

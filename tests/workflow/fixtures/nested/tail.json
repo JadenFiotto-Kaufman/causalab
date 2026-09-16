@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "description": "The nested half of the conditional chain (workflow spec §2.10): a script measures, a decision holds the measurement to a rule, and a values script reads the measurement by reference. outer.json nests this document as `tail`, so these steps join that run as tail/measure, tail/gate_k and tail/best; a reference inside this document names its own steps and resolves under the sub-root, never to an outer step of the same name. The scripts are the conditional fixtures' two, copied beside this file by the tests.",
+  "output_dir": "tail_alone",
+  "steps": {
+    "measure": {
+      "type": "script",
+      "script": {"path": "scripts/measure.py"},
+      "inputs": {"measurement": {"path": "measurement.json"}},
+      "outputs": {
+        "values": {"file": "values.json", "keys": {"score": 0.5, "k": 8}},
+        "table": {"file": "scores.json", "columns": {"score": "float64"}}
+      }
+    },
+    "gate_k": {
+      "type": "decision",
+      "values": {"step": "measure", "file": "values.json"},
+      "rule": {"score": {"ge": 0.5}, "k": {"in": [4, 8]}},
+      "decision": {"on_pass": "advance", "on_fail": "narrow"}
+    },
+    "best": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {"k": {"step": "measure", "file": "values.json", "key": "score"}},
+      "outputs": {"out": {"file": "best.json", "keys": {"ran": true, "k": 0.5}}}
+    }
+  }
+}

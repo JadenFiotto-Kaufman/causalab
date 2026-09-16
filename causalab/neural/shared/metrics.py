@@ -58,24 +58,33 @@ saying so.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Mapping, Sequence
 
 import torch
 
+from causalab.protocol.alignment import alignment_of, refuse_unalignable, token_runs
 from causalab.protocol.errors import ProtocolError
+from causalab.protocol.resolution import Unavailable, unavailable
 from causalab.protocol.schema import (
+    metric_column_fields,
     VOCAB_TOP_K_RANKING,
     WHOLE_WINDOW_METRIC_KINDS,
     MetricSpec,
 )
 
 __all__ = [
+    "check_answer_forms",
     "column_first_token_id",
     "column_token_id",
     "column_token_ids",
     "refuse_ambiguous_auto",
     "compute_metric",
     "compute_windowed_metric",
+    "excluded_rows",
+    "GATHERED_KINDS",
+    "gathered_metric",
+    "metric_token_ids",
 ]
 
 
@@ -103,7 +112,17 @@ def _candidates(value: str, token_form: str = "auto") -> tuple[str, ...]:
     }[token_form]
 
 
-def column_token_id(tokenizer: Any, value: str, *, token_form: str = "auto") -> int:
+def _checked_token_id(value: Any, vocabulary_size: int) -> int:
+    # Preserve the integer-only contract: bool, floats and strings are not IDs.
+    if type(value) is not int or not 0 <= value < vocabulary_size:
+        raise ProtocolError(
+            "P2",
+            f"token_form='id' needs an integer token ID in the vocabulary, got {value!r}",
+        )
+    return value
+
+
+def column_token_id(tokenizer: Any, value: Any, *, token_form: str = "auto") -> int:
     """The single token id a metric column value names (module docstring).
 
     ``token_form`` is the §2.10 knob: ``"auto"`` (the default, and what every
@@ -111,7 +130,9 @@ def column_token_id(tokenizer: Any, value: str, *, token_form: str = "auto") -> 
     ``"space_prefixed"`` pins ``" " + s``, ``"bare"`` pins ``s`` with leading
     spaces stripped.
     """
-    candidates = _candidates(value, token_form)
+    if token_form == "id":
+        return _checked_token_id(value, len(tokenizer))
+    candidates = _candidates(str(value), token_form)
 
     resolved: int | None = None
     for candidate in candidates:
@@ -179,14 +200,95 @@ def refuse_ambiguous_auto(
     )
 
 
+def check_answer_forms(
+    tokenizer: Any,
+    metric: MetricSpec,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    where: str = "metric",
+) -> None:
+    """Refuse a bare ``token_form`` over an answer the table carries
+    space-prefixed — checked before any forward pass (§2.10, §2.3).
+
+    A leading space in a table value is the data saying how the model's
+    answer reads in context: ``" Saturday"`` is what follows ``"tomorrow
+    is"``. A metric that pins ``token_form: "bare"`` over that column scores
+    ``"Saturday"`` instead, and under a byte-level BPE the two are different
+    tokens (``ĠS…`` against ``S…``), so the metric credits a token the model
+    never emits and reads a flat 0.000 with nothing said. The check is the
+    metrics half of :func:`~causalab.protocol.alignment.alignment_of`: the
+    authored form's tokens are located inside the answer's content tokens
+    (whitespace-only pieces skipped, as :func:`column_first_token_id` does),
+    and ``absent`` is refused as ``alignment_missing``, naming **both surface
+    forms** decoded. A tokenizer under which the two forms coincide (a
+    sentencepiece family, where ``"Saturday"`` *is* the ``▁Saturday`` piece)
+    aligns ``one_to_one`` and nothing fires; a bare table value says nothing
+    about the model's form and is not checked; ``space_prefixed`` and
+    ``auto`` are not this error class (``auto`` has its own refusal).
+    """
+    kind = str(metric.kind)
+    if str(metric.token_form) != "bare":
+        return
+    # only a column carries what the data says: `groups` and `tokens` are
+    # authored literals and a `kl`/`js` target is a read (§2.10,
+    # `metric_column_fields`); a `js` `restrict` column is an answer column
+    # like any other and is checked the same way
+    for field, column in metric_column_fields(metric).items():
+        values: list[str] = []
+        for row in rows:
+            held = row.get(column)  # a missing column is compute_metric's refusal
+            if isinstance(held, list):
+                values.extend(str(v) for v in held)
+            elif held is not None:
+                values.append(str(held))
+        for value in dict.fromkeys(values):
+            if not value.startswith(" "):
+                continue
+            bare = value.lstrip(" ")
+            answer_ids = [
+                int(t) for t in tokenizer.encode(value, add_special_tokens=False)
+            ]
+            content = [t for t in answer_ids if tokenizer.decode([t]).strip()]
+            authored = [
+                int(t) for t in tokenizer.encode(bare, add_special_tokens=False)
+            ]
+            observed = alignment_of(
+                token_runs(authored, content), (tuple(range(len(content))),)
+            )
+
+            def pieces(ids: Sequence[int]) -> list[str]:
+                return [tokenizer.decode([t]) for t in ids]
+
+            refuse_unalignable(
+                observed,
+                f"{where} ({kind}.{field}): the table carries {value!r} "
+                f"space-prefixed, and token_form='bare' scores the bare form "
+                f"{bare!r} — under this tokenizer the two are different tokens: "
+                f"bare {bare!r} → {pieces(authored)} vs space-prefixed {value!r} → "
+                f"{pieces(answer_ids)}. The metric would credit a token the model "
+                "never emits for this answer. Set token_form to 'space_prefixed', "
+                "or strip the space from the table if the model's answer really "
+                "is bare",
+            )
+
+
 def column_token_ids(
     tokenizer: Any,
-    values: Sequence[str],
+    values: Sequence[Any],
     *,
     token_form: str = "auto",
     where: str = "metric column",
+    vocabulary_size: int | None = None,
 ) -> list[int]:
-    """Resolve a whole metric column, refusing if ``auto`` would have to guess."""
+    """Resolve a whole metric column, refusing if ``auto`` would have to guess.
+
+    An enclosing metric computation may supply its tokenizer vocabulary size.
+    It is a call-local snapshot including added tokens, never a model logit width
+    or metadata retained across tokenizer mutations.
+    """
+    if token_form == "id":
+        size = len(tokenizer) if vocabulary_size is None else vocabulary_size
+        return [_checked_token_id(value, size) for value in values]
     if token_form == "auto":
         refuse_ambiguous_auto(tokenizer, values, where=where)
     return [column_token_id(tokenizer, v, token_form=token_form) for v in values]
@@ -398,6 +500,263 @@ def _top_k(
     return out
 
 
+def restrict_token_ids(
+    metric: MetricSpec,
+    rows: Sequence[Mapping[str, Any]],
+    tokenizer: Any,
+    *,
+    vocabulary_size: int | None = None,
+) -> list[list[int]] | None:
+    """The per-row answer set a ``js`` is restricted to (§2.10 ``restrict``),
+    as token ids — ``None`` when the metric is unrestricted.
+
+    A column form yields each row's own list; a literal list yields the same
+    ids for every row. Every string resolves under the metric's ``token_form``
+    exactly as an answer column does (:func:`column_token_ids`), and two
+    strings that land on one id are refused rather than counted twice — the
+    ``class_probs`` rule, for the same reason: the restricted softmax would
+    give that answer double mass. Rows whose column is empty are not here:
+    :func:`excluded_rows` took them out before the reduction ran.
+
+    Under ``token_form: id`` the values are the ids themselves and every row's
+    set is checked against one vocabulary bound — the enclosing metric
+    computation's snapshot when it passes ``vocabulary_size``, otherwise one
+    query here (the training objective's call); never one per row.
+    """
+    restrict = metric.fields.get("restrict")
+    if restrict is None:
+        return None
+    token_form = str(metric.token_form)
+    where = f"metric {metric.kind}.restrict"
+    if token_form == "id" and vocabulary_size is None:
+        vocabulary_size = len(tokenizer)
+
+    def resolve(values: Sequence[Any]) -> list[int]:
+        by_id: dict[int, Any] = {}
+        for value, token in zip(
+            values,
+            column_token_ids(
+                tokenizer,
+                values,
+                token_form=token_form,
+                where=where,
+                vocabulary_size=vocabulary_size,
+            ),
+        ):
+            if token in by_id:
+                raise ProtocolError(
+                    "P2",
+                    f"{where}: {value!r} and {by_id[token]!r} both resolve to token "
+                    f"id {token} under token_form={token_form!r}, and the restricted "
+                    "softmax would give that answer double mass. List each answer "
+                    "once (a leading space is normalized away before token_form "
+                    "decides the form, §2.10)",
+                )
+            by_id[token] = value
+        return list(by_id)
+
+    def spelled(values: Sequence[Any]) -> list[Any]:
+        # under ``id`` the values *are* the ids (an integer is refused as a
+        # string, `_checked_token_id`); every other form spells a surface string
+        return list(values) if token_form == "id" else [str(v) for v in values]
+
+    if isinstance(restrict, str):
+        return [resolve(spelled(row[restrict])) for row in rows]
+    shared = resolve(spelled(restrict))
+    return [list(shared) for _ in rows]
+
+
+def js_divergence(
+    of_logits: torch.Tensor,
+    target_logits: torch.Tensor,
+    restrict_ids: Sequence[Sequence[int]] | None = None,
+) -> torch.Tensor:
+    """Per-row Jensen–Shannon divergence, in nats, between the distributions
+    two ``(batch, vocab)`` logit tensors define (§2.10 ``js``)::
+
+        JS(p, q) = ½ KL(p ‖ m) + ½ KL(q ‖ m),   m = ½ (p + q)
+
+    Symmetric, and bounded by ``ln 2``. With ``restrict_ids`` each row's two
+    distributions are first **restricted to its answer ids and renormalised**
+    — a ``log_softmax`` over the sliced logits, which is exact and needs no
+    ``eps``. Differentiable in both arguments, so the same function is the
+    objective term (``pytorch_hooks.train.metric_tensor``) and the saved
+    record — one arithmetic, one unit."""
+    if restrict_ids is None:
+        return _js_from_log_probs(
+            torch.log_softmax(of_logits, dim=-1),
+            torch.log_softmax(target_logits, dim=-1),
+        )
+    values: list[torch.Tensor] = []
+    for i, ids in enumerate(restrict_ids):
+        index = torch.as_tensor(list(ids), dtype=torch.long, device=of_logits.device)
+        p = torch.log_softmax(of_logits[i].index_select(-1, index), dim=-1)
+        q = torch.log_softmax(target_logits[i].index_select(-1, index), dim=-1)
+        values.append(_js_from_log_probs(p, q))
+    return torch.stack(values)
+
+
+def _js_from_log_probs(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    """JS over the last axis of two log-probability tensors; ``m`` is formed in
+    log space (``logaddexp − ln 2``) so a near-zero probability never
+    underflows the log."""
+    m = torch.logaddexp(p, q) - math.log(2.0)
+    return 0.5 * (p.exp() * (p - m)).sum(dim=-1) + 0.5 * (q.exp() * (q - m)).sum(dim=-1)
+
+
+def excluded_rows(
+    metric: MetricSpec, rows: Sequence[Mapping[str, Any]], denominator_key: str
+) -> dict[int, Unavailable]:
+    """The rows a metric cannot score because the table carries **no answer**
+    for them: for every column the kind names, a row whose value is ``null``,
+    absent, or an empty list of forms (spec §2.10 "Eligibility").
+
+    A structural fact of the data the document could not know (§4.1): the
+    column exists — ``validate --data`` checked that — but this row has
+    nothing in it, so the row is an **excluded measurement** under
+    ``alignment_missing`` (the authored answer has no counterpart in the
+    data), not a refusal of the run and not a score of ``"None"``. Keyed by
+    row index; every value is the typed ``unavailable`` with the cell's
+    ``denominator_key``, so it flows into the denominator unchanged. The
+    ``validate --data`` twin — the *maximum* eligible count a
+    ``minimum_count`` is held to — is ``loader.check_data_columns``.
+    """
+    kind = str(metric.kind)
+    out: dict[int, Unavailable] = {}
+    # the predicate `validate --data` counted the maximum eligible rows with
+    # (§2.10, `metric_column_fields`): a `kl`/`js` target is a read and
+    # excludes nothing, a `js` `restrict` column excludes its empty rows
+    for field, column in metric_column_fields(metric).items():
+        for i, row in enumerate(rows):
+            if i in out:
+                continue
+            held = row.get(column)
+            if held is None or (isinstance(held, list) and not held):
+                out[i] = unavailable(
+                    "alignment_missing",
+                    f"row {i} carries no value in column {column!r} "
+                    f"({kind}.{field}) — nothing to score it against",
+                    denominator_key,
+                )
+    return out
+
+
+#: The kinds whose per-example value **selects** entries of the projection at
+#: the answer token ids and computes on nothing else. For these, gathering
+#: the entries where the value sits — the device — and reducing the gathered
+#: values on the CPU in float is :func:`compute_metric`'s arithmetic to the
+#: bit: an upcast commutes with a selection, and the per-example operation is
+#: the same 0-d float op. A kind with a softmax, a log-sum-exp or an argmax
+#: over the vocabulary is not in the set — reduced on the device it rounds
+#: differently — and keeps the whole-vocabulary CPU path.
+GATHERED_KINDS = frozenset({"logit_diff", "soft_accuracy", "token_logit"})
+
+_GATHERED_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "logit_diff": ("a", "b"),
+    "soft_accuracy": ("a", "b"),
+    "token_logit": ("token",),
+}
+
+
+def metric_token_ids(
+    metric: MetricSpec, rows: Sequence[Mapping[str, Any]], tokenizer: Any
+) -> dict[str, list[int]]:
+    """Each answer column of a :data:`GATHERED_KINDS` kind resolved to token
+    ids over the rows that carry answers — the excluded rows
+    (:func:`excluded_rows`) left out, as :func:`compute_metric` leaves them
+    out before it resolves — under the metric's ``token_form``, exactly as
+    :func:`compute_metric` resolves them. A caller whose rows never change
+    (a fit's eval executor) resolves once and hands the result to
+    :func:`gathered_metric` on every pass."""
+    kind = str(metric.kind)
+    if kind not in GATHERED_KINDS:
+        raise ValueError(f"metric kind {kind!r} is not gathered at token ids")
+    token_form = str(metric.token_form)
+    excluded = excluded_rows(metric, rows, kind)
+    kept = [row for i, row in enumerate(rows) if i not in excluded]
+    out: dict[str, list[int]] = {}
+    for field in _GATHERED_FIELDS[kind]:
+        column = str(metric.fields[field])
+        values: list[Any] = [row[column] for row in kept]
+        if token_form != "id":
+            values = [str(value) for value in values]
+        out[field] = column_token_ids(
+            tokenizer, values, token_form=token_form, where=f"metric {kind}.{field}"
+        )
+    return out
+
+
+def gathered_metric(
+    metric: MetricSpec,
+    of_value: torch.Tensor,
+    rows: Sequence[Mapping[str, Any]],
+    tokenizer: Any,
+    *,
+    token_ids: Mapping[str, Sequence[int]] | None = None,
+    denominator_key: str | None = None,
+) -> list[Any]:
+    """:func:`compute_metric` for a :data:`GATHERED_KINDS` kind over a value
+    wherever it sits: the excluded rows as :func:`compute_metric` excludes
+    them, the answer entries gathered from the read on its own device, the
+    one or two columns copied to the CPU, and the kind's per-example
+    arithmetic in float exactly as :func:`compute_metric` writes it — so the
+    list is the same, entry for entry, without the vocabulary ever leaving
+    the device. ``token_ids`` is :func:`metric_token_ids`' result when the
+    caller resolved it once. No ``vocab_axis``: validation holds a gathered
+    kind's ``of`` read to a plain ``lm_head`` tap (``metric_reads_vocabulary``
+    — no featurizer, no ``dims``; ``protocol/validate.py`` exempts only
+    ``kl`` and ``top_k``), so the value's last axis is the vocabulary and
+    a raw token id indexes it."""
+    kind = str(metric.kind)
+    if kind not in GATHERED_KINDS:
+        raise ValueError(f"metric kind {kind!r} is not gathered at token ids")
+    excluded = excluded_rows(metric, rows, denominator_key or kind)
+    keep = [i for i in range(len(rows)) if i not in excluded]
+    if not keep:  # every row excluded: nothing to reduce, nothing raised
+        return [excluded[i] for i in range(len(rows))]
+    ids = (
+        token_ids
+        if token_ids is not None
+        else metric_token_ids(metric, rows, tokenizer)
+    )
+    dense = _last_pos_rows(of_value)
+    if len(keep) != len(rows):
+        dense = dense[torch.tensor(keep, dtype=torch.long, device=dense.device)]
+    fields = _GATHERED_FIELDS[kind]
+    for field in fields:
+        if len(ids[field]) != len(keep):
+            raise ValueError(
+                f"metric {kind}.{field}: {len(ids[field])} token ids for "
+                f"{len(keep)} rows"
+            )
+    with torch.no_grad():
+        # every answer column in one gather and one copy — one host wait per
+        # metric, not per column — then the CPU path's upcast: the fp32 value
+        # `compute_metric` reads at `logits[i, id]`, entry for entry
+        index = torch.tensor(
+            [list(ids[field]) for field in fields],
+            dtype=torch.long,
+            device=dense.device,
+        )  # (fields, keep)
+        # (keep, fields) off the device contiguous, then split by column
+        taken = dense.gather(1, index.t()).cpu().t().float()  # (fields, keep)
+    columns = {field: taken[i] for i, field in enumerate(fields)}
+    if kind == "logit_diff":
+        a, b = columns["a"], columns["b"]
+        scored = [float(a[i] - b[i]) for i in range(len(keep))]
+    elif kind == "soft_accuracy":
+        # `_compute_metric`'s line, `.float()` included (already fp32 here)
+        a, b = columns["a"], columns["b"]
+        scored = [
+            float(torch.sigmoid(a[i].float() - b[i].float())) for i in range(len(keep))
+        ]
+    else:
+        token = columns["token"]
+        scored = [float(token[i]) for i in range(len(keep))]
+    it = iter(scored)
+    return [excluded[i] if i in excluded else next(it) for i in range(len(rows))]
+
+
 def compute_metric(
     metric: MetricSpec,
     of_value: torch.Tensor,
@@ -406,6 +765,7 @@ def compute_metric(
     *,
     target_value: torch.Tensor | None = None,
     vocab_axis: bool = True,
+    denominator_key: str | None = None,
 ) -> list[Any]:
     """One metric over one read's value, per example.
 
@@ -416,7 +776,55 @@ def compute_metric(
     vocabulary projection by validation, so the default is ``True``; ``top_k``
     is the one kind that also runs over a residual stream, an MLP activation
     or a featurizer's latents, and it needs to know because a token id is
-    worth decoding and a neuron index is not."""
+    worth decoding and a neuron index is not.
+
+    A row the table carries no answer for (:func:`excluded_rows`) comes back
+    as the typed :class:`~causalab.protocol.resolution.Unavailable` in its
+    place — an excluded measurement, keyed under ``denominator_key`` (the
+    metric's cell key; its kind when the caller has no coordinates) — and
+    the kind is computed over the other rows only, so no excluded row ever
+    reaches a mean (§2.10 "Eligibility").
+    """
+    excluded = excluded_rows(metric, rows, denominator_key or str(metric.kind))
+    if excluded:
+        keep = [i for i in range(len(rows)) if i not in excluded]
+        if not keep:  # every row excluded: nothing to reduce, nothing raised
+            return [excluded[i] for i in range(len(rows))]
+        index = torch.tensor(keep, dtype=torch.long, device=of_value.device)
+        scored = _compute_metric(
+            metric,
+            _last_pos_rows(of_value)[index],
+            [rows[i] for i in keep],
+            tokenizer,
+            target_value=(
+                _last_pos_rows(target_value)[index]
+                if target_value is not None
+                else None
+            ),
+            vocab_axis=vocab_axis,
+        )
+        it = iter(scored)
+        return [excluded[i] if i in excluded else next(it) for i in range(len(rows))]
+    return _compute_metric(
+        metric,
+        of_value,
+        rows,
+        tokenizer,
+        target_value=target_value,
+        vocab_axis=vocab_axis,
+    )
+
+
+def _compute_metric(
+    metric: MetricSpec,
+    of_value: torch.Tensor,
+    rows: Sequence[Mapping[str, Any]],
+    tokenizer: Any,
+    *,
+    target_value: torch.Tensor | None,
+    vocab_axis: bool,
+) -> list[Any]:
+    """The kinds themselves, over rows that all carry their answers."""
     # `dense` is the read's value at the addressed position, (batch, width).
     # Every kind but `top_k` is bound to an lm_head read, so for those it is
     # the vocabulary projection and reads as `logits` below.
@@ -426,6 +834,7 @@ def compute_metric(
     # §2.10: how this metric's string answers become token ids. `auto` is the
     # space-prefixed-first default every pre-token_form document gets.
     token_form = str(metric.token_form)
+    vocabulary_size = len(tokenizer) if token_form == "id" else None
 
     def token_ids(values: Sequence[str], field: str) -> list[int]:
         return column_token_ids(
@@ -433,42 +842,72 @@ def compute_metric(
             values,
             token_form=token_form,
             where=f"metric {kind}.{field}",
+            vocabulary_size=vocabulary_size,
         )
 
-    def raw_column(field: str) -> list[Any]:
-        name = str(metric.fields[field])
-        out: list[Any] = []
-        for i, row in enumerate(rows):
-            if name not in row:
-                raise ProtocolError(
-                    "P2", f"metric column {name!r} missing from dataset row {i}"
-                )
-            out.append(row[name])
-        return out
+    def distinct_token_ids(
+        values: Sequence[str], field: str, consequence: str
+    ) -> list[int]:
+        """Resolve a list of *literal* token strings, refusing when two of
+        them land on one id.
 
-    def column(field: str) -> list[str]:
-        return [str(value) for value in raw_column(field)]
+        The list kinds (``class_probs``, ``token_logits``) index the
+        projection by every member, so a collision is not harmless
+        redundancy: ``consequence`` says what the kind would have reported.
+        The ``['X', ' X']`` idiom is the usual cause and is inert anyway — a
+        leading space is normalized away before ``token_form`` decides the
+        form (§2.10).
+        """
+        by_id: dict[int, str] = {}
+        for value, token in zip(values, token_ids(values, field)):
+            if token in by_id:
+                raise ProtocolError(
+                    "P2",
+                    f"metric {kind}.{field}: {value!r} and {by_id[token]!r} both "
+                    f"resolve to token id {token} under token_form={token_form!r}, "
+                    f"and {consequence}. The ['X', ' X'] idiom is the usual cause "
+                    "and is inert anyway: a leading space is normalized away "
+                    "before token_form decides the form (§2.10). List each "
+                    "answer once",
+                )
+            by_id[token] = value
+        return list(by_id)
+
+    def raw_column(field: str) -> list[Any]:
+        # a row with no value here is an excluded measurement, taken out by
+        # `excluded_rows` before this runs — never a refusal, never "None"
+        name = str(metric.fields[field])
+        return [row[name] for row in rows]
+
+    def column(field: str) -> list[Any]:
+        values = raw_column(field)
+        return values if token_form == "id" else [str(value) for value in values]
 
     def form_groups(field: str) -> list[list[str]]:
         """One row's expected forms: a list column is a group of equivalent
-        surface forms, a scalar is a group of one (§2.10)."""
-        groups: list[list[str]] = []
-        for i, value in enumerate(raw_column(field)):
-            forms = [str(v) for v in value] if isinstance(value, list) else [str(value)]
-            if not forms:
-                raise ProtocolError(
-                    "P2",
-                    f"metric column {metric.fields[field]!r} is an empty form "
-                    f"group on row {i} — nothing to match against",
-                )
-            groups.append(forms)
-        return groups
+        surface forms, a scalar is a group of one (§2.10). An empty group is
+        an excluded row (`excluded_rows`), so every group here has a form."""
+        return [
+            [str(v) for v in value] if isinstance(value, list) else [str(value)]
+            for value in raw_column(field)
+        ]
 
     if kind == "logit_diff":
         a_ids = token_ids(column("a"), "a")
         b_ids = token_ids(column("b"), "b")
         return [
             float(logits[i, a] - logits[i, b])
+            for i, (a, b) in enumerate(zip(a_ids, b_ids))
+        ]
+    if kind == "soft_accuracy":
+        # σ of the same margin: the differentiable stand-in for "a beats b"
+        # (a soft-accuracy objective), bounded so a runaway margin on
+        # one row cannot dominate a mean the way a raw logit_diff can. Computed
+        # in float so the saved value and the objective twin agree to the bit.
+        a_ids = token_ids(column("a"), "a")
+        b_ids = token_ids(column("b"), "b")
+        return [
+            float(torch.sigmoid(logits[i, a].float() - logits[i, b].float()))
             for i, (a, b) in enumerate(zip(a_ids, b_ids))
         ]
     if kind == "token_logit":
@@ -485,7 +924,30 @@ def compute_metric(
         q = torch.log_softmax(_last_pos_rows(target_value).float(), dim=-1)
         kl = (p.exp() * (p - q)).sum(dim=-1)
         return [float(v) for v in kl]
+    if kind == "js":
+        if target_value is None:
+            raise ProtocolError("P2", "js needs its target read's value")
+        values = js_divergence(
+            logits,
+            _last_pos_rows(target_value).float(),
+            restrict_token_ids(
+                metric, rows, tokenizer, vocabulary_size=vocabulary_size
+            ),
+        )
+        return [float(v) for v in values]
     if kind == "match":
+        if token_form == "id":
+            expected = raw_column("expected")
+            resolved_ids = []
+            for value in expected:
+                forms = value if isinstance(value, list) else [value]
+                if not forms:
+                    raise ProtocolError(
+                        "P2", "expected token ID group must not be empty"
+                    )
+                resolved_ids.append(set(token_ids(forms, "expected")))
+            argmax = logits.argmax(dim=-1)
+            return [float(int(argmax[i]) in ids) for i, ids in enumerate(resolved_ids)]
         # `mode` decides whether a form's first token counts (§2.10);
         # `token_form` decides which surface form resolves. Independent knobs.
         mode = str(metric.fields.get("mode", "exact"))
@@ -523,28 +985,38 @@ def compute_metric(
                 "literal tokens, not a dataset column name",
             )
         probs = torch.softmax(logits, dim=-1)
-        group_ids: dict[str, list[int]] = {}
-        for name, members in groups.items():
-            values = [str(v) for v in members]
-            by_id: dict[int, str] = {}
-            for value, token in zip(values, token_ids(values, f"groups.{name}")):
-                if token in by_id:
-                    raise ProtocolError(
-                        "P2",
-                        f"class_probs group {name!r}: {value!r} and "
-                        f"{by_id[token]!r} both resolve to token id {token} "
-                        f"under token_form={token_form!r}, and this metric sums "
-                        "a group's ids — so the class would count that token "
-                        "twice and report a 'probability' above 1. The "
-                        "['X', ' X'] idiom is the usual cause and is inert "
-                        "anyway: a leading space is normalized away before "
-                        "token_form decides the form (§2.10). List each answer "
-                        "once",
-                    )
-                by_id[token] = value
-            group_ids[name] = list(by_id)
+        group_ids = {
+            name: distinct_token_ids(
+                [str(v) for v in members],
+                f"groups.{name}",
+                "this metric sums a group's ids — so the class would count that "
+                "token twice and report a 'probability' above 1",
+            )
+            for name, members in groups.items()
+        }
         return [
             {name: float(probs[i, ids].sum()) for name, ids in group_ids.items()}
+            for i in range(logits.shape[0])
+        ]
+    if kind == "token_logits":
+        # `tokens` is literal token strings for the same reason `groups` is:
+        # the answer space is a property of the run, not of a row (§2.10). The
+        # result mirrors `top_k`'s fixed column identities — `indices` are the
+        # ids, `tokens` the ids decoded, `values` the raw logits — so a reader
+        # of either table holds the same three things under the same names.
+        ids = distinct_token_ids(
+            [str(v) for v in metric.fields["tokens"]],
+            "tokens",
+            "this metric reports one logit per listed token — so one row of the "
+            "projection would appear twice under two names",
+        )
+        decoded = [tokenizer.decode([t]) for t in ids]
+        return [
+            {
+                "indices": ids,
+                "tokens": decoded,
+                "values": [float(logits[i, t]) for t in ids],
+            }
             for i in range(logits.shape[0])
         ]
     if kind == "decode":
@@ -588,7 +1060,15 @@ def compute_windowed_metric(
             )
         if kind == "decode":
             return [
-                [tokenizer.decode(list(ids))] if len(ids) else []
+                [
+                    tokenizer.decode(
+                        list(ids),
+                        skip_special_tokens=False,
+                        clean_up_tokenization_spaces=False,
+                    )
+                ]
+                if len(ids)
+                else []
                 for ids in generated_ids
             ]
         raise ProtocolError("P4", f"unhandled whole-window metric kind {kind!r}")
@@ -604,7 +1084,7 @@ def compute_windowed_metric(
         if target_counts != counts:
             raise ProtocolError(
                 "P2",
-                f"kl compares reads addressing different position counts "
+                f"{kind} compares reads addressing different position counts "
                 f"({counts} vs {target_counts}) — a comparison needs a "
                 "position-for-position pairing",
             )

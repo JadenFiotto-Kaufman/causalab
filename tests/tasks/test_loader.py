@@ -34,10 +34,10 @@ import pytest
 
 from causalab.causal.causal_model import CausalModel
 from causalab.tasks.loader import resolve_task
+from causalab.causal.scoring import ScoringError
 from causalab.tasks.loader import (
     Task,
     load_task,
-    load_task_checker,
     load_task_counterfactuals,
     load_task_token_positions,
 )
@@ -183,71 +183,90 @@ class TestLoadTaskProperty:
         assert task.is_cyclic
         assert task.causal_model.embeddings
 
-    def test_entity_binding_derives_a_prefix_checker(self) -> None:
-        """entity_binding declares ``output_tokens`` + ``match_modes: prefix``; the
-        loader *derives* the checker from that declaration (no checker.py), and it
-        still accepts the multi-token ``startswith`` continuation
-        ``compute_base_accuracy`` needs (#167/#296).
-        """
+    def test_entity_binding_grades_by_prefix(self) -> None:
+        """entity_binding's spec declares ``string_mode="prefix"``; the task's
+        grader is the spec's, so an answer followed by continuation tokens is
+        credited and a different entity is not."""
         task = load_task("entity_binding")
         assert task.checker is not None
-        assert task.checker.__module__ == "causalab.causal.causal_model"
+        assert task.checker.__module__ == "causalab.causal.scoring"
         assert task.checker({"string": "bread\n\nAnn loves"}, "bread") is True
         assert task.checker({"string": "cheese"}, "bread") is False
+
+    @staticmethod
+    def _declared_answer(task: Task) -> tuple[str, str]:
+        """``(a declared value's first form, the value)`` of the task's answer
+        variable — a pair the grader must credit."""
+        spec = task.causal_model.scoring
+        assert spec is not None
+        value = next(iter(spec.forms[spec.answer_variable]))
+        return spec.forms_of(value)[0], value
 
     @pytest.mark.parametrize("task_name", SINGLETON_TASKS)
     def test_every_singleton_task_ships_a_working_checker(self, task_name: str) -> None:
         """Every task resolves a ``checker(neural_output, causal_output) -> bool``
-        — the sole match authority for base/intervention scoring, no
-        strict-equality fallback (#167). It is either derived from the task's
-        ``output_tokens`` declaration (#296) or loaded from its ``checker.py``;
-        load_task raises if neither is present.
-        """
-        checker = load_task(task_name).checker
-        assert callable(checker)
-        assert isinstance(checker({"string": "x"}, "x"), bool)
+        — the sole match authority for base/intervention scoring — from the
+        ``ScoringSpec`` its causal model declares, and it credits a declared
+        answer."""
+        task = load_task(task_name)
+        form, value = self._declared_answer(task)
+        assert callable(task.checker)
+        assert task.checker({"string": form}, value) is True
 
     @pytest.mark.parametrize("task_name", FACTORY_TASKS)
     def test_every_factory_task_ships_a_working_checker(self, task_name: str) -> None:
-        checker = load_task(task_name, task_cfg=_factory_cfg(task_name)).checker
-        assert callable(checker)
-        assert isinstance(checker({"string": "x"}, "x"), bool)
+        task = load_task(task_name, task_cfg=_factory_cfg(task_name))
+        form, value = self._declared_answer(task)
+        assert callable(task.checker)
+        assert task.checker({"string": form}, value) is True
 
-    def test_graph_walk_derived_checker_grades_concept_string(self) -> None:
-        """graph_walk's derived checker grades the *concept string* answer (#296).
-
-        Its ``output_tokens`` is keyed by coordinate tuples (which feed the
-        probability path), but at grading time ``causal_output`` is a concept
-        string, so ``derive_checker`` takes the literal-match fallback. Pinning it
-        here — not only in the smoke tier — guards that fallback against a silent
-        regression (the same applies to MCQA below).
-        """
+    def test_graph_walk_checker_grades_any_valid_neighbour(self) -> None:
+        """graph_walk's ``raw_output`` is the *list* of valid next-node concepts;
+        the grader credits any member and nothing else."""
         task = load_task("graph_walk", task_cfg=_ring6_cfg())
-        concept = task.causal_model.values["concepts"][0]
-        assert task.checker({"string": concept}, concept) is True
-        assert task.checker({"string": concept + "_zzz"}, concept) is False
+        model = task.causal_model
+        trace = model.new_trace(
+            {"node_coordinates": model.values["node_coordinates"][0]}
+        )
+        neighbours = trace["raw_output"]
+        assert isinstance(neighbours, list) and neighbours
+        for concept in neighbours:
+            assert task.checker({"string": concept}, neighbours) is True
+            assert task.checker({"string": concept}, concept) is True
+        assert task.checker({"string": neighbours[0] + "_zzz"}, neighbours) is False
 
-    def test_mcqa_derived_checker_grades_letter_and_value(self) -> None:
-        """MCQA's derived checker (keyed on ``answer_position`` digits) grades the
-        emitted *letter* / *value* via the literal-match fallback (#296)."""
+    def test_mcqa_checker_grades_the_letter_and_refuses_an_undeclared_value(
+        self,
+    ) -> None:
+        """MCQA's grader is keyed on ``answer`` (the letter the model emits), not
+        on the ``answer_position`` interchange target. The retired
+        ``score_by: value`` convention accepted a colour word in place of the
+        letter through a literal-match fallback; a colour is an undeclared value
+        now, and the spec's default ``undeclared_value: refuse`` says so rather
+        than crediting it."""
         checker = load_task("MCQA").checker
         assert checker({"string": "A"}, "A") is True
+        assert checker({"string": " A"}, " A") is True
         assert checker({"string": "B"}, "A") is False
-        assert checker({"string": "orange"}, "orange") is True  # score_by: value
+        with pytest.raises(ScoringError, match="names no declared form"):
+            checker({"string": "orange"}, "orange")
 
-    def test_missing_checker_returns_none(self) -> None:
-        """A task shipping no ``checker.py`` yields no *bespoke* checker — the
-        loader derives one from ``output_tokens`` instead, so an absent checker
-        is no longer a hard error (#291 phase 3). ``faketask`` has no package, so
-        the resolver finds no checker module and returns ``None``."""
-        from causalab.tasks import loader as loader_mod
+    def test_a_task_without_scoring_cannot_grade(self) -> None:
+        """No bespoke module and no strict-equality fallback: a causal model that
+        declares no ``ScoringSpec`` is a task that cannot grade, refused at load."""
+        from causalab.causal.trace import Mechanism, input_var
+        from causalab.tasks.loader import _grader
 
-        assert loader_mod.load_task_checker("faketask") is None
-
-
-# ---------------------------------------------------------------------------
-# load_task_counterfactuals
-# ---------------------------------------------------------------------------
+        model = CausalModel(
+            {
+                "x": input_var(["a"]),
+                "raw_input": Mechanism(parents=["x"], compute=lambda t: t["x"]),
+                "raw_output": Mechanism(parents=["x"], compute=lambda t: t["x"]),
+            },
+            {"x": ["a"], "raw_input": None, "raw_output": None},
+        )
+        with pytest.raises(ValueError, match="cannot grade its output"):
+            _grader(model, "unscored_task")
 
 
 class TestLoadTaskCounterfactualsProperty:
@@ -288,7 +307,7 @@ class TestLoadTaskTokenPositionsProperty:
 
 
 # ---------------------------------------------------------------------------
-# Session-local task layer (issue #250)
+# Session-local task layer
 # ---------------------------------------------------------------------------
 
 
@@ -296,7 +315,8 @@ class TestLoadTaskTokenPositionsProperty:
 # package on a session-style PYTHONPATH. Kept trivial — the assertions exercise
 # the *resolution* path, not task semantics.
 _FIXTURE_CAUSAL_MODELS = """\
-from causalab.causal.causal_model import CausalModel
+from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 COLORS = ["red", "green", "blue"]
@@ -308,16 +328,22 @@ mechanisms = {
     ),
     "raw_output": Mechanism(parents=["color"], compute=lambda t: t["color"]),
 }
-CAUSAL_MODEL = CausalModel(mechanisms, values, id="session_local_fixture")
+CAUSAL_MODEL = CausalModel(
+    mechanisms,
+    values,
+    id="session_local_fixture",
+    scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),
+)
 TARGET_VARIABLE = "color"
 TEMPLATE = "The color is {color}. The color is"
 """
 
 # Same fixture, but exporting the model under the *lowercase* ``causal_model``
-# name the task-setup template historically scaffolded (#256). The loader must
+# name the task-setup template historically scaffolded. The loader must
 # accept it without the task having to export both casings.
 _FIXTURE_CAUSAL_MODELS_LOWERCASE = """\
-from causalab.causal.causal_model import CausalModel
+from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 COLORS = ["red", "green", "blue"]
@@ -329,16 +355,22 @@ mechanisms = {
     ),
     "raw_output": Mechanism(parents=["color"], compute=lambda t: t["color"]),
 }
-causal_model = CausalModel(mechanisms, values, id="lowercase_singleton_fixture")
+causal_model = CausalModel(
+    mechanisms,
+    values,
+    id="lowercase_singleton_fixture",
+    scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),
+)
 TARGET_VARIABLE = "color"
 TEMPLATE = "The color is {color}. The color is"
 """
 
 # A factory task exporting only the lowercase ``create_causal_model`` — the
-# factory counterpart of the casing tolerance (#256). resolve_task's factory
+# factory counterpart of the casing tolerance. resolve_task's factory
 # probe and load_task's dispatch must both recognise it.
 _FIXTURE_CAUSAL_MODELS_LOWERCASE_FACTORY = """\
-from causalab.causal.causal_model import CausalModel
+from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 COLORS = ["red", "green", "blue"]
@@ -354,7 +386,12 @@ def create_causal_model(cfg):
         ),
         "raw_output": Mechanism(parents=["color"], compute=lambda t: t["color"]),
     }
-    return CausalModel(mechanisms, values, id="lowercase_factory_fixture")
+    return CausalModel(
+    mechanisms,
+    values,
+    id="lowercase_factory_fixture",
+    scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),
+)
 
 
 TARGET_VARIABLE = "color"
@@ -371,8 +408,26 @@ def create_token_positions(pipeline, template=None, templates=None):
     return []
 """
 
-# Every task must ship a checker (#167) — load_task wires it onto Task.checker
-# with no strict-equality fallback, so the fixture needs one to load at all.
+# The default fixture, minus its scoring: a task that cannot grade, refused at load.
+_FIXTURE_CAUSAL_MODELS_UNSCORED = _FIXTURE_CAUSAL_MODELS.replace(
+    '    scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),\n', ""
+)
+
+
+def _fixture_with_full_string_checker(task_name: str) -> str:
+    """The default fixture declaring a bespoke ``full_string_checker`` *inside*
+    its spec — the one place a custom matcher may live."""
+    return _FIXTURE_CAUSAL_MODELS.replace(
+        '    scoring=ScoringSpec(forms={"color": build_output_tokens(COLORS)}),\n',
+        "    scoring=ScoringSpec(\n"
+        '        forms={"color": build_output_tokens(COLORS)},\n'
+        f'        full_string_checker="tasks.{task_name}.checker.checker",\n'
+        "    ),\n",
+    )
+
+
+# A bespoke checker: the answer anywhere in the output — semantics the derived
+# grader does not have, which is how a test tells the two apart.
 _FIXTURE_CHECKER = """\
 def checker(neural_output, causal_output):
     return causal_output.strip() in neural_output["string"]
@@ -380,7 +435,7 @@ def checker(neural_output, causal_output):
 
 # A checker.py that imports a module that does not exist — a broken import
 # *inside* the checker, which must propagate rather than be mistaken for an
-# absent checker.py.
+# absent checker.
 _FIXTURE_CHECKER_BROKEN_IMPORT = """\
 import definitely_not_a_real_module_xyz
 
@@ -404,7 +459,9 @@ def _write_session_local_task(
 ):
     """Materialise a ``code/tasks/<task_name>/`` package (mirrors what
     task setup scaffolds session-locally). ``checker_src`` overrides the
-    checker.py body (e.g. a broken or function-less checker)."""
+    checker.py body (e.g. a broken or function-less checker); the module is
+    inert unless the causal model's spec declares it as its
+    ``full_string_checker``."""
     pkg = code_dir / "tasks" / task_name
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text("")
@@ -432,7 +489,7 @@ def isolate_tasks_namespace():
 
 class TestSessionLocalFallbackProperty:
     """``${SESSION_DIR}/code/tasks/<name>/`` resolves via the session-local
-    fallback when ``CAUSALAB_SESSION_CODE`` is set (issue #250)."""
+    fallback when ``CAUSALAB_SESSION_CODE`` is set."""
 
     pytestmark = pytest.mark.property
 
@@ -459,15 +516,14 @@ class TestSessionLocalFallbackProperty:
         assert isinstance(task, Task)
         assert task.name == self.FIXTURE_NAME
         assert isinstance(task.causal_model, CausalModel)
-        # load_task wires the checker from the session-local checker.py (the
-        # bespoke override) through the same fallback.
+        # the grader is the session-local spec's, through the same fallback
         assert callable(task.checker)
+        assert task.checker({"string": " red"}, "red") is True
 
         assert hasattr(load_task_counterfactuals(self.FIXTURE_NAME), "generate_dataset")
         assert hasattr(
             load_task_token_positions(self.FIXTURE_NAME), "create_token_positions"
         )
-        assert callable(load_task_checker(self.FIXTURE_NAME))
 
     def test_resolve_task_probe_resolves_session_local(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
@@ -490,90 +546,114 @@ class TestSessionLocalFallbackProperty:
         with pytest.raises((ImportError, ModuleNotFoundError)):
             load_task(self.FIXTURE_NAME)
 
-    def test_session_local_task_missing_checker_and_output_tokens_raises(
+    def test_session_local_task_without_scoring_cannot_grade(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
     ) -> None:
-        """A task that ships neither a ``checker.py`` nor an ``output_tokens``
-        declaration for its target variable cannot grade its output, so it is a
-        load-time authoring error (#291 phase 3). ``load_task_checker`` itself
-        returns ``None`` (no bespoke checker); the error fires in ``load_task``."""
+        """A task whose causal model declares no ``ScoringSpec`` has no way to
+        grade its output — a load-time authoring error, with or without a
+        ``checker.py`` lying beside it (a module the spec does not declare is
+        not a grader)."""
         code = tmp_path / "code"
-        _write_session_local_task(code, "no_checker_task", include_checker=False)
+        _write_session_local_task(
+            code, "unscored_task", causal_models_src=_FIXTURE_CAUSAL_MODELS_UNSCORED
+        )
         monkeypatch.syspath_prepend(str(code))
         monkeypatch.setenv("CAUSALAB_SESSION_CODE", str(tmp_path))
         importlib.invalidate_caches()
-
-        assert load_task_checker("no_checker_task") is None
         with pytest.raises(ValueError, match="cannot grade its output"):
-            load_task("no_checker_task")
+            load_task("unscored_task")
 
-    def test_session_local_task_derives_checker_from_output_tokens(
+    def test_an_undeclared_checker_module_is_ignored(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
     ) -> None:
-        """A task that ships no ``checker.py`` but declares ``output_tokens`` for
-        its target variable loads fine — the checker is derived from the
-        declaration (#291 phase 3). The derived checker matches a declared form
-        and rejects a non-form."""
-        causal_src = _FIXTURE_CAUSAL_MODELS.replace(
-            'CAUSAL_MODEL = CausalModel(mechanisms, values, id="session_local_fixture")',
-            "from causalab.causal.causal_model import build_output_tokens\n"
-            "CAUSAL_MODEL = CausalModel(\n"
-            '    mechanisms, values, id="session_local_fixture",\n'
-            '    output_tokens={"color": build_output_tokens(COLORS)},\n'
-            ")",
-        )
+        """The bespoke override that used to *win* silently is gone: a
+        ``checker.py`` the spec does not name has no effect on grading."""
         code = tmp_path / "code"
         _write_session_local_task(
             code,
-            "derive_checker_task",
-            causal_models_src=causal_src,
-            include_checker=False,
+            "ignored_checker_task",
+            checker_src="def checker(neural_output, causal_output):\n    return True\n",
         )
         monkeypatch.syspath_prepend(str(code))
         monkeypatch.setenv("CAUSALAB_SESSION_CODE", str(tmp_path))
         importlib.invalidate_caches()
+        task = load_task("ignored_checker_task")
+        assert task.causal_model.scoring is not None
+        assert task.causal_model.scoring.full_string_checker is None
+        # the always-True module did not run
+        assert task.checker({"string": "blue"}, "red") is False
 
-        assert load_task_checker("derive_checker_task") is None
-        task = load_task("derive_checker_task")
-        first_color = task.causal_model.values["color"][0]
-        assert task.checker({"string": first_color}, first_color) is True
-        assert task.checker({"string": "definitely_not_a_color"}, first_color) is False
+    def test_a_declared_full_string_checker_grades_and_is_digested(
+        self, tmp_path, monkeypatch, isolate_tasks_namespace
+    ) -> None:
+        """T14's fixture task: a bespoke matcher declared inside the spec grades
+        exactly as it says — and now carries a digest, so it is versioned with
+        everything else the spec declares."""
+        import hashlib
+
+        code = tmp_path / "code"
+        pkg = _write_session_local_task(
+            code,
+            "bespoke_task",
+            causal_models_src=_fixture_with_full_string_checker("bespoke_task"),
+        )
+        monkeypatch.syspath_prepend(str(code))
+        monkeypatch.setenv("CAUSALAB_SESSION_CODE", str(tmp_path))
+        importlib.invalidate_caches()
+        task = load_task("bespoke_task")
+        spec = task.causal_model.scoring
+        assert spec is not None
+        assert spec.full_string_checker == "tasks.bespoke_task.checker.checker"
+        assert (
+            spec.checker_digest
+            == hashlib.sha256((pkg / "checker.py").read_bytes()).hexdigest()
+        )
+        assert spec.identity()["checker_digest"] == spec.checker_digest
+        # the checker's own semantics, not the derived grader's
+        assert task.checker({"string": "I think it is red today"}, "red") is True
+        assert task.checker({"string": "blue"}, "red") is False
 
     def test_broken_import_inside_checker_propagates(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
     ) -> None:
-        """A checker.py that exists but has a broken *internal* import surfaces
-        that error untouched — it is NOT masked as 'ships no checker.py'. This is
-        the resolve-first guard: an absent checker.py vs a broken one are
-        distinct, and only the former is an authoring error."""
+        """A declared checker whose module has a broken *internal* import
+        surfaces that error untouched when the grader runs — it is NOT masked
+        as an absent or malformed checker. The spec resolves the module without
+        importing it, so the task still loads."""
         code = tmp_path / "code"
         _write_session_local_task(
-            code, "broken_checker_task", checker_src=_FIXTURE_CHECKER_BROKEN_IMPORT
+            code,
+            "broken_checker_task",
+            causal_models_src=_fixture_with_full_string_checker("broken_checker_task"),
+            checker_src=_FIXTURE_CHECKER_BROKEN_IMPORT,
         )
         monkeypatch.syspath_prepend(str(code))
         monkeypatch.setenv("CAUSALAB_SESSION_CODE", str(tmp_path))
         importlib.invalidate_caches()
-
-        with pytest.raises(ModuleNotFoundError) as exc_info:
-            load_task_checker("broken_checker_task")
-        # The broken dependency propagates, not the "ships no checker.py" ValueError.
-        assert exc_info.value.name == "definitely_not_a_real_module_xyz"
+        task = load_task("broken_checker_task")
+        with pytest.raises(
+            ModuleNotFoundError, match="definitely_not_a_real_module_xyz"
+        ):
+            task.checker({"string": "red"}, "red")
 
     def test_checker_module_without_checker_fn_raises(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
     ) -> None:
-        """A checker.py that imports cleanly but exports no ``checker`` function
-        is a clear authoring error (the ``checker is None`` branch)."""
+        """A declared locator naming no top-level function is an authoring
+        error, refused when the spec is constructed — at import of the task's
+        ``causal_models``."""
         code = tmp_path / "code"
         _write_session_local_task(
-            code, "no_checker_fn_task", checker_src=_FIXTURE_CHECKER_NO_FN
+            code,
+            "no_checker_fn_task",
+            causal_models_src=_fixture_with_full_string_checker("no_checker_fn_task"),
+            checker_src=_FIXTURE_CHECKER_NO_FN,
         )
         monkeypatch.syspath_prepend(str(code))
         monkeypatch.setenv("CAUSALAB_SESSION_CODE", str(tmp_path))
         importlib.invalidate_caches()
-
-        with pytest.raises(ValueError, match="defines no `checker` function"):
-            load_task_checker("no_checker_fn_task")
+        with pytest.raises(ScoringError, match="defines no top-level function"):
+            load_task("no_checker_fn_task")
 
     def test_shipped_task_not_shadowed_by_session_local(
         self, tmp_path, monkeypatch, isolate_tasks_namespace
@@ -598,14 +678,14 @@ class TestSessionLocalFallbackProperty:
 
 
 # ---------------------------------------------------------------------------
-# Causal-model export casing tolerance (issue #256)
+# Causal-model export casing tolerance
 # ---------------------------------------------------------------------------
 
 
 class TestModelExportCasingProperty:
     """The loader reads a causal-model export under its canonical UPPER_SNAKE
     name *or* the lowercase alias the task-setup template historically
-    scaffolded (#256), so a task following the template verbatim loads without
+    scaffolded, so a task following the template verbatim loads without
     having to export both casings. Exercised through the session-local layer —
     the same machinery task setup scaffolds into."""
 

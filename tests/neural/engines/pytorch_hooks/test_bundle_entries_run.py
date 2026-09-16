@@ -27,13 +27,20 @@ from causalab.cli import main
 from causalab.protocol.resolve import read_safetensors_metadata
 
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
-from tests.protocol._env import FIXTURES
+from tests.protocol._env import FIXTURES, fixture_input_overrides
 from tests.tables import frame as table_frame
 
 pytestmark = pytest.mark.smoke
 
 REPO = Path(__file__).resolve().parents[4]
 METHODS = str(REPO / "causalab/configs/protocols")
+
+
+def _fixture_inputs(name: str) -> dict[str, str]:
+    """The shipped document's dataset refs, retargeted onto the fixture tables
+    (tiny-random cannot tokenize every weekday; see tests/protocol/_env.py)."""
+    return fixture_input_overrides(json.loads((Path(METHODS) / name).read_text()))
+
 
 # tiny-random on CPU runs fp32, while the shipped documents declare bf16 —
 # and the realization is part of a fit bundle's identity (§8), so the fit
@@ -84,7 +91,8 @@ def _swept_pipeline() -> dict:
                 "document": f"{METHODS}/weekdays_das_sweep.json",
                 "set": {
                     **TINY,
-                    "sites.target.layer": 0,
+                    **_fixture_inputs("weekdays_das_sweep.json"),
+                    "sites.target.layers": 0,
                     "positions.best": {"index": -1},
                     "featurizers.rot.k": {"sweep": [2, 4]},
                     "train.seed": {"sweep": [0, 1]},
@@ -115,7 +123,8 @@ def _swept_pipeline() -> dict:
                 "document": f"{METHODS}/weekdays_das_apply.json",
                 "set": {
                     **TINY,
-                    "sites.target.layer": 0,
+                    **_fixture_inputs("weekdays_das_apply.json"),
+                    "sites.target.layers": 0,
                     "featurizers.rot.file_path": "fit/rot.safetensors",
                     "featurizers.rot.k": {"artifact": "best_fit", "key": "best_k"},
                     "featurizers.rot.entry": {
@@ -174,7 +183,7 @@ def test_apply_consumed_the_selected_entry(swept_run):
     manifest = json.loads((swept_run / "workflow.json").read_text())
     assert manifest["steps"]["apply"]["status"] == "completed"
     iia = table_frame(swept_run / "apply/iia.json")
-    assert len(iia) == 2  # the weekdays/test fixture rows
+    assert len(iia) == 2  # the weekdays/data#test fixture rows
     assert iia["value"].dtype.kind == "f"
 
 
@@ -215,72 +224,80 @@ def _harvest_doc(reduce: bool) -> dict:
     if reduce:
         entry["reduce"] = "mean"
     return {
-        "version": "1",
-        "description": "harvest one site over the train split",
-        "model": {"key": TINY_LLAMA, "revision": "main"},
-        "data": {"base": {"dataset": "weekdays/train", "field": "input"}},
-        "positions": {"tap": {"index": -1}},
-        "sites": {"target": {"component": "block_output", "layer": 0}},
-        "reads": {
-            "acts": {
-                "site": "target",
-                "pos": "tap",
-                "model": "original",
-                "input": "base",
-            }
+        "header": {
+            "protocol_version": "3",
+            "description": "harvest one site over the train split",
         },
-        "save": [entry],
+        "model": {"key": TINY_LLAMA, "revision": "main"},
+        "data": {"base": {"dataset": "weekdays/data#train", "field": "input"}},
+        "method": {
+            "positions": {"tap": {"index": -1}},
+            "sites": {"target": {"component": "block_output", "layers": [0]}},
+            "reads": {
+                "acts": {
+                    "site": "target",
+                    "pos": "tap",
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "save": [entry],
+        },
     }
 
 
 def _ablate_doc() -> dict:
     return {
-        "version": "1",
-        "description": "mean-ablate the site by swapping in the corpus mean",
+        "header": {
+            "protocol_version": "3",
+            "description": "mean-ablate the site by swapping in the corpus mean",
+        },
         "model": {"key": TINY_LLAMA, "revision": "main"},
-        "data": {"base": {"dataset": "weekdays/test", "field": "input"}},
-        "positions": {"tap": {"index": -1}},
-        "sites": {
-            "target": {"component": "block_output", "layer": 0},
-            "lm_head": {"component": "lm_head"},
+        "data": {"base": {"dataset": "weekdays/data#test", "field": "input"}},
+        "method": {
+            "positions": {"tap": {"index": -1}},
+            "sites": {
+                "target": {"component": "block_output", "layers": [0]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "params": {
+                # the producer keyed the bundle by its read's name, not by the
+                # params convention 'value' — 'slot' is how a consumer says so
+                "mu": {
+                    "file_path": "harvest/acts.safetensors",
+                    "entry": {"slot": "acts"},
+                }
+            },
+            "reads": {
+                "logits": {
+                    "site": "lm_head",
+                    "pos": -1,
+                    "model": "ablated",
+                    "input": "base",
+                }
+            },
+            "writes": {
+                "ablate": {"site": "target", "pos": "tap", "do": {"swap": "mu"}},
+            },
+            "intervened_models": {"ablated": {"input": "base", "writes": ["ablate"]}},
+            "metrics": {
+                "ld": {
+                    "kind": "logit_diff",
+                    "of": "logits",
+                    "a": "base_answer",
+                    "b": "cf_answer",
+                    "token_form": "space_prefixed",
+                }
+            },
+            "save": [
+                {
+                    "value": "ld",
+                    "model": "ablated",
+                    "input": "base",
+                    "file_path": "ld.json",
+                }
+            ],
         },
-        "params": {
-            # the producer keyed the bundle by its read's name, not by the
-            # params convention 'value' — 'slot' is how a consumer says so
-            "mu": {
-                "file_path": "harvest/acts.safetensors",
-                "entry": {"slot": "acts"},
-            }
-        },
-        "reads": {
-            "logits": {
-                "site": "lm_head",
-                "pos": -1,
-                "model": "ablated",
-                "input": "base",
-            }
-        },
-        "writes": {
-            "ablate": {"site": "target", "pos": "tap", "do": {"swap": "mu"}},
-        },
-        "intervened_models": {"ablated": {"input": "base", "writes": ["ablate"]}},
-        "metrics": {
-            "ld": {
-                "kind": "logit_diff",
-                "of": "logits",
-                "a": "base_answer",
-                "b": "cf_answer",
-                "token_form": "space_prefixed",
-            }
-        },
-        "save": [
-            {
-                "value": "ld",
-                "model": "ablated",
-                "input": "base",
-                "file_path": "ld.json",
-            }
-        ],
     }
 
 

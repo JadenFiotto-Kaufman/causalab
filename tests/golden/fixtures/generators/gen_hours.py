@@ -13,8 +13,8 @@ a space with digits (" 07" is two tokens) but every zero-padded two-digit
 hour is one token ("07" = 2589), so the prompt carries the trailing space
 ("... it will be ") and the answer column is the bare zero-padded hour,
 asserted single-token at generation time. Zero-padded two-digit hours are
-used throughout, matching the prompt's own concept rendering; the
-VeriFires package accepts any consistent, stated tokenization rule.
+used throughout, matching the prompt's own concept rendering; any
+consistent, stated tokenization rule is acceptable.
 
 Run: uv run python tests/golden/fixtures/generators/gen_hours.py
 """

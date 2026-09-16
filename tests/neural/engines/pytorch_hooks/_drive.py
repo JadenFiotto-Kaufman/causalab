@@ -1,4 +1,4 @@
-"""Drive a protocol document through the reference engine in-process.
+"""Drive an intervention specification through the reference engine in-process.
 
 Test documents bypass dataset resolution: rows are handed to the executor
 directly (the executor's own seam), while the document still parses and
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
+from causalab.neural.engines.pytorch_hooks.executor import Interning, PointExecutor
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle
 from causalab.protocol.schema import parse_document
 from causalab.protocol.validate import validate_document
@@ -39,7 +39,10 @@ def executor_for(
     counterfactual_texts: list[str] | None = None,
     extra_columns: dict[str, list[Any]] | None = None,
     load_tensors: Any = None,
+    load_table: Any = None,
     grad_enabled: bool = False,
+    interning: Interning | None = None,
+    batch_rows: int | None = None,
 ) -> PointExecutor:
     doc = parse_document(in_order(doc_raw))
     validate_document(doc, engine_is_local=True)
@@ -63,7 +66,10 @@ def executor_for(
         role_fields=role_fields,
         load_tensors=load_tensors
         or (lambda path: (_ for _ in ()).throw(KeyError(path))),
+        load_table=load_table,
         grad_enabled=grad_enabled,
+        interning=interning,
+        batch_rows=batch_rows,
     )
 
 

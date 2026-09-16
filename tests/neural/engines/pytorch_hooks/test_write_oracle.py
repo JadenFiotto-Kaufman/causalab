@@ -32,39 +32,41 @@ def _inputs(bundle, text: str):
 
 def interchange_doc(pos: int = 1) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tgt": {"component": "block_output", "layer": 0},
-            "lm_head": {"component": "lm_head"},
-        },
-        "reads": {
-            "v_cf": {
-                "site": "tgt",
-                "pos": {"index": pos},
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {
+                "tgt": {"component": "block_output", "layers": [0]},
+                "lm_head": {"component": "lm_head"},
             },
-            "logits": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
+            "reads": {
+                "v_cf": {
+                    "site": "tgt",
+                    "pos": {"index": pos},
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "logits": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
             },
+            "writes": {
+                "patch": {"site": "tgt", "pos": {"index": pos}, "do": {"swap": "v_cf"}}
+            },
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "writes": {
-            "patch": {"site": "tgt", "pos": {"index": pos}, "do": {"swap": "v_cf"}}
-        },
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "logits",
-                "model": "patched",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
 
 
@@ -99,11 +101,11 @@ def test_feature_space_swap_keeps_the_complement(llama_bundle):
     d = llama_bundle.info.hidden_size
     k = d // 2
     doc = interchange_doc()
-    doc["featurizers"] = {
+    doc["method"]["featurizers"] = {
         "rot": {"kind": "subspace", "k": k, "parametrization": "cayley"}
     }
-    doc["reads"]["v_cf"]["featurizer"] = "rot"
-    doc["writes"]["patch"]["featurizer"] = "rot"
+    doc["method"]["reads"]["v_cf"]["featurizer"] = "rot"
+    doc["method"]["writes"]["patch"]["featurizer"] = "rot"
     executor = executor_for(
         doc,
         llama_bundle,
@@ -133,8 +135,8 @@ def test_dims_swap_is_a_subspace_swap(llama_bundle):
     """A dims selection swaps only those feature coordinates — raw space,
     dims [0, 2]: untouched dims come from the pre-write value."""
     doc = interchange_doc()
-    doc["writes"]["patch"]["dims"] = [0, 2]
-    doc["reads"]["v_cf"]["dims"] = [0, 2]
+    doc["method"]["writes"]["patch"]["dims"] = [0, 2]
+    doc["method"]["reads"]["v_cf"]["dims"] = [0, 2]
     executor = executor_for(
         doc,
         llama_bundle,
@@ -161,8 +163,8 @@ def test_add_scaled_matches_oracle_steer(bundle, oracle: OracleShim):
     """add_scaled with a literal-alpha scalar operand == the oracle's
     additive steer of a constant (broadcast scalar) vector."""
     doc = interchange_doc()
-    doc["writes"]["patch"]["do"] = {"add_scaled": {"op": 2.5, "alpha": 1.0}}
-    del doc["reads"]["v_cf"]
+    doc["method"]["writes"]["patch"]["do"] = {"add_scaled": {"op": 2.5, "alpha": 1.0}}
+    del doc["method"]["reads"]["v_cf"]
     doc["data"] = base_data_section(with_counterfactual=False)
     executor = executor_for(doc, bundle, base_texts=[BASE_TEXT])
     have = executor.read_value("logits")[:, 0, :]
@@ -185,10 +187,10 @@ def test_gaussian_contract(llama_bundle):
 
     def run(seed: int, scale: float) -> torch.Tensor:
         doc = interchange_doc()
-        doc["writes"]["patch"]["do"] = {
+        doc["method"]["writes"]["patch"]["do"] = {
             "gaussian": {"seed": seed, "scale": scale, "axis": "tp_duplicated"}
         }
-        del doc["reads"]["v_cf"]
+        del doc["method"]["reads"]["v_cf"]
         doc["data"] = base_data_section(with_counterfactual=False)
         executor = executor_for(doc, llama_bundle, base_texts=[BASE_TEXT])
         return executor.read_value("logits")[:, 0, :]
@@ -207,10 +209,10 @@ def test_gaussian_draw_realization(llama_bundle):
     Generator().manual_seed(seed) → randn((batch, n_pos, width)), made
     outside the model."""
     doc = interchange_doc()
-    doc["writes"]["patch"]["do"] = {
+    doc["method"]["writes"]["patch"]["do"] = {
         "gaussian": {"seed": 7, "scale": 3.0, "axis": "tp_duplicated"}
     }
-    del doc["reads"]["v_cf"]
+    del doc["method"]["reads"]["v_cf"]
     doc["data"] = base_data_section(with_counterfactual=False)
     executor = executor_for(doc, llama_bundle, base_texts=[BASE_TEXT])
     have = executor.read_value("logits")[:, 0, :]
@@ -230,7 +232,7 @@ def test_renormalize_restores_the_pre_write_norm(llama_bundle):
     """add_scaled + renormalize at one address: the delta applies, then the
     feature vector is rescaled to the pre-write norm."""
     doc = interchange_doc()
-    doc["writes"] = {
+    doc["method"]["writes"] = {
         "nudge": {
             "site": "tgt",
             "pos": {"index": 1},
@@ -238,8 +240,11 @@ def test_renormalize_restores_the_pre_write_norm(llama_bundle):
         },
         "renorm": {"site": "tgt", "pos": {"index": 1}, "do": {"renormalize": True}},
     }
-    doc["intervened_models"]["patched"]["writes"] = ["nudge", "renorm"]
-    del doc["reads"]["v_cf"]
+    doc["method"]["intervened_models"]["patched"]["writes"] = [
+        "nudge",
+        "renorm",
+    ]
+    del doc["method"]["reads"]["v_cf"]
     doc["data"] = base_data_section(with_counterfactual=False)
     executor = executor_for(doc, llama_bundle, base_texts=[BASE_TEXT])
     have = executor.read_value("logits")[:, 0, :]
@@ -257,64 +262,125 @@ def test_renormalize_restores_the_pre_write_norm(llama_bundle):
     torch.testing.assert_close(have, want, **TOL)
 
 
+def test_renormalize_on_dims_through_a_featurizer_writes_into_its_own_copy(
+    llama_bundle,
+):
+    """``renormalize`` on a ``dims`` subset through a subspace featurizer,
+    under grad: the write math lands its ``dims`` slice in a copy of the
+    featurized value, never in the featurizer's output itself — that output
+    is what the error term (``x - f @ Qᵀ``) saved for backward, so an
+    in-place ``index_copy_`` on it (the regression) raised on ``backward``.
+    The value is the no-grad landing's to the bit."""
+    doc = interchange_doc()
+    doc["method"]["featurizers"] = {
+        "rot": {"kind": "subspace", "k": 4, "parametrization": "cayley"}
+    }
+    doc["method"]["writes"] = {
+        "nudge": {
+            "site": "tgt",
+            "pos": {"index": 1},
+            "do": {"add_scaled": {"op": 2.5, "alpha": 1.0}},
+        },
+        "renorm": {
+            "site": "tgt",
+            "pos": {"index": 1},
+            "do": {"renormalize": True},
+            "dims": [0, 2],
+            "featurizer": "rot",
+        },
+    }
+    doc["method"]["intervened_models"]["patched"]["writes"] = ["nudge", "renorm"]
+    doc["method"]["reads"]["written"] = {
+        "site": "tgt",
+        "pos": {"index": 1},
+        "model": "patched",
+        "input": "base",
+    }
+    doc["method"]["save"].append(
+        {
+            "value": "written",
+            "model": "patched",
+            "input": "base",
+            "file_path": "w.safetensors",
+        }
+    )
+    del doc["method"]["reads"]["v_cf"]
+    doc["data"] = base_data_section(with_counterfactual=False)
+    executor = executor_for(
+        doc, llama_bundle, base_texts=[BASE_TEXT], grad_enabled=True
+    )
+    written = executor.read_value("written")
+    parameters = tuple(executor.stage("rot").parameters())
+    assert parameters and written.requires_grad
+    grads = torch.autograd.grad(written.sum(), parameters)
+    assert all(torch.isfinite(g).all() for g in grads)
+
+    plain = executor_for(doc, llama_bundle, base_texts=[BASE_TEXT]).read_value(
+        "written"
+    )
+    assert torch.equal(written.detach(), plain)
+
+
 def test_two_pass_path_patching_matches_oracle(bundle, oracle: OracleShim):
     """The spec's worked example (corpus 03) at tiny scale: sender L0 →
     receiver L1, v* read under the sender swap in 'patched', injected clean
     in 'final' — vs the two-pass hook oracle (wrapper tolerance atol=1e-4
     rtol=1e-3)."""
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "sender": {"component": "block_output", "layer": 0},
-            "receiver": {"component": "block_output", "layer": 1},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "sender": {"component": "block_output", "layers": [0]},
+                "receiver": {"component": "block_output", "layers": [1]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "v_sender": {
+                    "site": "sender",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "v_receiver": {
+                    "site": "receiver",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
+                "logits": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "final",
+                    "input": "base",
+                },
+            },
+            "writes": {
+                "swap_sender": {
+                    "site": "sender",
+                    "pos": {"index": -1},
+                    "do": {"swap": "v_sender"},
+                },
+                "inject": {
+                    "site": "receiver",
+                    "pos": {"index": -1},
+                    "do": {"swap": "v_receiver"},
+                },
+            },
+            "intervened_models": {
+                "patched": {"input": "base", "writes": ["swap_sender"]},
+                "final": {"input": "base", "writes": ["inject"]},
+            },
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "final",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "reads": {
-            "v_sender": {
-                "site": "sender",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "counterfactual",
-            },
-            "v_receiver": {
-                "site": "receiver",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
-            "logits": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "final",
-                "input": "base",
-            },
-        },
-        "writes": {
-            "swap_sender": {
-                "site": "sender",
-                "pos": {"index": -1},
-                "do": {"swap": "v_sender"},
-            },
-            "inject": {
-                "site": "receiver",
-                "pos": {"index": -1},
-                "do": {"swap": "v_receiver"},
-            },
-        },
-        "intervened_models": {
-            "patched": {"input": "base", "writes": ["swap_sender"]},
-            "final": {"input": "base", "writes": ["inject"]},
-        },
-        "save": [
-            {
-                "value": "logits",
-                "model": "final",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
     executor = executor_for(
         doc, bundle, base_texts=[BASE_TEXT], counterfactual_texts=[COUNTERFACTUAL_TEXT]
@@ -350,13 +416,13 @@ def test_two_pass_path_patching_matches_oracle(bundle, oracle: OracleShim):
 def test_reads_see_the_fully_written_state(bundle, oracle: OracleShim):
     """§2.7: a read in model M at the written address sees the write."""
     doc = interchange_doc()
-    doc["reads"]["v_at"] = {
+    doc["method"]["reads"]["v_at"] = {
         "site": "tgt",
         "pos": {"index": 1},
         "model": "patched",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "v_at",
             "model": "patched",
@@ -381,12 +447,12 @@ def test_composed_chain_sizes_stages_by_chain_width(llama_bundle):
     from the base."""
     d = llama_bundle.info.hidden_size
     doc = interchange_doc()
-    doc["featurizers"] = {
+    doc["method"]["featurizers"] = {
         "rot": {"kind": "subspace", "k": 3, "parametrization": "cayley"},
         "gate": {"kind": "gate"},
     }
-    doc["reads"]["v_cf"]["featurizer"] = ["rot", "gate"]
-    doc["writes"]["patch"]["featurizer"] = ["rot", "gate"]
+    doc["method"]["reads"]["v_cf"]["featurizer"] = ["rot", "gate"]
+    doc["method"]["writes"]["patch"]["featurizer"] = ["rot", "gate"]
     executor = executor_for(
         doc,
         llama_bundle,
@@ -428,31 +494,33 @@ def zero_ablate_all_doc() -> dict:
     """Zero-ablate a whole layer: the write case the all spelling makes
     expressible without naming every index."""
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {
-            "tgt": {"component": "block_output", "layer": 0},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "tgt": {"component": "block_output", "layers": [0]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "logits": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "ablated",
+                    "input": "base",
+                }
+            },
+            "writes": {"zero": {"site": "tgt", "pos": "all", "do": {"swap": 0.0}}},
+            "intervened_models": {"ablated": {"input": "base", "writes": ["zero"]}},
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "ablated",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "reads": {
-            "logits": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "ablated",
-                "input": "base",
-            }
-        },
-        "writes": {"zero": {"site": "tgt", "pos": "all", "do": {"swap": 0.0}}},
-        "intervened_models": {"ablated": {"input": "base", "writes": ["zero"]}},
-        "save": [
-            {
-                "value": "logits",
-                "model": "ablated",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
 
 

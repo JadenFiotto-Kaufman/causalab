@@ -26,6 +26,7 @@ import pytest
 from safetensors.torch import load_file
 
 from causalab.cli import main
+from causalab.protocol.resolve import FileDatasets, read_safetensors_metadata
 
 from tests.protocol._env import CORPUS_DIR, FIXTURES
 from tests.neural.engines.pytorch_hooks._drive import base_data_section  # noqa: F401  (tier anchor)
@@ -71,24 +72,24 @@ def test_01_harvest_runs(roots, tmp_path):
         "01_harvest_im.json",
         roots,
         tmp_path,
-        "sites.L8.layer=0",
-        "sites.L24.layer=1",
+        "sites.L8.layers=0",
+        "sites.L24.layers=1",
     )
     assert code == 0
     acts = load_file(str(tmp_path / "acts_L8_ans.safetensors"))
-    assert acts["acts_L8_ans"].shape == (4, 1, 16)
+    assert acts["acts_L8_ans"].shape == (2, 1, 16)
     ragged = load_file(str(tmp_path / "acts_L8_ent.safetensors"))
     assert "acts_L8_ent.widths" in ragged  # multi-token entities are ragged
 
 
 def test_02_interchange_runs_and_scores(roots, tmp_path):
-    code = _run("02_interchange_im.json", roots, tmp_path, "sites.target.layer=1")
+    code = _run("02_interchange_im.json", roots, tmp_path, "sites.target.layers=1")
     assert code == 0
     iia = table_frame(tmp_path / "iia.json")
-    assert len(iia) == 4  # one row per example
+    assert len(iia) == 2  # one row per example
     assert set(iia["value"]).issubset({0.0, 1.0})  # match is an indicator
     ld = table_frame(tmp_path / "logit_diff.json")
-    assert len(ld) == 4 and ld["value"].dtype.kind == "f"
+    assert len(ld) == 2 and ld["value"].dtype.kind == "f"
 
 
 def test_03_path_patching_runs(roots, tmp_path):
@@ -96,15 +97,47 @@ def test_03_path_patching_runs(roots, tmp_path):
         "03_path_patching_im.json",
         roots,
         tmp_path,
-        "sites.sender.layer=0",
+        "sites.sender.layers=0",
         "sites.sender.head=1",
-        "sites.receiver.layer=1",
-        "sites.a10.layer=0",
-        "sites.a11.layer=1",
+        "sites.receiver.layers=1",
+        "sites.a10.layers=0",
+        "sites.a11.layers=1",
     )
     assert code == 0
     ld = table_frame(tmp_path / "logit_diff.json")
     assert len(ld) == 3
+
+
+def test_15_circuit_edges_runs(roots, tmp_path):
+    """The per-edge polarity map, executed: eight additive writes at one
+    address, two intervened models, and the two edge sets must not land on the
+    same number as the clean run or as each other — the whole point is that
+    which edges are routed changes the metric."""
+    code = _run(
+        "15_circuit_edges_im.json",
+        roots,
+        tmp_path,
+        # the fixture has two layers, so every sender is layer 0 and the
+        # receiver is the residual entering layer 1 — still strictly upstream
+        "sites.nm_9_6.layers=0",
+        "sites.nm_9_6.head=1",
+        "sites.nm_9_9.layers=0",
+        "sites.nm_9_9.head=2",
+        "sites.nm_10_0.layers=0",
+        "sites.nm_10_0.head=0",
+        "sites.ctl_10_7.layers=0",
+        "sites.ctl_10_7.head=3",
+        "sites.recv.layers=1",
+    )
+    assert code == 0
+    clean = table_frame(tmp_path / "ld_clean.json")["value"]
+    circuit = table_frame(tmp_path / "ld_circuit.json")["value"]
+    complement = table_frame(tmp_path / "ld_complement.json")["value"]
+    assert len(clean) == len(circuit) == len(complement) == 3
+    # routing edges moved the metric, and the two edge sets are distinguishable
+    assert not clean.equals(circuit)
+    assert not clean.equals(complement)
+    assert not circuit.equals(complement)
 
 
 def test_06_hydra_effect_runs(roots, tmp_path):
@@ -112,10 +145,10 @@ def test_06_hydra_effect_runs(roots, tmp_path):
         "06_hydra_effect_im.json",
         roots,
         tmp_path,
-        "sites.abl.layer=0",
-        "sites.probe14.layer=0",
-        "sites.probe20.layer=1",
-        "sites.resid_final.layer=1",
+        "sites.abl.layers=0",
+        "sites.probe14.layers=0",
+        "sites.probe20.layers=1",
+        "sites.resid_final.layers=1",
     )
     assert code == 0
     for rel in (
@@ -138,7 +171,7 @@ def test_fit_then_apply_roundtrip(roots, tmp_path):
         "04_das_im.json",
         (data_root, artifacts_root),
         fit_out,
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         "featurizers.rot.k=4",
         'train.steps={"epochs": 1}',
         'train.batch={"pairs": 2}',
@@ -148,6 +181,17 @@ def test_fit_then_apply_roundtrip(roots, tmp_path):
     assert bundle_path.is_file()
     fitted = load_file(str(bundle_path))
     assert fitted["weight"].shape == (16, 4)
+    # the header records *what* the fit read, not just what it was called:
+    # trained_on_digest is the content digest of the rows the trained_on ref
+    # selected (§2.2, §8) — the same digest the fitting point's canonical
+    # form carries, and never a hash of the name
+    stamped = read_safetensors_metadata(bundle_path)
+    assert stamped is not None
+    assert stamped["trained_on"] == "weekdays/data#train"
+    assert stamped["trained_on_digest"] == FileDatasets(root=data_root).digest(
+        stamped["trained_on"]
+    )
+    assert "weekdays" not in stamped["trained_on_digest"]
 
     # stage the fitted bundle as 09's artifact and apply it
     target = artifacts_root / "artifacts/tiny/rot_k4.safetensors"
@@ -158,20 +202,20 @@ def test_fit_then_apply_roundtrip(roots, tmp_path):
         "09_das_apply_im.json",
         (data_root, artifacts_root),
         apply_out,
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         "featurizers.rot.k=4",
         "featurizers.rot.file_path=artifacts/tiny/rot_k4.safetensors",
     )
     assert code == 0
     iia = table_frame(apply_out / "iia.json")
-    assert len(iia) == 2  # the weekdays/test split
+    assert len(iia) == 2  # the weekdays/data#test split
 
     # a doctored declaration must refuse against the stamp (§2.5)
     code = _run(
         "09_das_apply_im.json",
         (data_root, artifacts_root),
         tmp_path / "mismatch",
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         "featurizers.rot.k=8",
         "featurizers.rot.file_path=artifacts/tiny/rot_k4.safetensors",
     )
@@ -202,7 +246,7 @@ def test_08_seed_sweep_fits_three_genuinely_different_rotations(roots, tmp_path)
         "08_weekdays_das_sweep_im.json",
         roots,
         out,
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         "featurizers.rot.k=4",  # one k, so the sweep is over seed alone
         'train.steps={"epochs": 1}',
         'train.batch={"pairs": 2}',
@@ -226,7 +270,7 @@ def test_08_seed_sweep_fits_three_genuinely_different_rotations(roots, tmp_path)
 def test_the_train_eval_score_reaches_the_run_tree(roots, tmp_path):
     """``train.eval`` is computed, so it must be saved (§2.12).
 
-    Corpus 08 declares ``eval: {split: weekdays/test, metrics: [iia]}`` and
+    Corpus 08 declares ``eval: {split: weekdays/data#test, metrics: [iia]}`` and
     saves ``iia`` to ``iia.json``. Before this fix ``_run_eval``'s return value
     was consumed only inside the ``early_stop`` branch and then dropped, so
     ``iia.json`` held the **train** score under a name every reader took for
@@ -242,7 +286,7 @@ def test_the_train_eval_score_reaches_the_run_tree(roots, tmp_path):
         "08_weekdays_das_sweep_im.json",
         roots,
         out,
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         "featurizers.rot.k=4",
         'train.steps={"epochs": 1}',
         'train.batch={"pairs": 2}',
@@ -252,7 +296,7 @@ def test_the_train_eval_score_reaches_the_run_tree(roots, tmp_path):
     records = json.loads((out / "train_eval.json").read_text())
     assert len(records) == 3  # one per seed in the sweep
     for record in records:
-        assert record["split"] == "weekdays/test"
+        assert record["split"] == "weekdays/data#test"
         assert record["passes"] == 1
         assert record["featurizers"] == ["rot"]
         assert isinstance(record["metrics"]["iia"], float)
@@ -278,7 +322,7 @@ def test_a_gate_fit_writes_its_mask_diagnostic_to_the_run_tree(roots, tmp_path):
         "05_dbm_im.json",
         roots,
         out,
-        "sites.target.layer=1",
+        "sites.target.layers=1",
         'train.steps={"epochs": 1}',
         'train.batch={"pairs": 2}',
     )
@@ -296,7 +340,7 @@ def test_a_document_without_train_eval_writes_no_eval_record(roots, tmp_path):
     a reader would have to interpret."""
     out = tmp_path / "no_eval"
     code = _run(
-        "01_harvest_im.json", roots, out, "sites.L8.layer=0", "sites.L24.layer=1"
+        "01_harvest_im.json", roots, out, "sites.L8.layers=0", "sites.L24.layers=1"
     )
     assert code == 0
     assert not (out / "train_eval.json").exists()
@@ -326,8 +370,8 @@ def test_run_output_is_stamped(roots, tmp_path):
             "01_harvest_im.json",
             roots,
             tmp_path,
-            "sites.L8.layer=0",
-            "sites.L24.layer=1",
+            "sites.L8.layers=0",
+            "sites.L24.layers=1",
         )
         == 0
     )
@@ -343,10 +387,10 @@ def test_run_output_is_stamped(roots, tmp_path):
 def test_11_probe_generate_runs_and_scores(roots, tmp_path):
     """The exploration probe end to end: decode under a steer, score the last
     generated token with an ordinary metric."""
-    code = _run("11_probe_generate_im.json", roots, tmp_path, "sites.target.layer=1")
+    code = _run("11_probe_generate_im.json", roots, tmp_path, "sites.target.layers=1")
     assert code == 0
     probe = table_frame(tmp_path / "probe.json")
-    assert len(probe) == 4  # one row per example
+    assert len(probe) == 2  # one row per example
     for value in probe["value"]:
         top = json.loads(value)
         # `by: prob` on an lm_head read emits all four columns (§2.10)
@@ -355,7 +399,7 @@ def test_11_probe_generate_runs_and_scores(roots, tmp_path):
 
 
 def test_12_probe_variable_scores_every_step_and_reports_what_was_said(roots, tmp_path):
-    """PR-2's surface end to end: a metric per decode step, an ids-domain
+    """The probe-variable surface end to end: a metric per decode step, an ids-domain
     metric that never touches the vocabulary, and a `variable` anchor whose
     misses come back as data.
 
@@ -363,11 +407,11 @@ def test_12_probe_variable_scores_every_step_and_reports_what_was_said(roots, tm
     nowhere — which is the case worth pinning: the run finishes, the rows
     survive, and `matched` says why the values are null.
     """
-    code = _run("12_probe_variable_im.json", roots, tmp_path, "sites.target.layer=1")
+    code = _run("12_probe_variable_im.json", roots, tmp_path, "sites.target.layers=1")
     assert code == 0
 
     per_step = table_frame(tmp_path / "per_step.json")
-    examples = per_step["example"].nunique()
+    examples = per_step["example_id"].nunique()
     assert len(per_step) == examples * 8  # one row per (example, decode step)
     assert sorted(per_step["step"].unique()) == list(range(8))
     assert per_step["matched"].all()

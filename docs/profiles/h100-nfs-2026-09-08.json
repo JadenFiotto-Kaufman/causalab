@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "source": "h100-nfs-2026-09-08 (docs/fastersafetensors.md; LocalBlock and Nfs.io_cost_us unmeasured placeholders)",
+  "storage": {
+    "LocalBlock": {
+      "single_file_gbps": 3.0,
+      "aggregate_gbps": [
+        {
+          "files_in_flight": 1,
+          "gbps": 2.6
+        },
+        {
+          "files_in_flight": 4,
+          "gbps": 7.4
+        }
+      ],
+      "split_helps": true,
+      "page_cache_gbps": null,
+      "open_cost_ms": null,
+      "io_cost_us": null,
+      "gds": {
+        "registers": true,
+        "read_gbps": null
+      }
+    },
+    "Nfs": {
+      "single_file_gbps": 3.0,
+      "aggregate_gbps": [
+        {
+          "files_in_flight": 1,
+          "gbps": 2.6
+        },
+        {
+          "files_in_flight": 4,
+          "gbps": 7.4
+        },
+        {
+          "files_in_flight": 16,
+          "gbps": 8.3
+        },
+        {
+          "files_in_flight": 32,
+          "gbps": 9.7
+        }
+      ],
+      "split_helps": false,
+      "page_cache_gbps": 25.9,
+      "open_cost_ms": null,
+      "io_cost_us": 200.0,
+      "gds": {
+        "registers": false,
+        "read_gbps": 2.5
+      }
+    },
+    "Ram": {
+      "single_file_gbps": 7.2,
+      "aggregate_gbps": [
+        {
+          "files_in_flight": 1,
+          "gbps": 7.2
+        },
+        {
+          "files_in_flight": 4,
+          "gbps": 20.0
+        },
+        {
+          "files_in_flight": 16,
+          "gbps": 25.9
+        }
+      ],
+      "split_helps": true,
+      "page_cache_gbps": 25.9,
+      "open_cost_ms": null,
+      "io_cost_us": null,
+      "gds": null
+    }
+  },
+  "mounts": {},
+  "device": {
+    "h2d_pinned_gbps": 55.0,
+    "h2d_pageable_gbps": 7.2,
+    "pinned_alloc_ms_per_mib": 0.4
+  }
+}

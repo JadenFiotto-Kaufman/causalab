@@ -1,0 +1,15 @@
+[package]
+name = "fst-cuda"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+libc = "0.2.189"
+libloading = "0.9.0"
+thiserror = "2.0.20"
+tracing = "0.1"

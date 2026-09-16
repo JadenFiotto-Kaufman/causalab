@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "description": "Three levels deep (workflow spec §2.10): a.json nests b.json as x, which nests c.json as y, whose step z joins this run as x/y/z; `done` reads it by that name.",
+  "output_dir": "deep",
+  "steps": {
+    "x": {
+      "type": "workflow",
+      "document": "b.json"
+    },
+    "done": {
+      "type": "script",
+      "script": {"path": "scripts/writer.py"},
+      "inputs": {"k": {"step": "x/y/z", "file": "z.json", "key": "ran"}},
+      "outputs": {"out": {"file": "done.json", "keys": {"ran": true}}}
+    }
+  }
+}

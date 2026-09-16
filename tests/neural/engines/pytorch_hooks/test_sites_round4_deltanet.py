@@ -1,4 +1,4 @@
-"""Round-4 Gated DeltaNet interior — tier 1: the mixer's module boundaries.
+"""The Gated DeltaNet interior — tier 1: the mixer's module boundaries.
 
 📐 Three of the DeltaNet diagram's boxes are ordinary ``nn.Module`` sides on
 ``tiny-random/qwen3.5-moe`` (transformers 5.16): ``in_proj_qkv``'s output is
@@ -7,10 +7,10 @@ head axis), ``in_proj_z``'s output is the output gate (8 v-heads × 32), and
 ``out_proj``'s **input** is the post-norm, post-gate mixer value — the exact
 analogue of ``attention_premix``, which is why the name. The ``conv1d`` module
 never fires (the forward calls the ``causal_conv1d_fn`` module global instead),
-which is why the conv output and the kernel boundary are *function* taps
-(round 4.2), not module taps.
+which is why the conv output and the kernel boundary are *function* taps,
+not module taps.
 
-The stream refusals mirror round 1's ``_FULL_ATTENTION_ONLY`` in the other
+The stream refusals mirror the attention side's ``_FULL_ATTENTION_ONLY`` in the other
 direction: a full-attention layer computes no delta-rule state, and a family
 with no linear stream anywhere (llama, GPT-2) hits the same refusal at every
 layer.
@@ -54,73 +54,77 @@ TIER_ONE_TAP = {
 def _read_doc(
     component: str, layer: int = DELTANET_LAYER, head: int | None = None
 ) -> dict:
-    tap: dict = {"component": component, "layer": layer}
+    tap: dict = {"component": component, "layers": [layer]}
     if head is not None:
         tap["head"] = head
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": tap},
-        "reads": {
-            "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": tap},
+            "reads": {
+                "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
 def _write_doc(component: str, do: dict, *, layer: int = DELTANET_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tap": {"component": component, "layer": layer},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "tap": {"component": component, "layers": [layer]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
+            },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
-            },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
-        },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -140,7 +144,7 @@ def _moved(bundle: ModelBundle, doc: dict, **kw) -> float:
 @pytest.mark.parametrize("component", TIER_ONE)
 def test_the_tap_is_the_declared_module_side(qwen35moe_bundle, component: str):
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component=component, layer=DELTANET_LAYER)
+        qwen35moe_bundle, SiteSpec(component=component, layers=(DELTANET_LAYER,))
     )
     child, side = TIER_ONE_TAP[component]
     mixer = qwen35moe_bundle.mixer_at(DELTANET_LAYER)
@@ -157,8 +161,8 @@ def test_the_read_has_the_measured_width(qwen35moe_bundle, component: str):
 
 
 def test_the_conv1d_module_never_fires(qwen35moe_bundle):
-    """📐 The premise of round 4.2's function taps, pinned where round 4.1 can
-    see it: the forward calls the ``causal_conv1d_fn`` module global, so a hook
+    """📐 The premise of the kernel-boundary function taps, pinned where the
+    module-boundary tier can see it: the forward calls the ``causal_conv1d_fn`` module global, so a hook
     on the ``conv1d`` module reads nothing — a module tap there would be the
     silent-empty-read failure."""
     mixer = qwen35moe_bundle.mixer_at(DELTANET_LAYER)
@@ -183,17 +187,17 @@ def test_the_gate_is_the_z_projection_of_the_norm_exactly(qwen35moe_bundle):
     exactly 0.0 — the tap is where it claims to be, on the tensor the mixer
     actually consumes."""
     doc = _read_doc("delta_gate")
-    doc["sites"]["norm"] = {
+    doc["method"]["sites"]["norm"] = {
         "component": "attention_input_norm",
-        "layer": DELTANET_LAYER,
+        "layers": [DELTANET_LAYER],
     }
-    doc["reads"]["n"] = {
+    doc["method"]["reads"]["n"] = {
         "site": "norm",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "n",
             "model": "original",
@@ -211,17 +215,17 @@ def test_the_gate_is_the_z_projection_of_the_norm_exactly(qwen35moe_bundle):
 
 def test_the_qkv_projection_is_the_same_identity_one_module_over(qwen35moe_bundle):
     doc = _read_doc("delta_qkv")
-    doc["sites"]["norm"] = {
+    doc["method"]["sites"]["norm"] = {
         "component": "attention_input_norm",
-        "layer": DELTANET_LAYER,
+        "layers": [DELTANET_LAYER],
     }
-    doc["reads"]["n"] = {
+    doc["method"]["reads"]["n"] = {
         "site": "norm",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "n",
             "model": "original",
@@ -241,14 +245,17 @@ def test_the_premix_projects_to_the_mixer_output_exactly(qwen35moe_bundle):
     """The premix is ``out_proj``'s input, so ``out_proj(delta_premix)`` must
     be the mixer's output — the analogue of the ``attention_premix`` identity."""
     doc = _read_doc("delta_premix")
-    doc["sites"]["out"] = {"component": "attention_output", "layer": DELTANET_LAYER}
-    doc["reads"]["o"] = {
+    doc["method"]["sites"]["out"] = {
+        "component": "attention_output",
+        "layers": [DELTANET_LAYER],
+    }
+    doc["method"]["reads"]["o"] = {
         "site": "out",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "o",
             "model": "original",
@@ -279,7 +286,7 @@ def test_swapping_a_tap_with_its_own_value_moves_nothing(
     qwen35moe_bundle, component: str
 ):
     doc = _write_doc(component, {"swap": "v_cf"})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) == 0.0, component
 
 
@@ -308,11 +315,11 @@ def test_head_on_the_fused_qkv_is_refused_because_its_widths_are_unequal(
 ):
     """The fused ``[q | k | v]`` splits are 128/128/256 — no equal per-head
     packing exists, so ``head`` cannot mean a slice of it. The refusal's note
-    names the per-head faces (the round-4.2 kernel-boundary components)."""
+    names the per-head faces (the kernel-boundary components)."""
     with pytest.raises(ProtocolError, match="no head axis") as excinfo:
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="delta_qkv", layer=DELTANET_LAYER, head=0),
+            SiteSpec(component="delta_qkv", layers=(DELTANET_LAYER,), head=0),
         )
     assert "delta_query" in str(excinfo.value)
 
@@ -321,7 +328,7 @@ def test_an_out_of_range_v_head_is_refused(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="which has 8 heads"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="delta_gate", layer=DELTANET_LAYER, head=8),
+            SiteSpec(component="delta_gate", layers=(DELTANET_LAYER,), head=8),
         )
 
 
@@ -337,7 +344,7 @@ def test_a_full_attention_layer_refuses_with_the_architectural_reason(
     with pytest.raises(ProtocolError, match="delta-rule state"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component=component, layer=FULL_ATTENTION_LAYER),
+            SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,)),
         )
 
 
@@ -351,7 +358,7 @@ def test_a_family_with_no_linear_stream_refuses_at_every_layer(
     stream this family never has."""
     bundle = load_model(key)
     with pytest.raises(ProtocolError, match="delta-rule state"):
-        resolve_site(bundle, SiteSpec(component=component, layer=1))
+        resolve_site(bundle, SiteSpec(component=component, layers=(1,)))
 
 
 def test_a_declared_stream_still_wins_over_the_component_check(qwen35moe_bundle):
@@ -363,7 +370,7 @@ def test_a_declared_stream_still_wins_over_the_component_check(qwen35moe_bundle)
             qwen35moe_bundle,
             SiteSpec(
                 component="delta_gate",
-                layer=DELTANET_LAYER,
+                layers=(DELTANET_LAYER,),
                 stream="full_attention",
             ),
         )
@@ -381,14 +388,16 @@ def test_a_continuation_read_accumulates_one_row_per_step(
     """All three are query-position-shaped (one row per token), so decode steps
     stack — nothing here is indexed by the growing prefix."""
     doc = _read_doc(component)
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert tuple(value.shape) == (1, 3, TIER_ONE_WIDTH[component])
 
 
 # --------------------------------------------------------------------------- #
-# round 4.2 — the kernel boundary
+# tier 2 — the kernel boundary
 # --------------------------------------------------------------------------- #
 
 TIER_TWO = (
@@ -423,7 +432,7 @@ def test_the_kernel_tap_is_a_delta_slot_not_a_module_side(
     kernel-boundary globals, and the site carries the *mixer* — what identifies
     which forward's calls to tap."""
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component=component, layer=DELTANET_LAYER)
+        qwen35moe_bundle, SiteSpec(component=component, layers=(DELTANET_LAYER,))
     )
     assert site.kind == "delta"
     assert site.interface_slot is not None
@@ -455,7 +464,7 @@ def test_reading_the_kernel_boundary_does_not_change_the_model(qwen35moe_bundle)
 
 
 # --------------------------------------------------------------------------- #
-# tier-2 identity pins (§4 of the round-3/4 plan)
+# tier-2 identity pins
 # --------------------------------------------------------------------------- #
 
 
@@ -464,31 +473,33 @@ def _multi_read(
 ) -> dict[str, torch.Tensor]:
     """Read several layer-0 components in one document: name -> value."""
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {
-            f"{name}_site": {"component": component, "layer": DELTANET_LAYER}
-            for name, component in components.items()
+        "method": {
+            "sites": {
+                f"{name}_site": {"component": component, "layers": [DELTANET_LAYER]}
+                for name, component in components.items()
+            },
+            "reads": {
+                name: {
+                    "site": f"{name}_site",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "base",
+                }
+                for name in components
+            },
+            "save": [
+                {
+                    "value": name,
+                    "model": "original",
+                    "input": "base",
+                    "file_path": f"{name}.safetensors",
+                }
+                for name in components
+            ],
         },
-        "reads": {
-            name: {
-                "site": f"{name}_site",
-                "pos": "all",
-                "model": "original",
-                "input": "base",
-            }
-            for name in components
-        },
-        "save": [
-            {
-                "value": name,
-                "model": "original",
-                "input": "base",
-                "file_path": f"{name}.safetensors",
-            }
-            for name in components
-        ],
     }
     executor = executor_for(doc, bundle, base_texts=[TEXT])
     return {name: executor.read_value(name) for name in components}
@@ -497,7 +508,7 @@ def _multi_read(
 def test_the_conv_split_and_tile_reproduces_q_k_v_exactly(qwen35moe_bundle):
     """§4 tier 2: ``split(delta_conv, [128, 128, 256])``, reshaped to heads and
     GVA-tiled, IS ``(delta_query, delta_key, delta_value)`` — at exactly 0.0,
-    which is also why the untiled q/k are not components (F7: one box, one
+    which is also why the untiled q/k are not components (one box, one
     address)."""
     reads = _multi_read(
         qwen35moe_bundle,
@@ -522,7 +533,7 @@ def test_the_conv_split_and_tile_reproduces_q_k_v_exactly(qwen35moe_bundle):
 def test_the_gates_are_the_projections_transformed_exactly(qwen35moe_bundle):
     """§4 tier 2: ``delta_beta == sigmoid(in_proj_b(norm))`` and
     ``delta_decay == -exp(A_log) · softplus(in_proj_a(norm) + dt_bias)`` — the
-    F7/D5 justification for keeping the raw projections out of the vocabulary:
+    justification for keeping the raw projections out of the vocabulary:
     both are closed-form steps from tensors that are components."""
     reads = _multi_read(
         qwen35moe_bundle,
@@ -574,7 +585,7 @@ def test_a_kernel_boundary_swap_moves_the_logits_and_self_swap_does_not(
     with the identity payload at exactly 0.0 — both through the same wrapper."""
     assert _moved(qwen35moe_bundle, _write_doc(component, {"swap": "v_cf"})) > 1e-4
     doc = _write_doc(component, {"swap": "v_cf"})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) == 0.0, component
 
 
@@ -582,13 +593,13 @@ def test_a_read_of_a_written_kernel_slot_sees_the_written_value(qwen35moe_bundle
     """Same-forward read-after-write agreement across a third tap mechanism —
     the executor registers edits before reads at the kernel boundary too."""
     doc = _write_doc("delta_value", {"swap": "v_cf"})
-    doc["reads"]["obs"] = {
+    doc["method"]["reads"]["obs"] = {
         "site": "tap",
         "pos": "all",
         "model": "patched",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "obs",
             "model": "patched",
@@ -610,7 +621,7 @@ def test_a_tap_at_one_layer_leaves_another_linear_layers_mixer_alone(
 ):
     """The globals are swapped process-wide while installed and the fixture has
     three linear layers, so this is the scoping test that can actually fail
-    (the round-2 two-layer lesson): tap layer 0, layer 1's mixer output must be
+    (the two-layer lesson of the attention interior): tap layer 0, layer 1's mixer output must be
     bit-identical."""
     bundle = qwen35moe_bundle
     encoded = bundle.tokenizer(TEXT, return_tensors="pt")
@@ -724,7 +735,7 @@ def test_head_on_the_conv_is_refused_like_the_qkv(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="no head axis"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="delta_conv", layer=DELTANET_LAYER, head=0),
+            SiteSpec(component="delta_conv", layers=(DELTANET_LAYER,), head=0),
         )
 
 
@@ -735,7 +746,7 @@ def test_kernel_components_refuse_on_a_full_attention_layer(
     with pytest.raises(ProtocolError, match="delta-rule state"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component=component, layer=FULL_ATTENTION_LAYER),
+            SiteSpec(component=component, layers=(FULL_ATTENTION_LAYER,)),
         )
 
 
@@ -757,14 +768,16 @@ def test_a_continuation_read_accumulates_at_the_kernel_boundary(
     constant and the steps stack. Note ``delta_key`` accumulates here, unlike
     ``attention_key``: the kernel receives one step's k, not the prefix."""
     doc = _read_doc(component)
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert tuple(value.shape) == (1, 3, TIER_TWO_WIDTH[component])
 
 
 # --------------------------------------------------------------------------- #
-# round 4.3 — the per-step interior: state, readout, update
+# tier 3 — the per-step interior: state, readout, update
 # --------------------------------------------------------------------------- #
 
 STATE_TIER = ("delta_kv_mem", "delta_state_update", "delta_state")
@@ -772,43 +785,45 @@ STATE_TIER = ("delta_kv_mem", "delta_state_update", "delta_state")
 
 def _state_write_doc(do: dict, *, pos: dict | str = "all") -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {
-            "tap": {"component": "delta_state", "layer": DELTANET_LAYER},
-            "lm_head": {"component": "lm_head"},
-        },
-        "reads": {
-            "v": {"site": "tap", "pos": pos, "model": "original", "input": "base"},
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
+        "method": {
+            "sites": {
+                "tap": {"component": "delta_state", "layers": [DELTANET_LAYER]},
+                "lm_head": {"component": "lm_head"},
             },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
+            "reads": {
+                "v": {"site": "tap", "pos": pos, "model": "original", "input": "base"},
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
             },
+            "writes": {"patch": {"site": "tap", "pos": pos, "do": do}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": name,
+                    "model": model,
+                    "input": "base",
+                    "file_path": f"{name}.safetensors",
+                }
+                for name, model in (
+                    ("v", "original"),
+                    ("clean", "original"),
+                    ("after", "patched"),
+                )
+            ],
         },
-        "writes": {"patch": {"site": "tap", "pos": pos, "do": do}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": name,
-                "model": model,
-                "input": "base",
-                "file_path": f"{name}.safetensors",
-            }
-            for name, model in (
-                ("v", "original"),
-                ("clean", "original"),
-                ("after", "patched"),
-            )
-        ],
     }
 
 
@@ -850,9 +865,20 @@ def test_a_state_read_leaves_the_base_forward_bit_identical(qwen35moe_bundle):
 
 def test_the_reconstruction_identity_pins_the_derived_faces(qwen35moe_bundle):
     """§4 tier 3: ``S_t == S_{t-1}·exp(g_t) + k̂_t ⊗ delta_t`` at every step,
-    exactly — the #53 two-lines-pinned-by-identity pattern, with the pin
-    against the *library's own returned states* rather than a golden."""
+    exactly — the two-lines-pinned-by-identity pattern, with the pin
+    against the *library's own returned states* rather than a golden. The
+    identity — which faces reconstruct the state, and the fp32 tolerance — is
+    the family adapter's declared row (``registry.identity``), so the
+    same suite holds a new family's plugin to the identity it declares."""
     import importlib
+
+    from causalab.neural.shared.sites import adapter_of
+    from causalab.protocol.registry import identity
+
+    declared = identity(adapter_of(qwen35moe_bundle).family, "delta_state")
+    assert declared.name == "delta_state_recurrence"
+    assert set(declared.inputs) == {"delta_decay", "delta_key", "delta_state_update"}
+    atol, rtol = declared.tolerance_for(qwen35moe_bundle.dtype)
 
     reads = _multi_read(
         qwen35moe_bundle,
@@ -876,7 +902,7 @@ def test_the_reconstruction_identity_pins_the_derived_faces(qwen35moe_bundle):
             previous * decay[0, t].exp()[:, None, None]
             + k_hat[0, t][..., None] * update[0, t][:, None, :]
         )
-        torch.testing.assert_close(predicted, states[0, t], atol=0.0, rtol=0.0)
+        torch.testing.assert_close(predicted, states[0, t], atol=atol, rtol=rtol)
         previous = states[0, t]
 
 
@@ -962,20 +988,20 @@ def test_a_positional_state_write_lands_on_its_step_and_feeds_forward(
     doubled, and step 3 moves *causally* — the edit threads into what the next
     step decays and writes into."""
     doc = _state_write_doc({"add_scaled": {"op": "v", "alpha": 1.0}}, pos={"index": 2})
-    doc["reads"]["v_all"] = {
+    doc["method"]["reads"]["v_all"] = {
         "site": "tap",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["reads"]["obs"] = {
+    doc["method"]["reads"]["obs"] = {
         "site": "tap",
         "pos": "all",
         "model": "patched",
         "input": "base",
     }
     for name, model in (("v_all", "original"), ("obs", "patched")):
-        doc["save"].append(
+        doc["method"]["save"].append(
             {
                 "value": name,
                 "model": model,
@@ -995,7 +1021,7 @@ def test_a_misaligned_state_operand_is_refused_not_broadcast(qwen35moe_bundle):
     must cover the same steps — refused by name rather than silently applying
     step 0's matrix to step 2."""
     doc = _state_write_doc({"add_scaled": {"op": "v", "alpha": 1.0}}, pos={"index": 2})
-    doc["reads"]["v"]["pos"] = "all"  # 5 steps against a 1-step write
+    doc["method"]["reads"]["v"]["pos"] = "all"  # 5 steps against a 1-step write
     with pytest.raises(ProtocolError, match="same steps"):
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("after")
 
@@ -1004,11 +1030,11 @@ def test_a_misaligned_state_operand_is_refused_not_broadcast(qwen35moe_bundle):
 def test_the_derived_faces_are_read_only_with_the_lowering_refusal(
     qwen35moe_bundle, component: str
 ):
-    """F7 wording (D6): a memory readout has no independent existence, and the
+    """A memory readout has no independent existence, and the
     update's write lowers exactly onto a state edit — both refusals point at
     'delta_state'."""
     doc = _state_write_doc({"swap": "v"})
-    doc["sites"]["tap"]["component"] = component
+    doc["method"]["sites"]["tap"]["component"] = component
     with pytest.raises(ProtocolError, match="delta_state") as excinfo:
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("after")
     assert "no write may change" in str(excinfo.value)
@@ -1030,7 +1056,7 @@ def test_an_out_of_range_state_head_is_refused(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="8 heads"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="delta_state", layer=DELTANET_LAYER, head=8),
+            SiteSpec(component="delta_state", layers=(DELTANET_LAYER,), head=8),
         )
 
 
@@ -1038,12 +1064,12 @@ def test_featurizer_and_dims_are_refused_on_the_state(qwen35moe_bundle):
     """Generated from the declared axes: the trailing axes form a matrix per
     head, not a feature vector, so there is no basis to fit or index."""
     doc = _read_doc("delta_state")
-    doc["featurizers"] = {"f": {"kind": "standardize"}}
-    doc["reads"]["r"]["featurizer"] = "f"
+    doc["method"]["featurizers"] = {"f": {"kind": "standardize"}}
+    doc["method"]["reads"]["r"]["featurizer"] = "f"
     with pytest.raises(ProtocolError, match="matrix"):
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     doc = _read_doc("delta_state")
-    doc["reads"]["r"]["dims"] = [0, 1]
+    doc["method"]["reads"]["r"]["dims"] = [0, 1]
     with pytest.raises(ProtocolError, match="matrix|features"):
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
 
@@ -1069,8 +1095,10 @@ def test_generated_state_reads_are_plain_per_step_captures(
     each call's own return, the faces derive from its initial_state and
     arguments, and nothing is substituted or shadowed."""
     doc = _read_doc(component)
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert tuple(value.shape) == shape
 
@@ -1085,52 +1113,54 @@ def test_the_cross_path_pin_decode_states_match_test_side_stepping(
     import importlib
 
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "positions": {
-            "window": {"generated": {"max_new_tokens": 3}, "all": True},
-            "last": {"index": -1},
+        "method": {
+            "positions": {
+                "window": {"generated": {"max_new_tokens": 3}, "all": True},
+                "last": {"index": -1},
+            },
+            "sites": {
+                f"{name}_site": {"component": component, "layers": [DELTANET_LAYER]}
+                for name, component in {
+                    "S": "delta_state",
+                    "q": "delta_query",
+                    "k": "delta_key",
+                    "v": "delta_value",
+                    "beta": "delta_beta",
+                    "g": "delta_decay",
+                }.items()
+            },
+            "reads": {
+                name: {
+                    "site": f"{name}_site",
+                    "pos": "window",
+                    "model": "original",
+                    "input": "base",
+                }
+                for name in ("S", "q", "k", "v", "beta", "g")
+            },
+            "save": [],
         },
-        "sites": {
-            f"{name}_site": {"component": component, "layer": DELTANET_LAYER}
-            for name, component in {
-                "S": "delta_state",
-                "q": "delta_query",
-                "k": "delta_key",
-                "v": "delta_value",
-                "beta": "delta_beta",
-                "g": "delta_decay",
-            }.items()
-        },
-        "reads": {
-            name: {
-                "site": f"{name}_site",
-                "pos": "window",
-                "model": "original",
-                "input": "base",
-            }
-            for name in ("S", "q", "k", "v", "beta", "g")
-        },
-        "save": [],
     }
-    doc["reads"]["S0"] = {
+    doc["method"]["reads"]["S0"] = {
         "site": "S_site",
         "pos": "last",
         "model": "original",
         "input": "base",
     }
-    doc["save"] = [
+    doc["method"]["save"] = [
         {
             "value": name,
             "model": "original",
             "input": "base",
             "file_path": f"{name}.safetensors",
         }
-        for name in doc["reads"]
+        for name in doc["method"]["reads"]
     ]
     executor = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT])
-    reads = {name: executor.read_value(name) for name in doc["reads"]}
+    reads = {name: executor.read_value(name) for name in doc["method"]["reads"]}
     modeling = importlib.import_module(
         type(qwen35moe_bundle.mixer_at(DELTANET_LAYER)).__module__
     )

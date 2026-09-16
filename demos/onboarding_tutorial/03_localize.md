@@ -8,7 +8,7 @@
 | **Data** | `mcqa/pairs_n64_s0` — 64 pairs, `different_symbol` design ([01](01_define.md)) |
 | **Documents** | [`protocols/mcqa_locate_scan.json`](protocols/mcqa_locate_scan.json) · [`workflows/mcqa_locate.json`](workflows/mcqa_locate.json) |
 | **Cost** | 128 points × 2 forwards, 64 rows each = 16 384 row-forwards |
-| **Reproduced** | ✓ 2026-08-31, `pytorch_hooks` on one H100 80GB, at workflow digest `7dd122b239ad4e36…`; the run predates the `token_form: "space_prefixed"` pin these documents now carry, which is the form `auto` already resolved to, so the token ids and every number are unchanged and only the digest moved — the workflow now digests `6cf9f8e66267738f…` |
+| **Reproduced** | ✓ 2026-08-31, `pytorch_hooks` on one H100 80GB; the run predates the `token_form: "space_prefixed"` pin these documents now carry, which is the form `auto` already resolved to, so the token ids and every number are unchanged |
 
 ## TL;DR
 
@@ -28,47 +28,74 @@ verbatim — the file is what `causalab run` reads, and
 
 ```json
 {
-  "version": "1",
-  "description": "Locate the answer-symbol variable across the population: the same interchange as the single-pair trace, over 64 pairs, scored by IIA at a 16-layer x 8-position grid. Positions are fixed negative indices, not names: every prompt this task template emits is 22 tokens with the same tail, so counting back from the end resolves to the same token in every row -- which a symbol *letter* does not (a row whose symbol is 'W' has a second 'W' inside 'What').",
+  "header": {
+    "protocol_version": "3",
+    "description": "Locate the answer-symbol variable across the population: the same interchange as the single-pair trace, over 64 pairs, scored by IIA at a 16-layer x 8-position grid. Positions are fixed negative indices, not names: every prompt this task template emits is 22 tokens with the same tail, so counting back from the end resolves to the same token in every row -- which a symbol *letter* does not (a row whose symbol is 'W' has a second 'W' inside 'What')."
+  },
   "model": {"key": "meta-llama/Llama-3.2-1B-Instruct", "revision": "main", "dtype": "bf16"},
   "data": {
-    "base":           {"dataset": "mcqa/pairs_n64_s0", "field": "input"},
+    "base": {"dataset": "mcqa/pairs_n64_s0", "field": "input"},
     "counterfactual": {"dataset": "mcqa/pairs_n64_s0", "field": "counterfactual_inputs[0]"}
   },
-  "positions": {
-    "tap": {"sweep": [
-      {"index": -11},
-      {"index": -10},
-      {"index": -9},
-      {"index": -8},
-      {"index": -6},
-      {"index": -5},
-      {"index": -4},
-      {"index": -1}
-    ]}
-  },
-  "sites": {
-    "target":  {"component": "block_output", "layer": {"sweep": {"range": [0, 16]}}},
-    "lm_head": {"component": "lm_head"}
-  },
-  "reads": {
-    "v_cf":   {"site": "target",  "pos": "tap", "model": "original", "input": "counterfactual"},
-    "logits": {"site": "lm_head", "pos": -1,    "model": "patched",  "input": "base"}
-  },
-  "writes": {
-    "patch": {"site": "target", "pos": "tap", "do": {"swap": "v_cf"}}
-  },
-  "intervened_models": {
-    "patched": {"input": "base", "writes": ["patch"]}
-  },
-  "metrics": {
-    "iia":        {"kind": "match",      "of": "logits", "expected": "cf_answer", "token_form": "space_prefixed"},
-    "logit_diff": {"kind": "logit_diff", "of": "logits", "a": "cf_answer", "b": "base_answer", "token_form": "space_prefixed"}
-  },
-  "save": [
-    {"value": "iia",        "model": "patched", "input": "base", "file_path": "iia.json"},
-    {"value": "logit_diff", "model": "patched", "input": "base", "file_path": "logit_diff.json"}
-  ]
+  "method": {
+    "positions": {
+      "tap": {
+        "sweep": [
+          {"index": -11},
+          {"index": -10},
+          {"index": -9},
+          {"index": -8},
+          {"index": -6},
+          {"index": -5},
+          {"index": -4},
+          {"index": -1}
+        ]
+      }
+    },
+    "sites": {
+      "target": {
+        "component": "block_output",
+        "layers": {
+          "sweep": {"range": [0, 16]}
+        }
+      },
+      "lm_head": {"component": "lm_head"}
+    },
+    "reads": {
+      "v_cf": {"site": "target", "pos": "tap", "model": "original", "input": "counterfactual"},
+      "logits": {"site": "lm_head", "pos": -1, "model": "patched", "input": "base"}
+    },
+    "writes": {
+      "patch": {"site": "target", "pos": "tap", "do": {"swap": "v_cf"}}
+    },
+    "intervened_models": {
+      "patched": {"input": "base", "writes": ["patch"]}
+    },
+    "metrics": {
+      "iia": {
+        "kind": "match",
+        "of": "logits",
+        "expected": "cf_answer",
+        "token_form": "space_prefixed"
+      },
+      "logit_diff": {
+        "kind": "logit_diff",
+        "of": "logits",
+        "a": "cf_answer",
+        "b": "base_answer",
+        "token_form": "space_prefixed"
+      }
+    },
+    "save": [
+      {"value": "iia", "model": "patched", "input": "base", "file_path": "iia.json"},
+      {
+        "value": "logit_diff",
+        "model": "patched",
+        "input": "base",
+        "file_path": "logit_diff.json"
+      }
+    ]
+  }
 }
 ```
 
@@ -99,17 +126,16 @@ it to one cell. That document is inlined beside the picture it produces, in
 ```bash
 uv run causalab validate demos/onboarding_tutorial/workflows/mcqa_locate.json \
     --data-root demos/onboarding_tutorial/data
-# OK: demos/onboarding_tutorial/workflows/mcqa_locate.json — 3 steps, digest 6cf9f8e66267738f…
+# OK: demos/onboarding_tutorial/workflows/mcqa_locate.json — 3 steps
 ```
 
 ```bash
 uv run causalab explain demos/onboarding_tutorial/workflows/mcqa_locate.json \
     --data-root demos/onboarding_tutorial/data
-# digest    6cf9f8e66267738f62daf28206a5eb07eeeec9a4932291c800fd01eb94a1058c
 # schedule  2 levels
 #   level 0: scan
 #   level 1: heatmap, best
-#   scan: intervention_protocol ../protocols/mcqa_locate_scan.json — 128 point(s), campaign digest 7822796d10109eb7…
+#   scan: intervention_protocol ../protocols/mcqa_locate_scan.json — 128 point(s), campaign digest 91076b98368424c2…
 #   heatmap: script causalab.io.plots.workflow_figures -> iia_heatmap.json, iia_heatmap.png
 #   best: script causalab.workflow.scripts.select -> values.json
 ```
@@ -125,12 +151,12 @@ uv run causalab run demos/onboarding_tutorial/workflows/mcqa_locate.json \
 than by memory. **Measured: 39 s of wall clock** on one H100 80GB for all three
 steps, model load included.
 
-> **No `--dtype` on a workflow.** The flag sets `model.dtype` on *one* protocol
-> document, and a workflow's steps each declare their own realization, so the
-> CLI refuses it: *"a workflow's steps each declare their own realization — set
-> it in the step's document, or with that step's own `set` block"*. Every
-> protocol under `protocols/` already pins `"dtype": "bf16"`, so there is
-> nothing to override.
+> **No `--dtype` on a workflow.** The flag sets `model.dtype` on *one*
+> intervention specification, and a workflow's steps each declare their own
+> realization, so the CLI refuses it: *"a workflow's steps each declare their
+> own realization — set it in the step's document, or with that step's own
+> `set` block"*. Every protocol under `protocols/` already pins
+> `"dtype": "bf16"`, so there is nothing to override.
 
 ## Experimental design
 
@@ -187,8 +213,7 @@ than near 1.0, the deficit is the position spec's, not the model's.
 
 ## Results
 
-Run on 2026-08-31, one H100 80GB, reference engine (`pytorch_hooks`), bf16,
-workflow digest `6cf9f8e66267738f…`. All three steps ran; `scan` produced 8 192
+Run on 2026-08-31, one H100 80GB, reference engine (`pytorch_hooks`), bf16. All three steps ran; `scan` produced 8 192
 per-example records over 128 cells (64 pairs each), which `heatmap` and `best`
 aggregate identically — both call `causalab.io.step_record.aggregate`, and the
 aggregate was checked to be the mean of the 64 per-example values in every cell.
@@ -207,23 +232,17 @@ copy to it:
   "description": "The 03_localize demo end to end: scan the (layer x position) grid, render it, and reduce it to the one cell the next stage would target. Nothing orders these steps -- `heatmap` and `best` both reference `scan`, so the runner derives that they may run together the moment the scan finishes.",
   "output_dir": "mcqa_locate",
   "steps": {
-    "scan": {
-      "type": "intervention_protocol",
-      "document": "../protocols/mcqa_locate_scan.json"
-    },
+    "scan": {"type": "intervention_protocol", "document": "../protocols/mcqa_locate_scan.json"},
     "heatmap": {
       "type": "script",
       "script": {"module": "causalab.io.plots.workflow_figures"},
       "inputs": {
         "table": {"step": "scan", "file": "iia.json"},
         "plot": "heatmap",
-        "x": "sites.target.layer",
+        "x": "sites.target.layers",
         "y": "positions.tap"
       },
-      "outputs": {
-        "figure": "iia_heatmap.png",
-        "plotted": {"file": "iia_heatmap.json"}
-      }
+      "outputs": {"figure": "iia_heatmap.png", "plotted": {"file": "iia_heatmap.json"}}
     },
     "best": {
       "type": "script",
@@ -231,7 +250,7 @@ copy to it:
       "inputs": {
         "table": {"step": "scan", "file": "iia.json"},
         "choose": "max",
-        "emit": {"best_layer": "sites.target.layer", "best_pos": "positions.tap"}
+        "emit": {"best_layer": "sites.target.layers", "best_pos": "positions.tap"}
       },
       "outputs": {
         "values": {

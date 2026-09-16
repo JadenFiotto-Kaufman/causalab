@@ -75,10 +75,27 @@ of bytes:
 
 ```bash
 uv run python scripts/build_task_dataset.py \
-    --task MCQA --n 64 --seed 0 --target-variable answer \
+    --task MCQA --n 64 --seed 0 --split all --target-variable answer \
     --out demos/onboarding_tutorial/data/mcqa/pairs_n64_s0.json
-# wrote demos/onboarding_tutorial/data/mcqa/pairs_n64_s0.json (64 rows, digest fb090897ec40…)
+# wrote demos/onboarding_tutorial/data/mcqa/pairs_n64_s0.json (64 rows, digest 8f27bd34d52d…)
 ```
+
+The tutorial's other undivided tables under `data/mcqa/` come from the same
+builder (nothing is written beside a table — the command is the recipe):
+
+```bash
+uv run python scripts/build_task_dataset.py --task MCQA --n 1   --seed 0 --split all --target-variable answer --out demos/onboarding_tutorial/data/mcqa/pair_n1_s0.json
+uv run python scripts/build_task_dataset.py --task MCQA --n 128 --seed 1 --split all --target-variable answer --out demos/onboarding_tutorial/data/mcqa/train_n128_s1.json
+uv run python scripts/build_task_dataset.py --task MCQA --n 64  --seed 2 --split all --target-variable answer --out demos/onboarding_tutorial/data/mcqa/test_n64_s2.json
+```
+
+The one *split* table, `data/mcqa/data.json`, is a single file whose every row
+declares which split it is in: MCQA's unique inputs (at most 192, seed 1) are
+partitioned into disjoint groups, 128 pairs are formed within `train` and 64
+within `test`, and the target variable is `answer_position`. A document selects
+a split with a ref fragment (`mcqa/data#train`, `mcqa/data#test`), so the
+disjointness behind those two names is a property of the bytes both refs
+resolve against.
 
 One row, elided to the columns a document names:
 
@@ -103,9 +120,9 @@ One row, elided to the columns a document names:
 
 Serializing ahead of the run is what keeps a document's digest a function of
 committed bytes: a ref resolves by reading a file, so `validate` needs no task
-code, no tokenizer and no network. The sidecar
-`pairs_n64_s0.manifest.json` records the parameters — the table is a build
-product, the manifest is the recipe.
+code, no tokenizer and no network. The command above is the recipe — the
+table is a build product, and nothing sits beside it; the workflows that
+name it pin its digest in their `pins` section (workflow spec §7).
 
 ## Run it
 

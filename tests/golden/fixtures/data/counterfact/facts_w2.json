@@ -1,162 +1,194 @@
 [
  {
+  "answer": " Dresden",
   "input": "Saxony's capital,",
-  "subject": "Saxony",
-  "answer": " Dresden"
+  "split": "all",
+  "subject": "Saxony"
  },
  {
+  "answer": " Islam",
   "input": "Muhammad is affiliated with the religion of",
-  "subject": "Muhammad",
-  "answer": " Islam"
+  "split": "all",
+  "subject": "Muhammad"
  },
  {
+  "answer": " London",
   "input": "Tony Benn died in the city of",
-  "subject": "Tony Benn",
-  "answer": " London"
+  "split": "all",
+  "subject": "Tony Benn"
  },
  {
+  "answer": " English",
   "input": "In Grenada, the language spoken is",
-  "subject": "Grenada",
-  "answer": " English"
+  "split": "all",
+  "subject": "Grenada"
  },
  {
+  "answer": " CNN",
   "input": "Jeff Zucker, of",
-  "subject": "Jeff Zucker",
-  "answer": " CNN"
+  "split": "all",
+  "subject": "Jeff Zucker"
  },
  {
+  "answer": " midfielder",
   "input": "Mark Walters plays in the position of a defensive",
-  "subject": "Mark Walters",
-  "answer": " midfielder"
+  "split": "all",
+  "subject": "Mark Walters"
  },
  {
+  "answer": " BBC",
   "input": "Jeremy Clarkson is employed by the",
-  "subject": "Jeremy Clarkson",
-  "answer": " BBC"
+  "split": "all",
+  "subject": "Jeremy Clarkson"
  },
  {
+  "answer": " piano",
   "input": "Paul McCartney, playing the",
-  "subject": "Paul McCartney",
-  "answer": " piano"
+  "split": "all",
+  "subject": "Paul McCartney"
  },
  {
+  "answer": " India",
   "input": "Paanch was created in the country of his birth,",
-  "subject": "Paanch",
-  "answer": " India"
+  "split": "all",
+  "subject": "Paanch"
  },
  {
+  "answer": " London",
   "input": "David Cameron worked in the city of",
-  "subject": "David Cameron",
-  "answer": " London"
+  "split": "all",
+  "subject": "David Cameron"
  },
  {
+  "answer": " Europe",
   "input": "Catalonia belongs to the continent of",
-  "subject": "Catalonia",
-  "answer": " Europe"
+  "split": "all",
+  "subject": "Catalonia"
  },
  {
+  "answer": " medicine",
   "input": "Galen's expertise is in the field of",
-  "subject": "Galen",
-  "answer": " medicine"
+  "split": "all",
+  "subject": "Galen"
  },
  {
+  "answer": " quarterback",
   "input": "Mark Sanchez plays in the position of",
-  "subject": "Mark Sanchez",
-  "answer": " quarterback"
+  "split": "all",
+  "subject": "Mark Sanchez"
  },
  {
+  "answer": " Mecca",
   "input": "Aisha originates from the city of",
-  "subject": "Aisha",
-  "answer": " Mecca"
+  "split": "all",
+  "subject": "Aisha"
  },
  {
+  "answer": " Intel",
   "input": "Xeon is developed by",
-  "subject": "Xeon",
-  "answer": " Intel"
+  "split": "all",
+  "subject": "Xeon"
  },
  {
+  "answer": " Constantinople",
   "input": "Roman Empire's capital,",
-  "subject": "Roman Empire",
-  "answer": " Constantinople"
+  "split": "all",
+  "subject": "Roman Empire"
  },
  {
+  "answer": " HBO",
   "input": "Big Love premieres on",
-  "subject": "Big Love",
-  "answer": " HBO"
+  "split": "all",
+  "subject": "Big Love"
  },
  {
+  "answer": " English",
   "input": "David Crystal's area of work is the study of the history of the",
-  "subject": "David Crystal",
-  "answer": " English"
+  "split": "all",
+  "subject": "David Crystal"
  },
  {
+  "answer": " French",
   "input": "France Info is written in",
-  "subject": "France Info",
-  "answer": " French"
+  "split": "all",
+  "subject": "France Info"
  },
  {
+  "answer": " jazz",
   "input": "Chris McGregor is known for performing in a variety of genres, from rock to",
-  "subject": "Chris McGregor",
-  "answer": " jazz"
+  "split": "all",
+  "subject": "Chris McGregor"
  },
  {
+  "answer": " Vancouver",
   "input": "The headquarter of BC Hydro is in the heart of downtown",
-  "subject": "BC Hydro",
-  "answer": " Vancouver"
+  "split": "all",
+  "subject": "BC Hydro"
  },
  {
+  "answer": " WWE",
   "input": "Jeff Hardy is affiliated with the",
-  "subject": "Jeff Hardy",
-  "answer": " WWE"
+  "split": "all",
+  "subject": "Jeff Hardy"
  },
  {
+  "answer": " Milan",
   "input": "Prada originated in",
-  "subject": "Prada",
-  "answer": " Milan"
+  "split": "all",
+  "subject": "Prada"
  },
  {
+  "answer": " London",
   "input": "Michael Foot worked in the city of",
-  "subject": "Michael Foot",
-  "answer": " London"
+  "split": "all",
+  "subject": "Michael Foot"
  },
  {
+  "answer": " Tokyo",
   "input": "Nikon formed in 1975 and is headquartered in",
-  "subject": "Nikon",
-  "answer": " Tokyo"
+  "split": "all",
+  "subject": "Nikon"
  },
  {
+  "answer": " Microsoft",
   "input": "File Explorer, a product developed by",
-  "subject": "File Explorer",
-  "answer": " Microsoft"
+  "split": "all",
+  "subject": "File Explorer"
  },
  {
+  "answer": " fantasy",
   "input": "The genre played by Riverworld is a mix of",
-  "subject": "Riverworld",
-  "answer": " fantasy"
+  "split": "all",
+  "subject": "Riverworld"
  },
  {
+  "answer": " Paris",
   "input": "Chanel was started in",
-  "subject": "Chanel",
-  "answer": " Paris"
+  "split": "all",
+  "subject": "Chanel"
  },
  {
+  "answer": " Antarctica",
   "input": "Mount Discovery is located in the continent of",
-  "subject": "Mount Discovery",
-  "answer": " Antarctica"
+  "split": "all",
+  "subject": "Mount Discovery"
  },
  {
+  "answer": " Microsoft",
   "input": "ActiveSync, a product developed by",
-  "subject": "ActiveSync",
-  "answer": " Microsoft"
+  "split": "all",
+  "subject": "ActiveSync"
  },
  {
+  "answer": " Apple",
   "input": "macOS is developed by",
-  "subject": "macOS",
-  "answer": " Apple"
+  "split": "all",
+  "subject": "macOS"
  },
  {
+  "answer": " pope",
   "input": "Paul IV holds the title of \"the most powerful",
-  "subject": "Paul IV",
-  "answer": " pope"
+  "split": "all",
+  "subject": "Paul IV"
  }
 ]

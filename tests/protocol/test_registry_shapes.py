@@ -21,16 +21,21 @@ having one.
 from __future__ import annotations
 
 import dataclasses
+import re
+from typing import Any
 
 import pytest
 
 from causalab.protocol.canonical import canonicalize
 from causalab.protocol.errors import ParseError, ValidationError
+from causalab.protocol.loader import load
 from causalab.protocol.registry import (
+    COMPONENT_STREAMS,
     ModelInfo,
     component_shape,
     component_width,
     get_model_info,
+    model_info_from_hf_config,
     register_model,
 )
 from causalab.protocol.plan import COMPONENT_RANK
@@ -67,12 +72,12 @@ GQA = ModelInfo(
     shared_expert_intermediate_size=48,
     # ⚠️ deliberately different from shared_expert_intermediate_size (48) and
     # intermediate_size (128): on the fixture all three are 32, so only a table
-    # like this one can catch a wrong-field read (§1.1 of the round-3 plan).
+    # like this one can catch a wrong-field read.
     moe_intermediate_size=24,
     # ⚠️ the DeltaNet mixer's four dimensions, deliberately uncoupled: v-heads
     # is not 2·k-heads and the two head dims differ — the fixture's couplings
-    # (2× GVA tiling, equal dims) are exactly what a table must not assume
-    # (round-4 plan §1.1). q/k live in key-head space (3 heads × 10),
+    # (2× GVA tiling, equal dims) are exactly what a table must not assume.
+    # q/k live in key-head space (3 heads × 10),
     # v/gate/state in value-head space (6 × 12).
     linear_num_value_heads=6,
     linear_num_key_heads=3,
@@ -128,19 +133,11 @@ EXPECTED: dict[str, tuple[int | None, int | None, bool]] = {
     "attention_key": (64, 4, True),
     "attention_scores": (None, 8, False),
     "attention_z": (128, 8, True),
-    # the DeltaNet interior (N7): key_dim = 3·10 = 30, value_dim = 6·12 = 72,
+    # the DeltaNet interior: key_dim = 3·10 = 30, value_dim = 6·12 = 72,
     # so the fused q|k|v projection is 132 wide; q/k are key-head space (3
     # heads), everything value-shaped is value-head space (6)
-    "deltanet_qkv": (132, None, True),
-    "deltanet_qkv_conv": (132, None, True),
     "deltanet_query": (30, 3, True),
     "deltanet_key": (30, 3, True),
-    "deltanet_value": (72, 6, True),
-    "deltanet_beta": (6, None, True),
-    "deltanet_decay": (6, None, True),
-    "deltanet_gate": (72, 6, True),
-    "deltanet_core_out": (72, 6, True),
-    "deltanet_gated_out": (72, 6, True),
     # per chunk: a (k_dim x v_dim) matrix per value head — 10·12 per head
     "deltanet_state": (6 * 10 * 12, 6, True),
     "attention_premix": (128, 8, True),
@@ -152,6 +149,7 @@ EXPECTED: dict[str, tuple[int | None, int | None, bool]] = {
     "mlp_input_norm": (64, None, True),
     "mlp_input": (64, None, True),
     "mlp_activation": (128, None, True),
+    "mlp_neuron_output": (128, None, True),
     "router_logits": (32, None, True),
     "router_scores": (4, None, True),
     "expert_idx": (4, None, False),
@@ -161,6 +159,7 @@ EXPECTED: dict[str, tuple[int | None, int | None, bool]] = {
     "expert_gate_proj": (4 * 24, None, True),
     "expert_up_proj": (4 * 24, None, True),
     "expert_activation": (4 * 24, None, True),
+    "expert_neuron_output": (4 * 24, None, True),
     "expert_permutation": (4, None, False),
     "expert_output": (4 * 64, None, True),
     "routed_output": (64, None, True),
@@ -181,7 +180,7 @@ def test_every_component_in_the_vocabulary_has_a_shape() -> None:
 
     ``(batch, position, hidden)`` is the right answer often enough that a
     default would be silently right most of the time and silently wrong for
-    exactly the interior taps round 2 adds."""
+    exactly the interior taps."""
     assert set(EXPECTED) == set(COMPONENTS)
 
 
@@ -231,7 +230,7 @@ def test_head_on_a_component_with_no_head_axis_is_refused(env) -> None:
     the same class as the ``expert`` sub-axis ``_moe_site`` refuses by name."""
     raw = base_doc()
     raw["model"]["key"] = GQA.key
-    raw["sites"]["tgt"]["head"] = 2  # block_output has no head axis
+    raw["method"]["sites"]["tgt"]["head"] = 2  # block_output has no head axis
     with pytest.raises(ValidationError, match="has no head axis"):
         canonicalize(raw, env)
 
@@ -240,7 +239,11 @@ def test_head_is_bounded_by_the_components_own_head_space(env) -> None:
     """And the bound is quoted with the shape it came from."""
     raw = base_doc()
     raw["model"]["key"] = GQA.key
-    raw["sites"]["tgt"] = {"component": "attention_premix", "layer": 3, "head": 8}
+    raw["method"]["sites"]["tgt"] = {
+        "component": "attention_premix",
+        "layers": [3],
+        "head": 8,
+    }
     with pytest.raises(ValidationError, match="out of range"):
         canonicalize(raw, env)
 
@@ -248,12 +251,16 @@ def test_head_is_bounded_by_the_components_own_head_space(env) -> None:
 def test_a_head_inside_the_components_head_space_is_accepted(env) -> None:
     raw = base_doc()
     raw["model"]["key"] = GQA.key
-    raw["sites"]["tgt"] = {"component": "attention_premix", "layer": 3, "head": 7}
-    assert canonicalize(raw, env)["sites"]["tgt"]["head"] == 7
+    raw["method"]["sites"]["tgt"] = {
+        "component": "attention_premix",
+        "layers": [3],
+        "head": 7,
+    }
+    assert canonicalize(raw, env)["method"]["sites"]["tgt"]["head"] == 7
 
 
 def test_a_kv_space_head_bound_is_narrower_than_the_query_space_one() -> None:
-    """The latent half of the defect, pinned before round 2 walks into it.
+    """The latent half of the defect, pinned before the KV-space taps walk into it.
 
     📐 ``head_space`` is the *component's*, so a KV-space component under GQA
     admits half as many heads as a query-space one. Bounding the first by the
@@ -262,7 +269,7 @@ def test_a_kv_space_head_bound_is_narrower_than_the_query_space_one() -> None:
     """
     query_space = component_shape(GQA, "attention_premix").head_space
     assert query_space == GQA.num_heads == 8
-    assert GQA.num_kv_heads == 4  # what round 2's `v`, `k` and `k_pre_rope` use
+    assert GQA.num_kv_heads == 4  # what the `v`, `k` and `k_pre_rope` taps use
     # the bound that would have been applied to them, and the one that will be
     assert query_space != GQA.num_kv_heads
 
@@ -274,13 +281,13 @@ def test_a_kv_space_head_bound_is_narrower_than_the_query_space_one() -> None:
 
 def _doc_with_stream(value: object) -> dict[str, object]:
     raw = base_doc()
-    raw["sites"]["tgt"]["stream"] = value
+    raw["method"]["sites"]["tgt"]["stream"] = value
     return raw
 
 
 @pytest.mark.parametrize("stream", STREAMS)
 def test_a_document_may_name_the_stream_it_means(stream: str) -> None:
-    """🐞 Every one of these was rejected at parse before round 2: the field
+    """🐞 Every one of these was rejected at parse before the fix: the field
     parsed with ``_scalar_int``, while ``sites._check_stream`` reads it only
     when it is a *string* (``ModelBundle.stream_at`` returns one). The two
     halves of the feature each rejected what the other accepted, so no document
@@ -310,10 +317,10 @@ def test_a_stream_outside_the_vocabulary_is_refused() -> None:
 def _moe_doc_with_featurizer(kind: str) -> dict[str, object]:
     raw = base_doc()
     raw["model"]["key"] = "test/moe"
-    raw["sites"]["tgt"] = {"component": "router_scores", "layer": 3}
-    raw["featurizers"] = {"f": {"kind": kind, "k": 2}}
-    raw["reads"]["v_cf"]["featurizer"] = "f"
-    raw["writes"]["patch"]["featurizer"] = "f"
+    raw["method"]["sites"]["tgt"] = {"component": "router_scores", "layers": [3]}
+    raw["method"]["featurizers"] = {"f": {"kind": kind, "k": 2}}
+    raw["method"]["reads"]["v_cf"]["featurizer"] = "f"
+    raw["method"]["writes"]["patch"]["featurizer"] = "f"
     return in_order(raw)
 
 
@@ -332,27 +339,29 @@ def test_a_per_column_featurizer_on_a_ranking_axis_still_works(env) -> None:
     mean and a scale per column, which is meaningful on a ranking: 'how large is
     the top-ranked expert's score, typically'."""
     raw = _moe_doc_with_featurizer("standardize")
-    raw["featurizers"]["f"] = {"kind": "standardize"}
+    raw["method"]["featurizers"]["f"] = {"kind": "standardize"}
     raw = in_order(raw)
-    assert canonicalize(raw, env)["featurizers"]["f"]["width"] == 4
+    assert canonicalize(raw, env)["method"]["featurizers"]["f"]["width"] == 4
 
 
 def test_a_plain_read_of_a_ranking_axis_is_untouched(env) -> None:
     """The refusal is about fitting a basis, not about reading the tensor."""
     raw = base_doc()
     raw["model"]["key"] = "test/moe"
-    raw["sites"]["tgt"] = {"component": "router_scores", "layer": 3}
-    assert canonicalize(raw, env)["sites"]["tgt"]["component"] == "router_scores"
+    raw["method"]["sites"]["tgt"] = {"component": "router_scores", "layers": [3]}
+    assert (
+        canonicalize(raw, env)["method"]["sites"]["tgt"]["component"] == "router_scores"
+    )
 
 
 def test_the_routed_interior_is_a_ranking_axis_too(env) -> None:
-    """Round 3's token-major representation puts slot *k* of `expert_activation`
+    """The token-major representation puts slot *k* of `expert_activation`
     on the *k*-th ranked expert — `router_scores`' situation exactly, so the
     same basis-fitting refusal applies and the same per-column reads do not."""
     shape = component_shape(GQA, "expert_activation")
     assert shape.ranking is True
     raw = _moe_doc_with_featurizer("subspace")
-    raw["sites"]["tgt"] = {"component": "expert_activation", "layer": 3}
+    raw["method"]["sites"]["tgt"] = {"component": "expert_activation", "layers": [3]}
     with pytest.raises(ValidationError, match="per-token ranking"):
         canonicalize(in_order(raw), env)
 
@@ -385,7 +394,7 @@ def test_gpt2s_mlp_width_comes_from_n_inner() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# D1/D6 — the rename, and the rank table it renumbered
+# the rename, and the rank table it renumbered
 # --------------------------------------------------------------------------- #
 
 
@@ -393,7 +402,7 @@ def test_the_retired_spelling_still_loads() -> None:
     """The one-release alias: a document written against the old vocabulary is
     not a hard error."""
     raw = base_doc()
-    raw["sites"]["tgt"] = {"component": "attention_value", "layer": 3}
+    raw["method"]["sites"]["tgt"] = {"component": "attention_value", "layers": [3]}
     assert parse_document(raw).sites["tgt"].component == "attention_premix"
 
 
@@ -404,8 +413,8 @@ def test_the_alias_folds_at_parse_so_nothing_downstream_sees_two_names(
     identically — the alias is a courtesy at the door, not a second vocabulary
     the tables have to know about."""
     old, new = base_doc(), base_doc()
-    old["sites"]["tgt"] = {"component": "attention_value", "layer": 3}
-    new["sites"]["tgt"] = {"component": "attention_premix", "layer": 3}
+    old["method"]["sites"]["tgt"] = {"component": "attention_value", "layers": [3]}
+    new["method"]["sites"]["tgt"] = {"component": "attention_premix", "layers": [3]}
     assert canonicalize(old, env) == canonicalize(new, env)
 
 
@@ -414,7 +423,7 @@ def test_the_retired_name_is_not_reused_by_anything() -> None:
 
     An alias that *redirects* is fine; one that *rebinds* would let a document
     written against the old vocabulary load and silently mean a different
-    tensor. Round 2 introduces the real value vectors under their own name for
+    tensor. The real value vectors enter under their own name for
     exactly this reason (nnterp#51 is the same mistake, made after the fact).
     """
     for retired in DEPRECATED_COMPONENTS:
@@ -435,13 +444,13 @@ def test_the_rank_table_is_written_in_forward_order() -> None:
     assert ranks == sorted(ranks)
 
 
-def test_round_two_claimed_every_slot_plan_py_reserved() -> None:
-    """D6: renumber once, then never again.
+def test_the_reserved_rank_slots_were_claimed_without_repinning() -> None:
+    """Renumber once, then never again.
 
-    Round 2 reserved nine numbers in ``plan.py`` and has now claimed all nine —
-    each PR an insertion rather than a re-pin, which is the whole return on
+    Nine numbers were reserved in ``plan.py`` and have since all been claimed —
+    each an insertion rather than a re-pin, which is the whole return on
     renumbering the band in one go. The gaps that remain are for the MoE and
-    DeltaNet interiors (follow-ups F2 and F3).
+    DeltaNet interiors.
     """
     # the band still reads in forward order, with room left between its members
     band = [
@@ -466,7 +475,7 @@ def test_round_two_claimed_every_slot_plan_py_reserved() -> None:
 
 
 def test_a_kv_space_head_is_refused_at_load_not_just_at_the_tap(env) -> None:
-    """The §2.2 defect in the form round 2 actually walks into.
+    """The §2.2 defect in the form the KV-space taps actually walk into.
 
     ``attention_value_states`` is KV-head space, so on this GQA model head 5 is
     valid in query space (8 heads) and not here (4). The bound has to come from
@@ -476,9 +485,9 @@ def test_a_kv_space_head_is_refused_at_load_not_just_at_the_tap(env) -> None:
     """
     raw = base_doc()
     raw["model"]["key"] = GQA.key
-    raw["sites"]["tgt"] = {
+    raw["method"]["sites"]["tgt"] = {
         "component": "attention_value_states",
-        "layer": 3,
+        "layers": [3],
         "head": 5,
     }
     with pytest.raises(ValidationError, match="4 heads"):
@@ -490,9 +499,337 @@ def test_the_query_space_twin_accepts_the_same_head(env) -> None:
     the number."""
     raw = base_doc()
     raw["model"]["key"] = GQA.key
-    raw["sites"]["tgt"] = {
+    raw["method"]["sites"]["tgt"] = {
         "component": "attention_query_pre_rope",
-        "layer": 3,
+        "layers": [3],
         "head": 5,
     }
-    assert canonicalize(raw, env)["sites"]["tgt"]["head"] == 5
+    assert canonicalize(raw, env)["method"]["sites"]["tgt"]["head"] == 5
+
+
+# --------------------------------------------------------------------------- #
+# the Qwen3.6-35B-A3B entry, and the hybrid layer pattern it declares
+# --------------------------------------------------------------------------- #
+
+A3B = "Qwen/Qwen3.6-35B-A3B"
+#: One layer of each stream on the A3B's 3+1 schedule: layer 3 is the first
+#: gated full-attention layer, layer 0 a Gated DeltaNet one.
+FULL_LAYER, DELTA_LAYER = 3, 0
+
+
+def _a3b_doc(component: str, layer: int, **site: object) -> dict[str, Any]:
+    raw = base_doc()
+    raw["model"]["key"] = A3B
+    raw["method"]["sites"]["tgt"] = {"component": component, "layers": [layer], **site}
+    return raw
+
+
+def _a3b_doc_with_width(component: str, layer: int) -> dict[str, Any]:
+    """The site under a ``standardize`` featurizer, whose derived ``width`` is
+    the feature width the canonicalizer assigned to (model, site) — the
+    per-column kind, so it attaches to ranking axes too."""
+    raw = _a3b_doc(component, layer)
+    raw["method"]["featurizers"] = {"f": {"kind": "standardize"}}
+    raw["method"]["reads"]["v_cf"]["featurizer"] = "f"
+    raw["method"]["writes"]["patch"]["featurizer"] = "f"
+    return in_order(raw)
+
+
+def test_the_a3b_entry_is_the_checkpoints_config() -> None:
+    """📐 Every value is the checkpoint's config.json (revision 995ad96e) as
+    ``model_info_from_hf_config`` reads it, cross-checked against
+    ``docs/qwen36-35b-a3b-architecture.html``. Equality with the adapter's
+    reading is the property that matters: the run re-registers the key from
+    the loaded config, so a static value that differed would make ``validate``
+    and ``run`` size the same document differently."""
+    info = get_model_info(A3B)
+    assert (info.hidden_size, info.num_layers, info.vocab_size) == (2048, 40, 248320)
+    assert (info.num_heads, info.num_kv_heads, info.head_dim) == (16, 2, 256)
+    assert (info.num_experts, info.num_experts_per_tok) == (256, 8)
+    assert info.moe_intermediate_size == info.shared_expert_intermediate_size == 512
+    assert (info.linear_num_key_heads, info.linear_key_head_dim) == (16, 128)
+    assert (info.linear_num_value_heads, info.linear_value_head_dim) == (32, 128)
+    assert info.native_dtype == "bf16"
+    # the text config has no dense MLP width at all (every block is MoE), and
+    # the adapter now reads that as None rather than falling back to 4·hidden
+    # — so `mlp_activation` refuses at load exactly as the run refuses it
+    assert info.intermediate_size is None
+    # the *text* config's model_type, which is what the adapter reads (the
+    # wrapper config says "qwen3_5_moe"; the tiny fixture loads with this one)
+    assert info.family == "qwen3_5_moe_text"
+
+
+#: The two MIB circuit-track checkpoints registered for the Figure-1
+#: replication (``registry.py``, beside the gemma-2-2b-it row).
+MIB_ENTRIES = ("Qwen/Qwen2.5-0.5B", "google/gemma-2-2b")
+
+
+@pytest.mark.parametrize("key", MIB_ENTRIES)
+def test_a_mib_entry_matches_its_cached_hf_config(key: str) -> None:
+    """📐 Each static row equals what ``model_info_from_hf_config`` reads from
+    the checkpoint's own config.json — the property that keeps ``validate`` and
+    ``run`` (which re-registers from the loaded config) sizing one document
+    identically. Offline: skipped, never fetched, when the config is not in
+    the local HF cache."""
+    import os
+
+    from huggingface_hub.constants import HF_HUB_CACHE
+    from transformers import AutoConfig
+
+    folder = "models--" + key.replace("/", "--")
+    if not os.path.isdir(os.path.join(HF_HUB_CACHE, folder)):
+        pytest.skip(f"{key} is not in the local HF cache")
+    config = AutoConfig.from_pretrained(key, local_files_only=True)
+    read = model_info_from_hf_config(key, config)
+    static = get_model_info(key)
+    for field in (
+        "hidden_size",
+        "num_layers",
+        "num_heads",
+        "num_kv_heads",
+        "head_dim",
+        "intermediate_size",
+        "vocab_size",
+        "family",
+    ):
+        assert getattr(read, field) == getattr(static, field), field
+
+
+def test_the_mib_entries_have_the_papers_node_counts() -> None:
+    """MIB's node set is ``L·H + L + 1`` (heads, MLP blocks, the embedding):
+    the counts the Figure-1 replication sizes its `top_k` grid by."""
+    qwen, gemma = (get_model_info(k) for k in MIB_ENTRIES)
+    assert qwen.num_layers * qwen.num_heads + qwen.num_layers + 1 == 24 * 14 + 25
+    assert gemma.num_layers * gemma.num_heads + gemma.num_layers + 1 == 26 * 8 + 27
+    assert (qwen.family, gemma.family) == ("qwen2", "gemma2")
+
+
+def test_the_a3b_layer_pattern_is_three_deltanet_then_one_attention() -> None:
+    info = get_model_info(A3B)
+    assert info.layer_types is not None
+    assert info.layer_types == (("linear_attention",) * 3 + ("full_attention",)) * 10
+    full = [i for i, kind in enumerate(info.layer_types) if kind == "full_attention"]
+    assert full == list(range(3, 40, 4))
+
+
+@pytest.mark.parametrize(
+    ("component", "layer", "width"),
+    [
+        # the attention-like head unit: 16 query heads × 256 at a full-attention
+        # layer, 32 value heads × 128 at a DeltaNet one — the same 4096, which
+        # is why the head map and not the width is what tells them apart
+        ("attention_premix", FULL_LAYER, 16 * 256),
+        ("delta_premix", DELTA_LAYER, 32 * 128),
+        # the MoE block is in every layer, so its widths hold on both streams
+        ("expert_activation", FULL_LAYER, 8 * 512),
+        ("expert_activation", DELTA_LAYER, 8 * 512),
+        ("shared_expert_activation", FULL_LAYER, 512),
+        ("shared_expert_activation", DELTA_LAYER, 512),
+        ("router_scores", FULL_LAYER, 8),
+        ("router_scores", DELTA_LAYER, 8),
+    ],
+)
+def test_a3b_widths_at_a_site(env, component: str, layer: int, width: int) -> None:
+    canonical = canonicalize(_a3b_doc_with_width(component, layer), env)
+    assert canonical["method"]["featurizers"]["f"]["width"] == width
+
+
+@pytest.mark.parametrize("layer", [FULL_LAYER, DELTA_LAYER])
+def test_a3b_expert_idx_is_an_eight_wide_routing_table(env, layer: int) -> None:
+    """Integral, so no featurizer and no ``component_width`` — but eight ids
+    per token, readable and writable at every layer."""
+    shape = component_shape(get_model_info(A3B), "expert_idx")
+    assert (shape.width, shape.integral, shape.is_feature_space) == (8, True, False)
+    with pytest.raises(ValidationError):
+        component_width(get_model_info(A3B), "expert_idx")
+    canonical = canonicalize(_a3b_doc("expert_idx", layer), env)
+    assert canonical["method"]["sites"]["tgt"]["component"] == "expert_idx"
+
+
+def test_a3b_head_spaces_differ_between_the_two_mixers(env) -> None:
+    """Head 31 is a value head at a DeltaNet layer and nothing at a
+    full-attention one: the bound is the component's, and the two premixes
+    are different components with the same width."""
+    assert canonicalize(_a3b_doc("attention_premix", FULL_LAYER, head=15), env)
+    assert canonicalize(_a3b_doc("delta_premix", DELTA_LAYER, head=31), env)
+    with pytest.raises(ValidationError, match="16 heads"):
+        canonicalize(_a3b_doc("attention_premix", FULL_LAYER, head=16), env)
+
+
+def test_a_full_attention_component_at_a_deltanet_layer_is_refused_at_load(
+    env,
+) -> None:
+    """The refusal the entry exists to make offline. Before it, the pure verbs
+    accepted this document and the run refused it against the loaded modules;
+    now ``validate`` names the layers that do carry the mixer."""
+    with pytest.raises(ValidationError, match="carries 'linear_attention'") as err:
+        canonicalize(_a3b_doc("attention_premix", DELTA_LAYER), env)
+    assert "sites.tgt.component" in str(err.value)
+    assert "[3, 7, 11, 15, 19, 23, 27, 31, 35, 39]" in str(err.value)
+
+
+def test_a_deltanet_component_at_a_full_attention_layer_is_refused_at_load(
+    env,
+) -> None:
+    with pytest.raises(ValidationError, match="carries 'full_attention'"):
+        canonicalize(_a3b_doc("delta_premix", FULL_LAYER), env)
+
+
+def test_a_declared_stream_is_checked_against_the_layer(env) -> None:
+    """On a stream-agnostic component the declaration is the only thing to
+    check, and it is checked; on a stream-bound one it is checked first, so the
+    message names the per-layer fact rather than the component's need — the
+    order the run-time check uses."""
+    raw = _a3b_doc("block_output", DELTA_LAYER, stream="linear_attention")
+    assert (
+        canonicalize(raw, env)["method"]["sites"]["tgt"]["stream"] == "linear_attention"
+    )
+    with pytest.raises(ValidationError, match="per-layer fact") as err:
+        canonicalize(
+            _a3b_doc("block_output", DELTA_LAYER, stream="full_attention"), env
+        )
+    assert "sites.tgt.stream" in str(err.value)
+    with pytest.raises(ValidationError, match="per-layer fact"):
+        canonicalize(
+            _a3b_doc("delta_premix", DELTA_LAYER, stream="full_attention"), env
+        )
+
+
+def test_a_model_with_no_declared_pattern_defers_the_stream_check_to_the_run(
+    env,
+) -> None:
+    """``layer_types`` is optional. The registered dense entries and the GQA
+    table above declare none, so a DeltaNet component on them canonicalizes and
+    is refused where it always was — by the site resolver, against the module
+    the layer actually carries."""
+    assert GQA.layer_types is None
+    raw = base_doc()
+    raw["model"]["key"] = GQA.key
+    raw["method"]["sites"]["tgt"] = {"component": "delta_premix", "layers": [3]}
+    assert (
+        canonicalize(raw, env)["method"]["sites"]["tgt"]["component"] == "delta_premix"
+    )
+
+
+def test_a_document_naming_the_a3b_loads_and_digests_offline(env) -> None:
+    """The contract, end to end: the full loader pipeline on a minimal tree
+    against the committed fixture table, with the registry as the only source
+    of model facts. Two loads digest identically."""
+    loaded = load(_a3b_doc("attention_premix", FULL_LAYER, head=4), env)
+    assert loaded.canonical_document["model"]["key"] == A3B
+    assert loaded.canonical_document["method"]["sites"]["tgt"]["head"] == 4
+    assert re.fullmatch(r"[0-9a-f]{64}", loaded.document_digest)
+    again = load(_a3b_doc("attention_premix", FULL_LAYER, head=4), env)
+    assert again.document_digest == loaded.document_digest
+
+
+class _StubDenseConfig:
+    """Just the attributes :func:`model_info_from_hf_config` reads, on a
+    two-layer tower that declares no layer pattern."""
+
+    num_attention_heads = 8
+    hidden_size = 64
+    num_hidden_layers = 2
+    num_key_value_heads = 8
+    head_dim = 8
+    intermediate_size = 128
+    vocab_size = 512
+    dtype = "bfloat16"
+
+
+class _StubHybridConfig(_StubDenseConfig):
+    layer_types = ["linear_attention", "full_attention"]
+
+
+class _StubSlidingConfig(_StubDenseConfig):
+    """The Gemma2/Gemma3 pattern: HF's ``layer_types`` names an attention
+    *variant*, not a mixer."""
+
+    layer_types = ["sliding_attention", "full_attention"]
+
+
+class _StubUnmappedConfig(_StubDenseConfig):
+    """A family whose ``layer_types`` vocabulary the adapter has not met."""
+
+    layer_types = ["mamba", "full_attention"]
+
+
+def test_the_adapter_reads_layer_types_when_the_config_has_them() -> None:
+    info = model_info_from_hf_config("test/hybrid", _StubHybridConfig())
+    assert info.layer_types == ("linear_attention", "full_attention")
+
+
+def test_a_sliding_window_layer_is_a_full_attention_layer() -> None:
+    """🐞 The adapter copied HF's spellings straight into the
+    ``STREAMS``-validated field, so loading ``google/gemma-2-2b-it`` — a
+    built-in entry and a golden-protocol model — raised a bare ValueError on
+    its ``sliding_attention`` layers. A sliding window is still a ``self_attn``
+    child computing an attention matrix, which is what the run-time probe
+    answers for it, so the two halves of the stream check must agree."""
+    info = model_info_from_hf_config("test/gemma", _StubSlidingConfig())
+    assert info.layer_types == ("full_attention", "full_attention")
+
+
+def test_an_unmapped_layer_kind_defers_the_pattern_to_the_run() -> None:
+    """HF's vocabulary is wide (``mamba``, ``chunked_attention``, several
+    sparse-attention kinds). One the adapter cannot place leaves the whole
+    pattern unset — the run-time check is the documented fallback — rather
+    than raising on a model that loads fine, or guessing a stream for the
+    layers it does recognise."""
+    info = model_info_from_hf_config("test/unmapped", _StubUnmappedConfig())
+    assert info.layer_types is None
+
+
+def test_the_hf_spelling_table_lands_inside_the_stream_vocabulary() -> None:
+    """Census guard for ``_HF_LAYER_STREAMS``: every HF spelling the adapter
+    places lands on a protocol stream, and ``__post_init__`` therefore never
+    sees a mapped pattern it would refuse. A stream added to ``STREAMS`` with
+    no HF spelling is fine (the run-time probe still answers for it); a
+    spelling mapped onto a name outside ``STREAMS`` is not."""
+    from causalab.protocol.registry import _HF_LAYER_STREAMS
+
+    assert set(_HF_LAYER_STREAMS.values()) <= set(STREAMS)
+    assert set(_HF_LAYER_STREAMS) >= {"full_attention", "linear_attention"}
+
+
+def test_the_adapter_leaves_layer_types_unset_when_the_config_has_none() -> None:
+    """The pinned transformers' llama and gpt2 configs carry no such field; an
+    invented all-full-attention pattern would be right for them and wrong for
+    the next family that declares its streams some other way."""
+    assert (
+        model_info_from_hf_config("test/dense", _StubDenseConfig()).layer_types is None
+    )
+
+
+def test_a_layer_pattern_must_match_the_depth_and_the_stream_vocabulary() -> None:
+    """A static entry with a pattern of the wrong length would index past the
+    tower or leave layers unchecked; a misspelt stream would never equal the
+    declared one. Both are programming errors in the entry, caught when it is
+    built."""
+    with pytest.raises(ValueError, match="2 entries for a 4-layer"):
+        dataclasses.replace(GQA, layer_types=("full_attention", "linear_attention"))
+    with pytest.raises(ValueError, match="attention"):
+        dataclasses.replace(GQA, layer_types=("attention",) * 4)
+
+
+def test_the_stream_table_is_the_vocabularys_prefix_rule() -> None:
+    """``COMPONENT_STREAMS`` — the ``stream`` cell of the capability rows — is
+    the one table both the canonicalizer and the engines' site resolver read.
+    Its rule is stated in the spec (§2.4) as a prefix rule with exactly two
+    exceptions; the rows declare each component's stream, and this spells the
+    rule out independently so a row cannot declare a stream the spec's rule
+    does not give it, and a third exception cannot slip in without being
+    named here and in the spec."""
+    for component in COMPONENTS:
+        if component.startswith("attention_") and component not in (
+            "attention_input_norm",
+            "attention_output",
+        ):
+            expected: str | None = "full_attention"
+        elif component.startswith(("delta_", "deltanet_")):
+            expected = "linear_attention"
+        else:
+            expected = None
+        assert COMPONENT_STREAMS.get(component) == expected, component
+    assert set(COMPONENT_STREAMS) <= set(COMPONENTS)
+    assert set(COMPONENT_STREAMS.values()) <= set(STREAMS)

@@ -24,8 +24,10 @@ pytestmark = pytest.mark.unit
 def probe_doc(anchor: dict[str, Any], budget: int = 8) -> dict[str, Any]:
     """A minimal document whose saved metric reduces a continuation read."""
     raw = base_doc()
-    raw["positions"] = {"cont": {"generated": {"max_new_tokens": budget}, **anchor}}
-    raw["reads"]["logits"]["pos"] = "cont"
+    raw["method"]["positions"] = {
+        "cont": {"generated": {"max_new_tokens": budget}, **anchor}
+    }
+    raw["method"]["reads"]["logits"]["pos"] = "cont"
     return in_order(raw)
 
 
@@ -49,14 +51,17 @@ def test_depth_is_the_max_over_the_groups_reads():
     """Two reads of one model at different budgets share one decode: the run
     goes as deep as the deepest, each read windows its own."""
     raw = probe_doc({"index": -1}, budget=4)
-    raw["positions"]["long"] = {"generated": {"max_new_tokens": 16}, "all": True}
-    raw["reads"]["tail"] = {
+    raw["method"]["positions"]["long"] = {
+        "generated": {"max_new_tokens": 16},
+        "all": True,
+    }
+    raw["method"]["reads"]["tail"] = {
         "site": "lm_head",
         "pos": "long",
         "model": "patched",
         "input": "base",
     }
-    raw["save"].append(
+    raw["method"]["save"].append(
         {
             "value": "tail",
             "model": "patched",
@@ -85,9 +90,11 @@ def test_saving_a_read_obliges_building_it():
     logits — and becomes reachable when metric kinds declare a domain and an
     ids-only kind (a text probe) stops counting as a consumer."""
     raw = base_doc()
-    raw["positions"] = {"cont": {"generated": {"max_new_tokens": 8}, "all": True}}
-    raw["reads"] = {
-        "v_cf": raw["reads"]["v_cf"],
+    raw["method"]["positions"] = {
+        "cont": {"generated": {"max_new_tokens": 8}, "all": True}
+    }
+    raw["method"]["reads"] = {
+        "v_cf": raw["method"]["reads"]["v_cf"],
         "acts": {
             "site": "tgt",
             "pos": "cont",
@@ -95,8 +102,8 @@ def test_saving_a_read_obliges_building_it():
             "input": "base",
         },
     }
-    raw["metrics"] = {}
-    raw["save"] = [
+    raw["method"]["metrics"] = {}
+    raw["method"]["save"] = [
         {
             "value": "acts",
             "model": "patched",
@@ -135,8 +142,8 @@ def test_decode_depth_is_not_in_the_group_digest():
 
 def _decode_metric(raw: dict[str, Any]) -> dict[str, Any]:
     """Replace the document's metrics with a single ids-domain one."""
-    raw["metrics"] = {"said": {"kind": "decode", "of": "logits"}}
-    raw["save"] = [
+    raw["method"]["metrics"] = {"said": {"kind": "decode", "of": "logits"}}
+    raw["method"]["save"] = [
         {
             "value": "said",
             "model": "patched",
@@ -166,7 +173,7 @@ def test_saving_the_read_obliges_a_distribution_even_with_an_ids_metric():
     """The save manifest is the other consumer: an ids-domain metric does not
     excuse writing the read itself to disk."""
     raw = _decode_metric(probe_doc({"all": True}))
-    raw["save"].append(
+    raw["method"]["save"].append(
         {
             "value": "logits",
             "model": "patched",

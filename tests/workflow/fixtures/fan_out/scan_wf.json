@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "description": "A declared fan-out on CPU (workflow spec §2.9): the eight-point scan runs as two shards, its name is the join, and the shipped select reads the joined table exactly as it reads an unsharded one.",
+  "output_dir": "fanned",
+  "steps": {
+    "scan": {
+      "type": "intervention_protocol",
+      "document": "protocols/scan.json",
+      "fan_out": {"over": {"shards": 2}, "join": {"require": "all"}}
+    },
+    "best": {
+      "type": "script",
+      "script": {"module": "causalab.workflow.scripts.select"},
+      "inputs": {
+        "table": {"step": "scan", "file": "iia.json"},
+        "value": "value",
+        "emit": {"best_layer": "sites.target.layers"}
+      },
+      "outputs": {"values": {"file": "values.json", "keys": {"best_layer": 0}}}
+    }
+  }
+}

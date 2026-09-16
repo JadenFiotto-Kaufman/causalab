@@ -1,234 +1,308 @@
-"""The CLI verbs for an **intervention protocol** document (spec §9).
+"""The CLI verbs for an **intervention specification** (spec §9), ``dry-run``
+included.
 
-Every verb loads through :func:`causalab.protocol.loader.load` against a
-resolution environment built by :mod:`causalab.cli`, which also owns argument
-parsing and the dispatch between document types. This module therefore links
-against nothing in the workflow layer.
+Every verb compiles through :func:`causalab.protocol.compile.compile_protocol`
+against a resolution environment built by :mod:`causalab.cli`, which also owns
+argument parsing and the dispatch between document types. This module
+therefore links against nothing in the workflow layer.
 
 ``run`` needs an execution engine; the reference engine
 (:mod:`causalab.neural.engines.pytorch_hooks`) is imported lazily so the pure verbs stay
 torch-free.
+
+The run itself is :func:`causalab.protocol.run.run_protocol` — a public Python
+function, and the primitive. What stays here is argument parsing, what
+gets printed, and the exit code.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from pathlib import Path
 from typing import Any
 
-from causalab.protocol.engine import requires_campaign
-from causalab.protocol.errors import ProtocolError, ValidationError
-from causalab.protocol.loader import (
-    LoadedProtocol,
-    check_data_columns,
-    load,
-    load_text,
-)
+from causalab.protocol.compile import CompiledProtocol, compile_protocol
+from causalab.protocol.dry_run import DryRunReport, Refusal, dry_run
+from causalab.protocol.engine import DEFAULT_ENGINE
+from causalab.protocol.errors import ProtocolError, ValidationError, ValidationErrors
+from causalab.protocol.loader import check_data_columns
 from causalab.protocol.plan import plan_point
-from causalab.protocol.method import (
-    document_type,
-    method_digest,
-    parse_method,
-)
 from causalab.protocol.resolve import ResolutionEnv
+from causalab.protocol.run import run_protocol
 from causalab.protocol.schema import MODEL_DTYPE_DEFAULT
 from causalab.protocol.sweep import coordinate_label
 
 __all__ = ["main"]
 
 
-def _parse_points(spec: str, n_points: int) -> range:
-    """The --points shard selector: a half-open [start, stop) index range
-    into the campaign's expanded points, refused rather than clamped when
-    it falls outside [0, n_points] or selects nothing."""
-    try:
-        start_text, stop_text = spec.split(":", 1)
-        start, stop = int(start_text), int(stop_text)
-    except ValueError:
-        raise ProtocolError("P4", f"--points {spec!r} is not START:STOP") from None
-    if not (0 <= start < stop <= n_points):
-        raise ProtocolError(
-            "P4",
-            f"--points {spec!r} is outside the campaign's {n_points} points "
-            "or selects none",
-        )
-    return range(start, stop)
-
-
-def _load(args: argparse.Namespace, env: ResolutionEnv) -> LoadedProtocol:
+def _compile(args: argparse.Namespace, env: ResolutionEnv) -> CompiledProtocol:
+    """The one compiler, with the CLI's inputs: the file, its own directory
+    for relative references, ``--set``, the environment's two resolvers, and
+    no engine (the pure verbs never load one; ``run`` routes afterwards)."""
     from causalab.protocol.sweep import DEFAULT_POINT_CAP
 
-    return load(
+    return compile_protocol(
         args.document,
-        env,
-        overrides=dict(args.parsed_set),
+        args.document.parent,
+        dict(args.parsed_set),
+        env.datasets,
+        env.artifacts,
+        None,
         point_cap=args.max_points if args.max_points is not None else DEFAULT_POINT_CAP,
+        model_info=env.model_info,
     )
 
 
 def main(args: argparse.Namespace, env: ResolutionEnv) -> int:
-    """Run one verb against an **intervention protocol** document.
+    """Run one verb against an **intervention specification**.
 
     Dispatch between document types lives in :mod:`causalab.cli`, so this module
     — and the whole ``protocol/`` package — links against nothing in the
     workflow layer. That is what lets someone use the intervention protocol on
-    its own.
-
-    A **method** file (§1.1) is dispatched here rather than there: it is a
-    protocol-family document, and telling it apart needs `document_type`,
-    which is this package's."""
+    its own."""
     try:
-        raw = dict(load_text(args.document))
-        if document_type(raw) == "method":
-            return _method_main(args, raw)
         from causalab.cli import ensure_model_registered, wants_hf_registration
 
+        if args.verb == "dry-run":
+            # before the registration hook: a dry run never fetches a config
+            return _dry_run(args, env)
         if wants_hf_registration(args):
             ensure_model_registered(args)
-        loaded = _load(args, env)
+        compiled = _compile(args, env)
         if args.verb == "validate":
             if args.data:
-                check_data_columns(loaded, env)
-            n = len(loaded.expansion.points)
+                check_data_columns(compiled, env)
+            n = len(compiled.points.points)
             print(
                 f"OK: {args.document} — {n} point{'s' if n != 1 else ''}, "
-                f"digest {loaded.document_digest[:16]}…"
+                f"digest {compiled.digests.document[:16]}…"
             )
             return 0
         if args.verb == "digest":
-            print(loaded.document_digest)
+            print(compiled.digests.document)
             return 0
         if args.verb == "explain":
-            _explain(loaded)
-            _explain_engine(loaded, getattr(args, "engine", None))
+            _explain(compiled)
+            _explain_engine(compiled, getattr(args, "engine", None))
             return 0
         # run — engines are optional, lazily-imported extras so the pure
         # verbs stay torch-free; --engine picks the list, choose_engine routes
         from causalab.cli import load_engines
 
-        result = _run(
-            loaded,
+        result = run_protocol(
+            compiled,
             env,
-            load_engines(getattr(args, "engine", "auto"), args.device),
+            load_engines(
+                getattr(args, "engine", None) or DEFAULT_ENGINE,
+                args.device,
+                cuda_graphs=getattr(args, "cuda_graphs", False),
+                batch_rows=getattr(args, "batch_rows", None),
+                fit_rows=getattr(args, "fit_rows", None),
+            ),
             args.out,
             points=args.points,
         )
         for manifest_path, disk_path in sorted(result.files.items()):
             print(f"saved {manifest_path} -> {disk_path}")
+        if result.cells:
+            # the denominator is data (§4.1): how many cells measured, and
+            # which were excluded and why — read from the result, not kept
+            # by the campaign
+            print(f"cells {result.denominator.render()}")
         return 0
     except ProtocolError as err:
         print(f"refused: {err}", file=sys.stderr)
         return 1
 
 
-def _run(
-    loaded: LoadedProtocol,
-    env: ResolutionEnv,
-    engines: list[Any],
-    out: Path,
-    *,
-    points: str | None = None,
-) -> Any:
-    from causalab.protocol.engine import ExecutionRequest, choose_engine
+def _dry_run(args: argparse.Namespace, env: ResolutionEnv) -> int:
+    """``dry-run``: everything a run decides before weights load, resolved and
+    reported (:mod:`causalab.protocol.dry_run`).
 
-    chosen = choose_engine(list(loaded.point_documents), engines)
-    # --points slices every per-point tuple in lockstep; the campaign
-    # digest is untouched — a shard's artifacts still stamp and dedup as
-    # members of the whole campaign, so an external scheduler can fan
-    # shards out and recombine by digest.
-    selected = (
-        _parse_points(points, len(loaded.expansion.points))
-        if points is not None
-        else range(len(loaded.expansion.points))
-    )
-    _write_run_record(loaded, out, selected)
-    request = ExecutionRequest(
-        points=tuple(loaded.expansion.points[i].raw for i in selected),
-        canonical=tuple(loaded.canonical_points[i] for i in selected),
-        digests=tuple(loaded.point_digests[i] for i in selected),
-        coords=tuple(loaded.expansion.points[i].coords for i in selected),
-        document_digest=loaded.document_digest,
-        env=env,
-        output_dir=out,
-    )
-    return chosen.execute(request)
+    Exit ``0`` when the document compiles and every fact is resolved or
+    explicitly undecided, with no shortfall for the requested engine(s); ``1``
+    on any refusal — a compile refusal (printed as ``refused: …`` with its
+    reason-coded record, exactly as ``validate`` refuses), a shortfall for a
+    pinned ``--engine`` (under ``auto``, only when no candidate serves), or a
+    ``--data`` refusal. Engines are built only when ``--engine`` is given, on
+    the CPU, and constructing one loads no weights.
 
-
-def _method_main(args: argparse.Namespace, raw: dict[str, Any]) -> int:
-    """The verbs on a method file (§1.1).
-
-    A method has no inputs, so there is nothing to plan, expand or run: what
-    it can answer is "is this a well-formed method", "what does it hash to"
-    and "what must I bind to use it" — the last being the thing a reader of a
-    shared method actually needs.
+    ``--register-from-hf`` is refused rather than inherited: the flag's one
+    effect is a config fetch, and a dry run's contract is that it never
+    touches the network — an unregistered ``model.key`` is the registry's
+    ``V4`` refusal.
     """
-    if args.verb == "run":
-        print(
-            "refused: this is a method file — it names no network, no data and "
-            "no addresses. Bind it from a document's `application` half "
-            "(§1.1), and run that.",
-            file=sys.stderr,
+    if getattr(args, "register_from_hf", False):
+        raise ProtocolError(
+            "P4",
+            "--register-from-hf does not apply to dry-run: a dry run resolves "
+            "the model from the registry alone and never fetches a config. An "
+            "unregistered model.key is refused [V4]; register its static entry "
+            "(causalab.protocol.registry.register_model), or pre-flight with "
+            "'validate --register-from-hf'",
         )
+    try:
+        compiled = _compile(args, env)
+    except ProtocolError as err:
+        # the compile's refusal, plus the record: the rule's slug, the field
+        # and the reason code — the reason is what the rendered text lacks
+        print(f"refused: {err}", file=sys.stderr)
+        each = err.errors if isinstance(err, ValidationErrors) else (err,)
+        for violation in each:
+            print(f"  {Refusal.from_error(violation).render()}", file=sys.stderr)
         return 1
-    method = parse_method(raw)
-    if args.verb == "digest":
-        print(method_digest(raw))
-        return 0
-    if args.verb == "validate":
-        print(
-            f"OK: {args.document} — method, digest {method_digest(raw)[:16]}…, "
-            f"{len(method.signature.lines())} binding"
-            f"{'s' if len(method.signature.lines()) != 1 else ''} to supply"
+    choice = getattr(args, "engine", None)
+    engines: list[Any] = []
+    if choice is not None:
+        from causalab.cli import load_engines
+
+        engines = load_engines(choice, "cpu")
+    report = dry_run(
+        compiled,
+        env,
+        engines=engines,
+        shard_size=getattr(args, "shard_size", None),
+        overrides=dict(args.parsed_set),
+        check_data=bool(getattr(args, "data", False)),
+    )
+    _print_dry_run(report, args.document)
+    for refusal in report.refusals:
+        print(f"refused: {refusal.message}", file=sys.stderr)
+        print(f"  {refusal.render()}", file=sys.stderr)
+    return 0 if report.ok else 1
+
+
+def _print_dry_run(report: DryRunReport, document: Any) -> None:
+    """The report, one block per fact, ending with the ``undecided`` line —
+    so a run's tokenizer-time refusal is never mistaken for a green."""
+    print(f"dry-run   {document}")
+    print(f"digest    {report.composition.digest}")
+    if report.composition.title:
+        print(f"title     {report.composition.title}")
+    if report.composition.overrides:
+        applied = ", ".join(f"{k}={v}" for k, v in report.composition.overrides.items())
+        print(f"overrides {applied}")
+    model = report.model
+    realization = f"{model.key}@{model.revision} {model.dtype}"
+    if model.quantization is not None:
+        realization += f" + {model.quantization}"
+    print(f"model     {realization}")
+    pattern = (
+        "declares no layer pattern"
+        if model.layer_pattern is None
+        else "layer pattern "
+        + ", ".join(
+            f"{model.layer_pattern.count(s)} {s}"
+            for s in sorted(set(model.layer_pattern))
         )
-        return 0
-    print(f"digest    {method_digest(raw)}")
-    if method.description:
-        print(f"about     {method.description.splitlines()[0]}")
-    print("binds     the application half must supply")
-    for line in method.signature.lines():
-        print(f"  {line}")
+    )
+    print(
+        f"  {model.num_layers} layers, hidden {model.hidden_size}, "
+        f"{model.num_heads} heads ({model.num_kv_heads} kv) x {model.head_dim}, "
+        f"vocab {model.vocab_size}, family {model.family or 'unknown'}; {pattern}"
+    )
+    print("data")
+    for entry in report.data:
+        roles = ", ".join(entry.roles) or "(no role)"
+        print(
+            f"  {entry.ref} ({roles}): digest {entry.digest[:16]}… "
+            f"{len(entry.columns)} columns"
+        )
+    if report.points.axes:
+        axes = ", ".join(f"{axis} ({n} values)" for axis, n in report.points.axes)
+        print(f"axes      {axes}")
+    print(f"points    {report.points.n}")
+    print(
+        f"forwards  {report.forwards.per_point} per point, "
+        f"{report.forwards.campaign} interned"
+    )
+    if report.shards.count is None:
+        print(f"shards    {report.shards.n_points} points; pass --shard-size N to plan")
+    else:
+        n = report.shards.n_points
+        print(
+            f"shards    {report.shards.count} of at most {report.shards.shard_size} "
+            f"points ({n} point{'s' if n != 1 else ''})"
+        )
+    print(f"requires  {list(report.capabilities) or 'nothing beyond a forward pass'}")
+    for engine in report.engines:
+        if engine.serves:
+            print(f"engine    {engine.name}: serves")
+        else:
+            assert engine.shortfall is not None
+            print(
+                f"engine    {engine.name}: {engine.shortfall.kind} {engine.shortfall.message}"
+            )
+    print("sites")
+    for site in report.sites:
+        where = site.component
+        if site.layers:
+            layers = (
+                f"layer {site.layers[0]}"
+                if len(site.layers) == 1
+                else f"layers {site.layers[0]}..{site.layers[-1]} ({len(site.layers)})"
+            )
+            where += f" {layers}"
+        if site.head is not None:
+            where += f" head {site.head}"
+        if site.expert is not None:
+            where += f" expert {site.expert}"
+        if site.stream is not None:
+            where += f" [{site.stream}]"
+        print(f"  {site.name}: {where}: {site.status}")
+        if site.refusal is not None:
+            print(f"    {site.refusal.message}")
+            print(f"    {site.refusal.render()}")
+            continue
+        heads = (
+            "no head axis"
+            if site.head_space is None
+            else f"head space {site.head_space}"
+        )
+        print(f"    shape {site.shape}, width {site.width}, {heads}")
+        writes = (
+            f"read-only ({site.why})"
+            if site.writes is None
+            else "writes " + ", ".join(site.writes)
+        )
+        print(f"    reads {', '.join(site.reads)}; {writes}")
+        for why in site.undecided:
+            print(f"    undecided: {why}")
+    if report.inventory is not None:
+        streams = ", ".join(
+            f"{report.inventory.count(s)} {s}"
+            for s in sorted({layer.stream for layer in report.inventory.layers})
+        )
+        print(
+            f"inventory {len(report.inventory.layers)} layers ({streams}); "
+            f"layerless {', '.join(report.inventory.layerless)}"
+        )
+    else:
+        print("inventory undecided (see below)")
+    print("readouts")
+    for read in report.readouts:
+        metrics = ", ".join(read.metrics) or "(saved or operand only)"
+        print(
+            f"  {read.name}: {read.model} on {read.input} at {read.site} -> {metrics}"
+        )
     print("save")
-    for entry in raw.get("save", []):
-        print(f"  {entry.get('value')} -> {entry.get('file_path')}")
-    return 0
+    for out in report.outputs:
+        kind = f" [{out.kind}]" if out.kind else ""
+        print(f"  {out.value} ({out.binding}) -> {out.file_path}{kind}")
+    for diagnostic in report.diagnostics:
+        print(f"diagnostic {diagnostic.kind}: {diagnostic.message}")
+    for refusal in report.refusals:
+        print(f"refusal   {refusal.message}")
+        print(f"  {refusal.render()}")
+    for item in report.undecided:
+        print(f"  {item.topic}: {item.detail}")
+    print(
+        "undecided (decided when the run encodes its inputs): "
+        + ", ".join(report.undecided_topics)
+    )
 
 
-def _write_run_record(loaded: LoadedProtocol, out: Path, selected: range) -> Path:
-    """``<out>/protocol.json`` — the record of what ran.
-
-    The saved tables say what the numbers are; this says what produced them:
-    the canonical document (every default materialized, dtype and
-    quantization included), its digest, the per-point provenance digests, and
-    the method this document was composed from. It is what someone reproducing
-    the run reads first, and it is written before execution so a crashed run
-    still says what it was.
-    """
-    record = {
-        "document_digest": loaded.document_digest,
-        "canonical": loaded.canonical_document,
-        "points": [
-            {
-                "index": index,
-                "digest": loaded.point_digests[index],
-                "coords": dict(loaded.expansion.points[index].coords),
-            }
-            for index in selected
-        ],
-    }
-    if loaded.method_digest is not None:
-        record["method"] = {
-            "digest": loaded.method_digest,
-            "ref": loaded.method_ref,
-        }
-    out.mkdir(parents=True, exist_ok=True)
-    target = out / "protocol.json"
-    target.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-    return target
-
-
-def _explain_engine(loaded: LoadedProtocol, choice: str | None) -> None:
+def _explain_engine(compiled: CompiledProtocol, choice: str | None) -> None:
     """Print which engine ``choose_engine`` would pick, or the §8 refusal.
 
     ``explain`` printed ``requires`` and stopped there, so routing could not be
@@ -249,18 +323,19 @@ def _explain_engine(loaded: LoadedProtocol, choice: str | None) -> None:
 
     engines = load_engines(choice, "cpu")
     try:
-        print(f"engine    {choose_engine(list(loaded.point_documents), engines).name}")
+        print(
+            f"engine    {choose_engine(list(compiled.point_documents), engines).name}"
+        )
     except ValidationError as err:
         print(f"engine    refused: {err}")
 
 
-def _explain(loaded: LoadedProtocol) -> None:
-    doc = loaded.point_documents[0]
-    axes = loaded.expansion.axes
-    print(f"digest    {loaded.document_digest}")
-    if loaded.method_digest is not None:
-        ref = f" ({loaded.method_ref})" if loaded.method_ref else " (inline)"
-        print(f"method    {loaded.method_digest}{ref}")
+def _explain(compiled: CompiledProtocol) -> None:
+    doc = compiled.point_documents[0]
+    axes = compiled.points.axes
+    print(f"digest    {compiled.digests.document}")
+    if doc.title:
+        print(f"title     {doc.title}")
     model = doc.model
     realization = f"{model.key}@{model.revision} {model.dtype or MODEL_DTYPE_DEFAULT}"
     if model.quantization is not None:
@@ -270,9 +345,26 @@ def _explain(loaded: LoadedProtocol) -> None:
         print(
             f"axes      {', '.join(f'{a.id} ({len(a.values)} values)' for a in axes)}"
         )
-    print(f"points    {len(loaded.expansion.points)}")
-    needed = requires_campaign(list(loaded.point_documents))
-    print(f"requires  {sorted(needed) or 'nothing beyond a forward pass'}")
+    print(f"points    {len(compiled.points.points)}")
+    # the compiler's required-capability set (§8), read from the registry rows
+    print(
+        f"requires  {sorted(compiled.capabilities) or 'nothing beyond a forward pass'}"
+    )
+    # the derived record of a path block (§3.2): the policy, the receivers in
+    # the order they are injected (one joint pass), and the restorer boundary
+    # in forward order — none of which the canonical form spells out
+    path = compiled.lowered.get("path_patching")
+    if path:
+        receivers = ", ".join(path["receivers"])
+        print(
+            f"path      {path['restoration']}: {path['sender']} -> {receivers} "
+            f"(harvest {path['harvest']!r}, inject {path['inject']!r})"
+        )
+        boundary = " < ".join(
+            f"{name}={component}@{layer}"
+            for layer, component, name in path["restorers"]
+        )
+        print(f"  restorers {boundary or '(none: adjacent layers)'}")
     plan = plan_point(doc)
     print(f"forwards  {plan.num_forwards} per point")
     for group in plan.groups:
@@ -298,9 +390,10 @@ def _explain(loaded: LoadedProtocol) -> None:
         )
         print(f"  {entry.value} ({binding}) -> {entry.file_path}")
     if axes:
-        first = loaded.expansion.points[0]
+        first = compiled.points.points[0]
         print(
-            f"first point {coordinate_label(first.coords)} digest {loaded.point_digests[0][:16]}…"
+            f"first point {coordinate_label(first.coords)} digest "
+            f"{compiled.digests.points[0][:16]}…"
         )
 
 

@@ -40,7 +40,7 @@ Variables:
 
 Because the prompt is regenerated *every time* `raw_input` is computed (each call resamples 60 ICL examples), traces of the same `(var_1, var_2, var_3, var_4)` will produce different prompts. This is intentional — it keeps the ICL examples broad — but it means snapshotted prompts are not reproducible across re-traces.
 
-`output_tokens` declares the forms `{"1": [" 1", "1"], "0": [" 0", "0"]}` for all three equality variables (both spacings, so scoring tolerates the leading-space variant), and `match_modes` marks them `"prefix"` so the derived checker accepts output that continues past the answer.
+The task's `ScoringSpec` declares the forms `{True: [" 1", "1"], False: [" 0", "0"]}` for all three equality variables (both spacings, so scoring tolerates the leading-space variant), grades `result_equality`'s digit (its `answer_variable`), and sets `string_mode="prefix"` so the grader accepts output that continues past the answer.
 
 ## Prompt Modes
 
@@ -88,10 +88,12 @@ The regex differs per prompt mode:
 
 ## How to Run
 
+The task runs from an intervention document that names its table
+(`hierarchical_equality/data/default`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
+
 ```bash
-./scripts/run_exp.sh he_locate         # locate analysis
-./scripts/run_exp.sh he_subspace       # subspace analysis
-./scripts/run_exp.sh he_pipeline       # locate + subspace
+uv run causalab run <document.json>
 ```
 
 Outputs land under `artifacts/hierarchical_equality/<model>/<analysis>/...` per `docs/CODEBASE.md` invariant 7.
@@ -101,9 +103,10 @@ Outputs land under `artifacts/hierarchical_equality/<model>/<analysis>/...` per 
 | File | Role |
 |---|---|
 | `config.py` | Constants (`LETTERS`, `PATTERNS`, `NUM_ICL_EXAMPLES`, `PROMPT_MODE`) |
-| `causal_models.py` | `CAUSAL_MODEL` (declares `output_tokens` + `match_modes`) and the `TARGET_VARIABLE` loader hook |
+| `causal_models.py` | `CAUSAL_MODEL` (with its `ScoringSpec`) and the `TARGET_VARIABLE` loader hook |
 | `templates.py` | `TEMPLATES`, `fill_template`, `_sample_pattern_values`, `generate_icl_examples` |
 | `counterfactuals.py` | `sample_balanced_input`, `generate_dataset`, `COUNTERFACTUAL_GENERATORS` |
 | `token_positions.py` | `create_token_positions` (custom Python — not declarative due to ICL repeats) |
-| `checker.py`, `metrics.py`, `icl_scaling.py` | Task-specific scoring helpers |
+| `data/default.json` | the shipped table: `hierarchical_equality/data/default` (256 pairs, `split all`; no `*_forms` — the task declares no `output_tokens`); built with `uv run python scripts/build_task_dataset.py --task hierarchical_equality --n 256 --seed 0 --split all --target-variable result_equality --out causalab/tasks/hierarchical_equality/data/default.json` |
+| `metrics.py`, `icl_scaling.py` | Task-specific scoring helpers |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

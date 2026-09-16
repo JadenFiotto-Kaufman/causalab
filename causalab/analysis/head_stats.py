@@ -26,7 +26,7 @@ __all__ = ["main"]
 
 def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
     table = frame(Path(inputs["table"]))
-    layer_column = str(inputs.get("layer_column", "sites.target.layer"))
+    layer_column = str(inputs.get("layer_column", "sites.target.layers"))
     head_column = str(inputs.get("head_column", "sites.target.head"))
     value_column = str(inputs.get("value_column", "value"))
     for column in (layer_column, head_column, value_column):
@@ -35,6 +35,16 @@ def main(inputs: Mapping[str, Any], outputs: Mapping[str, Path]) -> None:
                 f"head_stats: the input table has no column {column!r} "
                 f"(has {sorted(map(str, table.columns))})"
             )
+    # a `layers` coordinate is a layer index (a sweep over one-layer bands)
+    # or a band; the statistic is per (layer, head), so a band cell has no row
+    # here — refused by name rather than grouped by an unhashable list
+    banded = [v for v in table[layer_column] if isinstance(v, (list, tuple))]
+    if banded:
+        raise StepError(
+            f"head_stats: column {layer_column!r} holds a layer band "
+            f"({banded[0]!r}) — the statistic is per (layer, head), so the "
+            "producing document sweeps single layers, not bands"
+        )
     grouped = table.groupby([layer_column, head_column], sort=True)[value_column]
     # ddof=0 on purpose: a cell with one row has no sample spread, and 0.0 is
     # the honest answer for "how far apart are these", where NaN would poison

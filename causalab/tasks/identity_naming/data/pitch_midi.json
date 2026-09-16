@@ -1,0 +1,7426 @@
+[
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "62",
+  "base_answer_forms": [
+   "62"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "D4",
+  "input": "The MIDI number for D4 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "62",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "68",
+  "cf_answer_forms": [
+   "68"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#4",
+    "result": "68"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "68",
+  "label_forms": [
+   "68"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "55",
+  "base_answer_forms": [
+   "55"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "G3",
+  "input": "The MIDI number for G3 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "55",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "58",
+  "base_answer_forms": [
+   "58"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "A#3",
+  "input": "The MIDI number for A#3 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "58",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "68",
+  "cf_answer_forms": [
+   "68"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#4",
+    "result": "68"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "68",
+  "label_forms": [
+   "68"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "44",
+  "base_answer_forms": [
+   "44"
+  ],
+  "cf_answer": "54",
+  "cf_answer_forms": [
+   "54"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#3",
+    "result": "54"
+   }
+  ],
+  "entity": "G#2",
+  "input": "The MIDI number for G#2 is ",
+  "label": "54",
+  "label_forms": [
+   "54"
+  ],
+  "result": "44",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "44",
+  "base_answer_forms": [
+   "44"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "G#2",
+  "input": "The MIDI number for G#2 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "44",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "70",
+  "cf_answer_forms": [
+   "70"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#4",
+    "result": "70"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "70",
+  "label_forms": [
+   "70"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "45",
+  "base_answer_forms": [
+   "45"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "A2",
+  "input": "The MIDI number for A2 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "45",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "82",
+  "cf_answer_forms": [
+   "82"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#5",
+    "result": "82"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "82",
+  "label_forms": [
+   "82"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "40",
+  "base_answer_forms": [
+   "40"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "E2",
+  "input": "The MIDI number for E2 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "40",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "42",
+  "cf_answer_forms": [
+   "42"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#2",
+    "result": "42"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "42",
+  "label_forms": [
+   "42"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "58",
+  "base_answer_forms": [
+   "58"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "A#3",
+  "input": "The MIDI number for A#3 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "58",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "56",
+  "base_answer_forms": [
+   "56"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "G#3",
+  "input": "The MIDI number for G#3 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "56",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "49",
+  "cf_answer_forms": [
+   "49"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#3",
+    "result": "49"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "49",
+  "label_forms": [
+   "49"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "69",
+  "cf_answer_forms": [
+   "69"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A4",
+    "result": "69"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "69",
+  "label_forms": [
+   "69"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "39",
+  "cf_answer_forms": [
+   "39"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#2",
+    "result": "39"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "39",
+  "label_forms": [
+   "39"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "82",
+  "cf_answer_forms": [
+   "82"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#5",
+    "result": "82"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "82",
+  "label_forms": [
+   "82"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "81",
+  "cf_answer_forms": [
+   "81"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A5",
+    "result": "81"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "81",
+  "label_forms": [
+   "81"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "78",
+  "base_answer_forms": [
+   "78"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "F#5",
+  "input": "The MIDI number for F#5 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "78",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "36",
+  "base_answer_forms": [
+   "36"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "C2",
+  "input": "The MIDI number for C2 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "36",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "51",
+  "base_answer_forms": [
+   "51"
+  ],
+  "cf_answer": "82",
+  "cf_answer_forms": [
+   "82"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#5",
+    "result": "82"
+   }
+  ],
+  "entity": "D#3",
+  "input": "The MIDI number for D#3 is ",
+  "label": "82",
+  "label_forms": [
+   "82"
+  ],
+  "result": "51",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "56",
+  "base_answer_forms": [
+   "56"
+  ],
+  "cf_answer": "81",
+  "cf_answer_forms": [
+   "81"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A5",
+    "result": "81"
+   }
+  ],
+  "entity": "G#3",
+  "input": "The MIDI number for G#3 is ",
+  "label": "81",
+  "label_forms": [
+   "81"
+  ],
+  "result": "56",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "40",
+  "base_answer_forms": [
+   "40"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "E2",
+  "input": "The MIDI number for E2 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "40",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "50",
+  "cf_answer_forms": [
+   "50"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D3",
+    "result": "50"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "50",
+  "label_forms": [
+   "50"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "51",
+  "base_answer_forms": [
+   "51"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "D#3",
+  "input": "The MIDI number for D#3 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "51",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "70",
+  "base_answer_forms": [
+   "70"
+  ],
+  "cf_answer": "64",
+  "cf_answer_forms": [
+   "64"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E4",
+    "result": "64"
+   }
+  ],
+  "entity": "A#4",
+  "input": "The MIDI number for A#4 is ",
+  "label": "64",
+  "label_forms": [
+   "64"
+  ],
+  "result": "70",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "56",
+  "base_answer_forms": [
+   "56"
+  ],
+  "cf_answer": "68",
+  "cf_answer_forms": [
+   "68"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#4",
+    "result": "68"
+   }
+  ],
+  "entity": "G#3",
+  "input": "The MIDI number for G#3 is ",
+  "label": "68",
+  "label_forms": [
+   "68"
+  ],
+  "result": "56",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "42",
+  "cf_answer_forms": [
+   "42"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#2",
+    "result": "42"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "42",
+  "label_forms": [
+   "42"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "55",
+  "base_answer_forms": [
+   "55"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "G3",
+  "input": "The MIDI number for G3 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "55",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "81",
+  "cf_answer_forms": [
+   "81"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A5",
+    "result": "81"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "81",
+  "label_forms": [
+   "81"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "70",
+  "cf_answer_forms": [
+   "70"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#4",
+    "result": "70"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "70",
+  "label_forms": [
+   "70"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "64",
+  "cf_answer_forms": [
+   "64"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E4",
+    "result": "64"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "64",
+  "label_forms": [
+   "64"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "56",
+  "cf_answer_forms": [
+   "56"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#3",
+    "result": "56"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "56",
+  "label_forms": [
+   "56"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "51",
+  "cf_answer_forms": [
+   "51"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#3",
+    "result": "51"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "51",
+  "label_forms": [
+   "51"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "47",
+  "cf_answer_forms": [
+   "47"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B2",
+    "result": "47"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "47",
+  "label_forms": [
+   "47"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "48",
+  "base_answer_forms": [
+   "48"
+  ],
+  "cf_answer": "47",
+  "cf_answer_forms": [
+   "47"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B2",
+    "result": "47"
+   }
+  ],
+  "entity": "C3",
+  "input": "The MIDI number for C3 is ",
+  "label": "47",
+  "label_forms": [
+   "47"
+  ],
+  "result": "48",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "78",
+  "base_answer_forms": [
+   "78"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "F#5",
+  "input": "The MIDI number for F#5 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "78",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "66",
+  "base_answer_forms": [
+   "66"
+  ],
+  "cf_answer": "40",
+  "cf_answer_forms": [
+   "40"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E2",
+    "result": "40"
+   }
+  ],
+  "entity": "F#4",
+  "input": "The MIDI number for F#4 is ",
+  "label": "40",
+  "label_forms": [
+   "40"
+  ],
+  "result": "66",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "84",
+  "base_answer_forms": [
+   "84"
+  ],
+  "cf_answer": "44",
+  "cf_answer_forms": [
+   "44"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#2",
+    "result": "44"
+   }
+  ],
+  "entity": "C6",
+  "input": "The MIDI number for C6 is ",
+  "label": "44",
+  "label_forms": [
+   "44"
+  ],
+  "result": "84",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "45",
+  "base_answer_forms": [
+   "45"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "A2",
+  "input": "The MIDI number for A2 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "45",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "70",
+  "base_answer_forms": [
+   "70"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "A#4",
+  "input": "The MIDI number for A#4 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "70",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "81",
+  "cf_answer_forms": [
+   "81"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A5",
+    "result": "81"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "81",
+  "label_forms": [
+   "81"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "69",
+  "base_answer_forms": [
+   "69"
+  ],
+  "cf_answer": "53",
+  "cf_answer_forms": [
+   "53"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F3",
+    "result": "53"
+   }
+  ],
+  "entity": "A4",
+  "input": "The MIDI number for A4 is ",
+  "label": "53",
+  "label_forms": [
+   "53"
+  ],
+  "result": "69",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "69",
+  "base_answer_forms": [
+   "69"
+  ],
+  "cf_answer": "51",
+  "cf_answer_forms": [
+   "51"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#3",
+    "result": "51"
+   }
+  ],
+  "entity": "A4",
+  "input": "The MIDI number for A4 is ",
+  "label": "51",
+  "label_forms": [
+   "51"
+  ],
+  "result": "69",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "73",
+  "base_answer_forms": [
+   "73"
+  ],
+  "cf_answer": "62",
+  "cf_answer_forms": [
+   "62"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D4",
+    "result": "62"
+   }
+  ],
+  "entity": "C#5",
+  "input": "The MIDI number for C#5 is ",
+  "label": "62",
+  "label_forms": [
+   "62"
+  ],
+  "result": "73",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "73",
+  "base_answer_forms": [
+   "73"
+  ],
+  "cf_answer": "53",
+  "cf_answer_forms": [
+   "53"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F3",
+    "result": "53"
+   }
+  ],
+  "entity": "C#5",
+  "input": "The MIDI number for C#5 is ",
+  "label": "53",
+  "label_forms": [
+   "53"
+  ],
+  "result": "73",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "67",
+  "cf_answer_forms": [
+   "67"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G4",
+    "result": "67"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "67",
+  "label_forms": [
+   "67"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "78",
+  "base_answer_forms": [
+   "78"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "F#5",
+  "input": "The MIDI number for F#5 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "78",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "56",
+  "cf_answer_forms": [
+   "56"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#3",
+    "result": "56"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "56",
+  "label_forms": [
+   "56"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "75",
+  "base_answer_forms": [
+   "75"
+  ],
+  "cf_answer": "43",
+  "cf_answer_forms": [
+   "43"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G2",
+    "result": "43"
+   }
+  ],
+  "entity": "D#5",
+  "input": "The MIDI number for D#5 is ",
+  "label": "43",
+  "label_forms": [
+   "43"
+  ],
+  "result": "75",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "48",
+  "base_answer_forms": [
+   "48"
+  ],
+  "cf_answer": "51",
+  "cf_answer_forms": [
+   "51"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#3",
+    "result": "51"
+   }
+  ],
+  "entity": "C3",
+  "input": "The MIDI number for C3 is ",
+  "label": "51",
+  "label_forms": [
+   "51"
+  ],
+  "result": "48",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "37",
+  "base_answer_forms": [
+   "37"
+  ],
+  "cf_answer": "82",
+  "cf_answer_forms": [
+   "82"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#5",
+    "result": "82"
+   }
+  ],
+  "entity": "C#2",
+  "input": "The MIDI number for C#2 is ",
+  "label": "82",
+  "label_forms": [
+   "82"
+  ],
+  "result": "37",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "43",
+  "cf_answer_forms": [
+   "43"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G2",
+    "result": "43"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "43",
+  "label_forms": [
+   "43"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "50",
+  "cf_answer_forms": [
+   "50"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D3",
+    "result": "50"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "50",
+  "label_forms": [
+   "50"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "59",
+  "base_answer_forms": [
+   "59"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "B3",
+  "input": "The MIDI number for B3 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "59",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "39",
+  "base_answer_forms": [
+   "39"
+  ],
+  "cf_answer": "42",
+  "cf_answer_forms": [
+   "42"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#2",
+    "result": "42"
+   }
+  ],
+  "entity": "D#2",
+  "input": "The MIDI number for D#2 is ",
+  "label": "42",
+  "label_forms": [
+   "42"
+  ],
+  "result": "39",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "45",
+  "base_answer_forms": [
+   "45"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "A2",
+  "input": "The MIDI number for A2 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "45",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "50",
+  "base_answer_forms": [
+   "50"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "D3",
+  "input": "The MIDI number for D3 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "50",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "70",
+  "base_answer_forms": [
+   "70"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "A#4",
+  "input": "The MIDI number for A#4 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "70",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "40",
+  "cf_answer_forms": [
+   "40"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E2",
+    "result": "40"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "40",
+  "label_forms": [
+   "40"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "37",
+  "base_answer_forms": [
+   "37"
+  ],
+  "cf_answer": "43",
+  "cf_answer_forms": [
+   "43"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G2",
+    "result": "43"
+   }
+  ],
+  "entity": "C#2",
+  "input": "The MIDI number for C#2 is ",
+  "label": "43",
+  "label_forms": [
+   "43"
+  ],
+  "result": "37",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "74",
+  "base_answer_forms": [
+   "74"
+  ],
+  "cf_answer": "72",
+  "cf_answer_forms": [
+   "72"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C5",
+    "result": "72"
+   }
+  ],
+  "entity": "D5",
+  "input": "The MIDI number for D5 is ",
+  "label": "72",
+  "label_forms": [
+   "72"
+  ],
+  "result": "74",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "59",
+  "cf_answer_forms": [
+   "59"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B3",
+    "result": "59"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "59",
+  "label_forms": [
+   "59"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "74",
+  "base_answer_forms": [
+   "74"
+  ],
+  "cf_answer": "37",
+  "cf_answer_forms": [
+   "37"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#2",
+    "result": "37"
+   }
+  ],
+  "entity": "D5",
+  "input": "The MIDI number for D5 is ",
+  "label": "37",
+  "label_forms": [
+   "37"
+  ],
+  "result": "74",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "48",
+  "base_answer_forms": [
+   "48"
+  ],
+  "cf_answer": "47",
+  "cf_answer_forms": [
+   "47"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B2",
+    "result": "47"
+   }
+  ],
+  "entity": "C3",
+  "input": "The MIDI number for C3 is ",
+  "label": "47",
+  "label_forms": [
+   "47"
+  ],
+  "result": "48",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "43",
+  "cf_answer_forms": [
+   "43"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G2",
+    "result": "43"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "43",
+  "label_forms": [
+   "43"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "66",
+  "base_answer_forms": [
+   "66"
+  ],
+  "cf_answer": "49",
+  "cf_answer_forms": [
+   "49"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#3",
+    "result": "49"
+   }
+  ],
+  "entity": "F#4",
+  "input": "The MIDI number for F#4 is ",
+  "label": "49",
+  "label_forms": [
+   "49"
+  ],
+  "result": "66",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "82",
+  "base_answer_forms": [
+   "82"
+  ],
+  "cf_answer": "39",
+  "cf_answer_forms": [
+   "39"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#2",
+    "result": "39"
+   }
+  ],
+  "entity": "A#5",
+  "input": "The MIDI number for A#5 is ",
+  "label": "39",
+  "label_forms": [
+   "39"
+  ],
+  "result": "82",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "37",
+  "cf_answer_forms": [
+   "37"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#2",
+    "result": "37"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "37",
+  "label_forms": [
+   "37"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "70",
+  "base_answer_forms": [
+   "70"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "A#4",
+  "input": "The MIDI number for A#4 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "70",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "75",
+  "base_answer_forms": [
+   "75"
+  ],
+  "cf_answer": "42",
+  "cf_answer_forms": [
+   "42"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#2",
+    "result": "42"
+   }
+  ],
+  "entity": "D#5",
+  "input": "The MIDI number for D#5 is ",
+  "label": "42",
+  "label_forms": [
+   "42"
+  ],
+  "result": "75",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "40",
+  "cf_answer_forms": [
+   "40"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E2",
+    "result": "40"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "40",
+  "label_forms": [
+   "40"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "50",
+  "base_answer_forms": [
+   "50"
+  ],
+  "cf_answer": "40",
+  "cf_answer_forms": [
+   "40"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E2",
+    "result": "40"
+   }
+  ],
+  "entity": "D3",
+  "input": "The MIDI number for D3 is ",
+  "label": "40",
+  "label_forms": [
+   "40"
+  ],
+  "result": "50",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "77",
+  "base_answer_forms": [
+   "77"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "F5",
+  "input": "The MIDI number for F5 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "77",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "58",
+  "base_answer_forms": [
+   "58"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "A#3",
+  "input": "The MIDI number for A#3 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "58",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "47",
+  "base_answer_forms": [
+   "47"
+  ],
+  "cf_answer": "39",
+  "cf_answer_forms": [
+   "39"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#2",
+    "result": "39"
+   }
+  ],
+  "entity": "B2",
+  "input": "The MIDI number for B2 is ",
+  "label": "39",
+  "label_forms": [
+   "39"
+  ],
+  "result": "47",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "68",
+  "base_answer_forms": [
+   "68"
+  ],
+  "cf_answer": "65",
+  "cf_answer_forms": [
+   "65"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F4",
+    "result": "65"
+   }
+  ],
+  "entity": "G#4",
+  "input": "The MIDI number for G#4 is ",
+  "label": "65",
+  "label_forms": [
+   "65"
+  ],
+  "result": "68",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "82",
+  "base_answer_forms": [
+   "82"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "A#5",
+  "input": "The MIDI number for A#5 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "82",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "39",
+  "cf_answer_forms": [
+   "39"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#2",
+    "result": "39"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "39",
+  "label_forms": [
+   "39"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "46",
+  "base_answer_forms": [
+   "46"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "A#2",
+  "input": "The MIDI number for A#2 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "46",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "69",
+  "base_answer_forms": [
+   "69"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "A4",
+  "input": "The MIDI number for A4 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "69",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "78",
+  "cf_answer_forms": [
+   "78"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#5",
+    "result": "78"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "78",
+  "label_forms": [
+   "78"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "47",
+  "base_answer_forms": [
+   "47"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "B2",
+  "input": "The MIDI number for B2 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "47",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "66",
+  "base_answer_forms": [
+   "66"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "F#4",
+  "input": "The MIDI number for F#4 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "66",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "62",
+  "base_answer_forms": [
+   "62"
+  ],
+  "cf_answer": "72",
+  "cf_answer_forms": [
+   "72"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C5",
+    "result": "72"
+   }
+  ],
+  "entity": "D4",
+  "input": "The MIDI number for D4 is ",
+  "label": "72",
+  "label_forms": [
+   "72"
+  ],
+  "result": "62",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "68",
+  "base_answer_forms": [
+   "68"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "G#4",
+  "input": "The MIDI number for G#4 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "68",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "77",
+  "base_answer_forms": [
+   "77"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "F5",
+  "input": "The MIDI number for F5 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "77",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "78",
+  "cf_answer_forms": [
+   "78"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#5",
+    "result": "78"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "78",
+  "label_forms": [
+   "78"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "36",
+  "base_answer_forms": [
+   "36"
+  ],
+  "cf_answer": "65",
+  "cf_answer_forms": [
+   "65"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F4",
+    "result": "65"
+   }
+  ],
+  "entity": "C2",
+  "input": "The MIDI number for C2 is ",
+  "label": "65",
+  "label_forms": [
+   "65"
+  ],
+  "result": "36",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "83",
+  "base_answer_forms": [
+   "83"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "B5",
+  "input": "The MIDI number for B5 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "83",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "83",
+  "cf_answer_forms": [
+   "83"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B5",
+    "result": "83"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "83",
+  "label_forms": [
+   "83"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "70",
+  "cf_answer_forms": [
+   "70"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#4",
+    "result": "70"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "70",
+  "label_forms": [
+   "70"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "44",
+  "cf_answer_forms": [
+   "44"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#2",
+    "result": "44"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "44",
+  "label_forms": [
+   "44"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "51",
+  "base_answer_forms": [
+   "51"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "D#3",
+  "input": "The MIDI number for D#3 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "51",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "66",
+  "base_answer_forms": [
+   "66"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "F#4",
+  "input": "The MIDI number for F#4 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "66",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "75",
+  "base_answer_forms": [
+   "75"
+  ],
+  "cf_answer": "54",
+  "cf_answer_forms": [
+   "54"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#3",
+    "result": "54"
+   }
+  ],
+  "entity": "D#5",
+  "input": "The MIDI number for D#5 is ",
+  "label": "54",
+  "label_forms": [
+   "54"
+  ],
+  "result": "75",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "73",
+  "base_answer_forms": [
+   "73"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "C#5",
+  "input": "The MIDI number for C#5 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "73",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "75",
+  "base_answer_forms": [
+   "75"
+  ],
+  "cf_answer": "44",
+  "cf_answer_forms": [
+   "44"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#2",
+    "result": "44"
+   }
+  ],
+  "entity": "D#5",
+  "input": "The MIDI number for D#5 is ",
+  "label": "44",
+  "label_forms": [
+   "44"
+  ],
+  "result": "75",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "83",
+  "cf_answer_forms": [
+   "83"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B5",
+    "result": "83"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "83",
+  "label_forms": [
+   "83"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "62",
+  "base_answer_forms": [
+   "62"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "D4",
+  "input": "The MIDI number for D4 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "62",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "74",
+  "base_answer_forms": [
+   "74"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "D5",
+  "input": "The MIDI number for D5 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "74",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "46",
+  "base_answer_forms": [
+   "46"
+  ],
+  "cf_answer": "51",
+  "cf_answer_forms": [
+   "51"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#3",
+    "result": "51"
+   }
+  ],
+  "entity": "A#2",
+  "input": "The MIDI number for A#2 is ",
+  "label": "51",
+  "label_forms": [
+   "51"
+  ],
+  "result": "46",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "50",
+  "base_answer_forms": [
+   "50"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "D3",
+  "input": "The MIDI number for D3 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "50",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "60",
+  "cf_answer_forms": [
+   "60"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C4",
+    "result": "60"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "60",
+  "label_forms": [
+   "60"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "62",
+  "cf_answer_forms": [
+   "62"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D4",
+    "result": "62"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "62",
+  "label_forms": [
+   "62"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "72",
+  "cf_answer_forms": [
+   "72"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C5",
+    "result": "72"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "72",
+  "label_forms": [
+   "72"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "62",
+  "base_answer_forms": [
+   "62"
+  ],
+  "cf_answer": "78",
+  "cf_answer_forms": [
+   "78"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#5",
+    "result": "78"
+   }
+  ],
+  "entity": "D4",
+  "input": "The MIDI number for D4 is ",
+  "label": "78",
+  "label_forms": [
+   "78"
+  ],
+  "result": "62",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "46",
+  "base_answer_forms": [
+   "46"
+  ],
+  "cf_answer": "64",
+  "cf_answer_forms": [
+   "64"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E4",
+    "result": "64"
+   }
+  ],
+  "entity": "A#2",
+  "input": "The MIDI number for A#2 is ",
+  "label": "64",
+  "label_forms": [
+   "64"
+  ],
+  "result": "46",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "40",
+  "base_answer_forms": [
+   "40"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "E2",
+  "input": "The MIDI number for E2 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "40",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "69",
+  "cf_answer_forms": [
+   "69"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A4",
+    "result": "69"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "69",
+  "label_forms": [
+   "69"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "74",
+  "base_answer_forms": [
+   "74"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "D5",
+  "input": "The MIDI number for D5 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "74",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "36",
+  "base_answer_forms": [
+   "36"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "C2",
+  "input": "The MIDI number for C2 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "36",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "56",
+  "cf_answer_forms": [
+   "56"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#3",
+    "result": "56"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "56",
+  "label_forms": [
+   "56"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "55",
+  "base_answer_forms": [
+   "55"
+  ],
+  "cf_answer": "65",
+  "cf_answer_forms": [
+   "65"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F4",
+    "result": "65"
+   }
+  ],
+  "entity": "G3",
+  "input": "The MIDI number for G3 is ",
+  "label": "65",
+  "label_forms": [
+   "65"
+  ],
+  "result": "55",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "39",
+  "base_answer_forms": [
+   "39"
+  ],
+  "cf_answer": "62",
+  "cf_answer_forms": [
+   "62"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D4",
+    "result": "62"
+   }
+  ],
+  "entity": "D#2",
+  "input": "The MIDI number for D#2 is ",
+  "label": "62",
+  "label_forms": [
+   "62"
+  ],
+  "result": "39",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "48",
+  "base_answer_forms": [
+   "48"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "C3",
+  "input": "The MIDI number for C3 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "48",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "82",
+  "base_answer_forms": [
+   "82"
+  ],
+  "cf_answer": "44",
+  "cf_answer_forms": [
+   "44"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#2",
+    "result": "44"
+   }
+  ],
+  "entity": "A#5",
+  "input": "The MIDI number for A#5 is ",
+  "label": "44",
+  "label_forms": [
+   "44"
+  ],
+  "result": "82",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "36",
+  "base_answer_forms": [
+   "36"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "C2",
+  "input": "The MIDI number for C2 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "36",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "62",
+  "cf_answer_forms": [
+   "62"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D4",
+    "result": "62"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "62",
+  "label_forms": [
+   "62"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "56",
+  "base_answer_forms": [
+   "56"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "G#3",
+  "input": "The MIDI number for G#3 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "56",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "36",
+  "base_answer_forms": [
+   "36"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "C2",
+  "input": "The MIDI number for C2 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "36",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "69",
+  "base_answer_forms": [
+   "69"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "A4",
+  "input": "The MIDI number for A4 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "69",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "74",
+  "cf_answer_forms": [
+   "74"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D5",
+    "result": "74"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "74",
+  "label_forms": [
+   "74"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "77",
+  "base_answer_forms": [
+   "77"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "F5",
+  "input": "The MIDI number for F5 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "77",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "55",
+  "base_answer_forms": [
+   "55"
+  ],
+  "cf_answer": "53",
+  "cf_answer_forms": [
+   "53"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F3",
+    "result": "53"
+   }
+  ],
+  "entity": "G3",
+  "input": "The MIDI number for G3 is ",
+  "label": "53",
+  "label_forms": [
+   "53"
+  ],
+  "result": "55",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "80",
+  "base_answer_forms": [
+   "80"
+  ],
+  "cf_answer": "47",
+  "cf_answer_forms": [
+   "47"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B2",
+    "result": "47"
+   }
+  ],
+  "entity": "G#5",
+  "input": "The MIDI number for G#5 is ",
+  "label": "47",
+  "label_forms": [
+   "47"
+  ],
+  "result": "80",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "37",
+  "cf_answer_forms": [
+   "37"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#2",
+    "result": "37"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "37",
+  "label_forms": [
+   "37"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "64",
+  "cf_answer_forms": [
+   "64"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E4",
+    "result": "64"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "64",
+  "label_forms": [
+   "64"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "44",
+  "base_answer_forms": [
+   "44"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "G#2",
+  "input": "The MIDI number for G#2 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "44",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "69",
+  "base_answer_forms": [
+   "69"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "A4",
+  "input": "The MIDI number for A4 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "69",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "77",
+  "base_answer_forms": [
+   "77"
+  ],
+  "cf_answer": "58",
+  "cf_answer_forms": [
+   "58"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#3",
+    "result": "58"
+   }
+  ],
+  "entity": "F5",
+  "input": "The MIDI number for F5 is ",
+  "label": "58",
+  "label_forms": [
+   "58"
+  ],
+  "result": "77",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "37",
+  "cf_answer_forms": [
+   "37"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#2",
+    "result": "37"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "37",
+  "label_forms": [
+   "37"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "52",
+  "base_answer_forms": [
+   "52"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "E3",
+  "input": "The MIDI number for E3 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "52",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "56",
+  "base_answer_forms": [
+   "56"
+  ],
+  "cf_answer": "59",
+  "cf_answer_forms": [
+   "59"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B3",
+    "result": "59"
+   }
+  ],
+  "entity": "G#3",
+  "input": "The MIDI number for G#3 is ",
+  "label": "59",
+  "label_forms": [
+   "59"
+  ],
+  "result": "56",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "83",
+  "base_answer_forms": [
+   "83"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "B5",
+  "input": "The MIDI number for B5 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "83",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "74",
+  "base_answer_forms": [
+   "74"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "D5",
+  "input": "The MIDI number for D5 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "74",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "81",
+  "cf_answer_forms": [
+   "81"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A5",
+    "result": "81"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "81",
+  "label_forms": [
+   "81"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "77",
+  "base_answer_forms": [
+   "77"
+  ],
+  "cf_answer": "65",
+  "cf_answer_forms": [
+   "65"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F4",
+    "result": "65"
+   }
+  ],
+  "entity": "F5",
+  "input": "The MIDI number for F5 is ",
+  "label": "65",
+  "label_forms": [
+   "65"
+  ],
+  "result": "77",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "59",
+  "base_answer_forms": [
+   "59"
+  ],
+  "cf_answer": "70",
+  "cf_answer_forms": [
+   "70"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#4",
+    "result": "70"
+   }
+  ],
+  "entity": "B3",
+  "input": "The MIDI number for B3 is ",
+  "label": "70",
+  "label_forms": [
+   "70"
+  ],
+  "result": "59",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "47",
+  "base_answer_forms": [
+   "47"
+  ],
+  "cf_answer": "49",
+  "cf_answer_forms": [
+   "49"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#3",
+    "result": "49"
+   }
+  ],
+  "entity": "B2",
+  "input": "The MIDI number for B2 is ",
+  "label": "49",
+  "label_forms": [
+   "49"
+  ],
+  "result": "47",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "44",
+  "base_answer_forms": [
+   "44"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "G#2",
+  "input": "The MIDI number for G#2 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "44",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "59",
+  "cf_answer_forms": [
+   "59"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B3",
+    "result": "59"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "59",
+  "label_forms": [
+   "59"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "75",
+  "cf_answer_forms": [
+   "75"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#5",
+    "result": "75"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "75",
+  "label_forms": [
+   "75"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "38",
+  "cf_answer_forms": [
+   "38"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D2",
+    "result": "38"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "38",
+  "label_forms": [
+   "38"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "53",
+  "base_answer_forms": [
+   "53"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "F3",
+  "input": "The MIDI number for F3 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "53",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "45",
+  "base_answer_forms": [
+   "45"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "A2",
+  "input": "The MIDI number for A2 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "45",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "59",
+  "cf_answer_forms": [
+   "59"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B3",
+    "result": "59"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "59",
+  "label_forms": [
+   "59"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "44",
+  "base_answer_forms": [
+   "44"
+  ],
+  "cf_answer": "54",
+  "cf_answer_forms": [
+   "54"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#3",
+    "result": "54"
+   }
+  ],
+  "entity": "G#2",
+  "input": "The MIDI number for G#2 is ",
+  "label": "54",
+  "label_forms": [
+   "54"
+  ],
+  "result": "44",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "82",
+  "base_answer_forms": [
+   "82"
+  ],
+  "cf_answer": "51",
+  "cf_answer_forms": [
+   "51"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#3",
+    "result": "51"
+   }
+  ],
+  "entity": "A#5",
+  "input": "The MIDI number for A#5 is ",
+  "label": "51",
+  "label_forms": [
+   "51"
+  ],
+  "result": "82",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "39",
+  "base_answer_forms": [
+   "39"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "D#2",
+  "input": "The MIDI number for D#2 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "39",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "47",
+  "base_answer_forms": [
+   "47"
+  ],
+  "cf_answer": "69",
+  "cf_answer_forms": [
+   "69"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A4",
+    "result": "69"
+   }
+  ],
+  "entity": "B2",
+  "input": "The MIDI number for B2 is ",
+  "label": "69",
+  "label_forms": [
+   "69"
+  ],
+  "result": "47",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "82",
+  "base_answer_forms": [
+   "82"
+  ],
+  "cf_answer": "40",
+  "cf_answer_forms": [
+   "40"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E2",
+    "result": "40"
+   }
+  ],
+  "entity": "A#5",
+  "input": "The MIDI number for A#5 is ",
+  "label": "40",
+  "label_forms": [
+   "40"
+  ],
+  "result": "82",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "55",
+  "base_answer_forms": [
+   "55"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "G3",
+  "input": "The MIDI number for G3 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "55",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "62",
+  "base_answer_forms": [
+   "62"
+  ],
+  "cf_answer": "42",
+  "cf_answer_forms": [
+   "42"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#2",
+    "result": "42"
+   }
+  ],
+  "entity": "D4",
+  "input": "The MIDI number for D4 is ",
+  "label": "42",
+  "label_forms": [
+   "42"
+  ],
+  "result": "62",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "71",
+  "cf_answer_forms": [
+   "71"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B4",
+    "result": "71"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "71",
+  "label_forms": [
+   "71"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "66",
+  "base_answer_forms": [
+   "66"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "F#4",
+  "input": "The MIDI number for F#4 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "66",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "57",
+  "cf_answer_forms": [
+   "57"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A3",
+    "result": "57"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "57",
+  "label_forms": [
+   "57"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "66",
+  "cf_answer_forms": [
+   "66"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F#4",
+    "result": "66"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "66",
+  "label_forms": [
+   "66"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "55",
+  "cf_answer_forms": [
+   "55"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G3",
+    "result": "55"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "55",
+  "label_forms": [
+   "55"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "57",
+  "base_answer_forms": [
+   "57"
+  ],
+  "cf_answer": "83",
+  "cf_answer_forms": [
+   "83"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B5",
+    "result": "83"
+   }
+  ],
+  "entity": "A3",
+  "input": "The MIDI number for A3 is ",
+  "label": "83",
+  "label_forms": [
+   "83"
+  ],
+  "result": "57",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "46",
+  "base_answer_forms": [
+   "46"
+  ],
+  "cf_answer": "76",
+  "cf_answer_forms": [
+   "76"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E5",
+    "result": "76"
+   }
+  ],
+  "entity": "A#2",
+  "input": "The MIDI number for A#2 is ",
+  "label": "76",
+  "label_forms": [
+   "76"
+  ],
+  "result": "46",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "72",
+  "base_answer_forms": [
+   "72"
+  ],
+  "cf_answer": "60",
+  "cf_answer_forms": [
+   "60"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C4",
+    "result": "60"
+   }
+  ],
+  "entity": "C5",
+  "input": "The MIDI number for C5 is ",
+  "label": "60",
+  "label_forms": [
+   "60"
+  ],
+  "result": "72",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "76",
+  "base_answer_forms": [
+   "76"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "E5",
+  "input": "The MIDI number for E5 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "76",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "40",
+  "base_answer_forms": [
+   "40"
+  ],
+  "cf_answer": "41",
+  "cf_answer_forms": [
+   "41"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F2",
+    "result": "41"
+   }
+  ],
+  "entity": "E2",
+  "input": "The MIDI number for E2 is ",
+  "label": "41",
+  "label_forms": [
+   "41"
+  ],
+  "result": "40",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "48",
+  "base_answer_forms": [
+   "48"
+  ],
+  "cf_answer": "83",
+  "cf_answer_forms": [
+   "83"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B5",
+    "result": "83"
+   }
+  ],
+  "entity": "C3",
+  "input": "The MIDI number for C3 is ",
+  "label": "83",
+  "label_forms": [
+   "83"
+  ],
+  "result": "48",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "50",
+  "base_answer_forms": [
+   "50"
+  ],
+  "cf_answer": "39",
+  "cf_answer_forms": [
+   "39"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#2",
+    "result": "39"
+   }
+  ],
+  "entity": "D3",
+  "input": "The MIDI number for D3 is ",
+  "label": "39",
+  "label_forms": [
+   "39"
+  ],
+  "result": "50",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "60",
+  "base_answer_forms": [
+   "60"
+  ],
+  "cf_answer": "36",
+  "cf_answer_forms": [
+   "36"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C2",
+    "result": "36"
+   }
+  ],
+  "entity": "C4",
+  "input": "The MIDI number for C4 is ",
+  "label": "36",
+  "label_forms": [
+   "36"
+  ],
+  "result": "60",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "61",
+  "cf_answer_forms": [
+   "61"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#4",
+    "result": "61"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "61",
+  "label_forms": [
+   "61"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "71",
+  "base_answer_forms": [
+   "71"
+  ],
+  "cf_answer": "69",
+  "cf_answer_forms": [
+   "69"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A4",
+    "result": "69"
+   }
+  ],
+  "entity": "B4",
+  "input": "The MIDI number for B4 is ",
+  "label": "69",
+  "label_forms": [
+   "69"
+  ],
+  "result": "71",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "54",
+  "base_answer_forms": [
+   "54"
+  ],
+  "cf_answer": "64",
+  "cf_answer_forms": [
+   "64"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E4",
+    "result": "64"
+   }
+  ],
+  "entity": "F#3",
+  "input": "The MIDI number for F#3 is ",
+  "label": "64",
+  "label_forms": [
+   "64"
+  ],
+  "result": "54",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "67",
+  "base_answer_forms": [
+   "67"
+  ],
+  "cf_answer": "73",
+  "cf_answer_forms": [
+   "73"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#5",
+    "result": "73"
+   }
+  ],
+  "entity": "G4",
+  "input": "The MIDI number for G4 is ",
+  "label": "73",
+  "label_forms": [
+   "73"
+  ],
+  "result": "67",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "81",
+  "base_answer_forms": [
+   "81"
+  ],
+  "cf_answer": "79",
+  "cf_answer_forms": [
+   "79"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G5",
+    "result": "79"
+   }
+  ],
+  "entity": "A5",
+  "input": "The MIDI number for A5 is ",
+  "label": "79",
+  "label_forms": [
+   "79"
+  ],
+  "result": "81",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "63",
+  "cf_answer_forms": [
+   "63"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for D#4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "D#4",
+    "result": "63"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "63",
+  "label_forms": [
+   "63"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "41",
+  "base_answer_forms": [
+   "41"
+  ],
+  "cf_answer": "59",
+  "cf_answer_forms": [
+   "59"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for B3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "B3",
+    "result": "59"
+   }
+  ],
+  "entity": "F2",
+  "input": "The MIDI number for F2 is ",
+  "label": "59",
+  "label_forms": [
+   "59"
+  ],
+  "result": "41",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "50",
+  "base_answer_forms": [
+   "50"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "D3",
+  "input": "The MIDI number for D3 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "50",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "73",
+  "base_answer_forms": [
+   "73"
+  ],
+  "cf_answer": "46",
+  "cf_answer_forms": [
+   "46"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A#2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A#2",
+    "result": "46"
+   }
+  ],
+  "entity": "C#5",
+  "input": "The MIDI number for C#5 is ",
+  "label": "46",
+  "label_forms": [
+   "46"
+  ],
+  "result": "73",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "63",
+  "base_answer_forms": [
+   "63"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "D#4",
+  "input": "The MIDI number for D#4 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "63",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "58",
+  "base_answer_forms": [
+   "58"
+  ],
+  "cf_answer": "43",
+  "cf_answer_forms": [
+   "43"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G2",
+    "result": "43"
+   }
+  ],
+  "entity": "A#3",
+  "input": "The MIDI number for A#3 is ",
+  "label": "43",
+  "label_forms": [
+   "43"
+  ],
+  "result": "58",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "40",
+  "base_answer_forms": [
+   "40"
+  ],
+  "cf_answer": "80",
+  "cf_answer_forms": [
+   "80"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G#5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G#5",
+    "result": "80"
+   }
+  ],
+  "entity": "E2",
+  "input": "The MIDI number for E2 is ",
+  "label": "80",
+  "label_forms": [
+   "80"
+  ],
+  "result": "40",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "37",
+  "base_answer_forms": [
+   "37"
+  ],
+  "cf_answer": "69",
+  "cf_answer_forms": [
+   "69"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A4",
+    "result": "69"
+   }
+  ],
+  "entity": "C#2",
+  "input": "The MIDI number for C#2 is ",
+  "label": "69",
+  "label_forms": [
+   "69"
+  ],
+  "result": "37",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "64",
+  "base_answer_forms": [
+   "64"
+  ],
+  "cf_answer": "84",
+  "cf_answer_forms": [
+   "84"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C6 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C6",
+    "result": "84"
+   }
+  ],
+  "entity": "E4",
+  "input": "The MIDI number for E4 is ",
+  "label": "84",
+  "label_forms": [
+   "84"
+  ],
+  "result": "64",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "79",
+  "base_answer_forms": [
+   "79"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "G5",
+  "input": "The MIDI number for G5 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "79",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "43",
+  "base_answer_forms": [
+   "43"
+  ],
+  "cf_answer": "67",
+  "cf_answer_forms": [
+   "67"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for G4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "G4",
+    "result": "67"
+   }
+  ],
+  "entity": "G2",
+  "input": "The MIDI number for G2 is ",
+  "label": "67",
+  "label_forms": [
+   "67"
+  ],
+  "result": "43",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "61",
+  "base_answer_forms": [
+   "61"
+  ],
+  "cf_answer": "52",
+  "cf_answer_forms": [
+   "52"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for E3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "E3",
+    "result": "52"
+   }
+  ],
+  "entity": "C#4",
+  "input": "The MIDI number for C#4 is ",
+  "label": "52",
+  "label_forms": [
+   "52"
+  ],
+  "result": "61",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "49",
+  "base_answer_forms": [
+   "49"
+  ],
+  "cf_answer": "77",
+  "cf_answer_forms": [
+   "77"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for F5 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "F5",
+    "result": "77"
+   }
+  ],
+  "entity": "C#3",
+  "input": "The MIDI number for C#3 is ",
+  "label": "77",
+  "label_forms": [
+   "77"
+  ],
+  "result": "49",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "38",
+  "base_answer_forms": [
+   "38"
+  ],
+  "cf_answer": "49",
+  "cf_answer_forms": [
+   "49"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C#3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C#3",
+    "result": "49"
+   }
+  ],
+  "entity": "D2",
+  "input": "The MIDI number for D2 is ",
+  "label": "49",
+  "label_forms": [
+   "49"
+  ],
+  "result": "38",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "75",
+  "base_answer_forms": [
+   "75"
+  ],
+  "cf_answer": "45",
+  "cf_answer_forms": [
+   "45"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for A2 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "A2",
+    "result": "45"
+   }
+  ],
+  "entity": "D#5",
+  "input": "The MIDI number for D#5 is ",
+  "label": "45",
+  "label_forms": [
+   "45"
+  ],
+  "result": "75",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "42",
+  "base_answer_forms": [
+   "42"
+  ],
+  "cf_answer": "48",
+  "cf_answer_forms": [
+   "48"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C3 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C3",
+    "result": "48"
+   }
+  ],
+  "entity": "F#2",
+  "input": "The MIDI number for F#2 is ",
+  "label": "48",
+  "label_forms": [
+   "48"
+  ],
+  "result": "42",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ },
+ {
+  "base_answer": "65",
+  "base_answer_forms": [
+   "65"
+  ],
+  "cf_answer": "60",
+  "cf_answer_forms": [
+   "60"
+  ],
+  "counterfactual_inputs": [
+   "The MIDI number for C4 is "
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "C4",
+    "result": "60"
+   }
+  ],
+  "entity": "F4",
+  "input": "The MIDI number for F4 is ",
+  "label": "60",
+  "label_forms": [
+   "60"
+  ],
+  "result": "65",
+  "scoring_digest": "1f57f1b8da315911a503c1525aa36fce6e6e1e7644e29d9bc688dd657512b324",
+  "split": "all",
+  "string_mode": "exact"
+ }
+]

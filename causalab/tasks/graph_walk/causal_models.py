@@ -17,6 +17,7 @@ from __future__ import annotations
 import random
 
 from causalab.causal.causal_model import CausalModel
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 
 from .config import TASK_NAME, GraphWalkConfig
@@ -112,18 +113,23 @@ def create_causal_model(config: GraphWalkConfig) -> CausalModel:
             key = "node_coordinates" if n_dims == 1 else f"node_coordinates_{dim}"
             periods[key] = period
 
-    # The model predicts the next node's *concept* string, not its coordinate.
-    # Declare that mapping as a plain ``{coordinate: [concept]}`` map (#296):
-    # node ``i``'s coordinate tuple → its concept. This replaces the former
-    # ``id()``-keyed result_token_pattern whose object-identity lookup broke when
-    # a coordinate tuple was reconstructed (the #258 graph_walk regression). The
-    # probability path reads the concept forms; the derived (exact) checker
-    # matches the generated concept literally.
-    output_tokens = {
-        "node_coordinates": {
-            node_coordinates[i]: [concepts[i]] for i in range(graph.n_nodes)
+    # The model predicts the next node's *concept* string, not its coordinate,
+    # and ``raw_output`` is the list of every valid next node's concept. Declare
+    # the answer forms on ``raw_output`` — the variable that holds the answer —
+    # as a plain ``{concept: [concept]}`` map. The former
+    # ``{coordinate: [concept]}`` map keyed the *current* node's coordinate to
+    # its own concept, so the serialized ``label_forms`` of a row were the
+    # node the walk stood on rather than the nodes it could step to, and the
+    # string checker graded the list's ``str()`` literally and never matched;
+    # keyed by concept, a row's ``raw_output`` list resolves to the union of
+    # its members' forms and both paths grade "any valid neighbour". This also
+    # keeps the property the coordinate map was introduced for: a lookup by
+    # *value*, never by ``id()``.
+    scoring = ScoringSpec(
+        forms={
+            "raw_output": {concept: [concept] for concept in dict.fromkeys(concepts)}
         }
-    }
+    )
 
     model = CausalModel(
         mechanisms,
@@ -131,7 +137,7 @@ def create_causal_model(config: GraphWalkConfig) -> CausalModel:
         id=TASK_NAME,
         embeddings=EMBEDDINGS,
         periods=periods,
-        output_tokens=output_tokens,
+        scoring=scoring,
     )
     # Store for coordinate_names access; CausalModel doesn't declare _graph,
     # but the attribute is set dynamically here and read by downstream code.

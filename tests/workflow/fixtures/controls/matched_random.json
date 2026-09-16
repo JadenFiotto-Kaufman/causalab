@@ -1,0 +1,34 @@
+{
+  "version": "1",
+  "description": "T8: corpus 04's DAS fit with corpus 13 - the matched-k random subspace control, seed swept - declared as its matched_random control (k = 8 pairs, same site, three recorded draws); the fit waives self_swap to a named external run. Load-only: the documents name Llama-3.1-8B. The fit is set to fp32, the control document's realization (rule 15: one realization per control/target pair), so corpus 13's pin is untouched.",
+  "output_dir": "matched_random",
+  "steps": {
+    "fit": {
+      "type": "intervention_protocol",
+      "document": "../../../protocols/04_das_im.json",
+      "set": {
+        "model.dtype": "fp32"
+      },
+      "waive": {
+        "self_swap": {
+          "reason": "external",
+          "reference": "tests/workflow/fixtures/controls/self_swap_twin.json"
+        }
+      }
+    },
+    "control": {
+      "type": "intervention_protocol",
+      "document": "../../../protocols/13_random_subspace_control_im.json",
+      "control": {
+        "of": "fit",
+        "kind": "matched_random",
+        "seeds": [
+          0,
+          1,
+          2
+        ],
+        "min_draws": 3
+      }
+    }
+  }
+}

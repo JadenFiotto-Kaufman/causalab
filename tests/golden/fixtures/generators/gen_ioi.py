@@ -7,8 +7,7 @@ columns are space-prefixed and asserted single-token at generation time, so
 the document's logit_diff(a=io, b=s) resolves without tokenizer surprises).
 
 The paper's 3.56 mean logit difference is a 100,000-example figure; this
-fixture pins seed 0 / N=512, and the golden band (+/-1.2, from the
-VeriFires ioi-circuit checklist) absorbs the smaller sample.
+fixture pins seed 0 / N=512, and the golden band (+/-1.2) absorbs the smaller sample.
 
 Run: uv run python tests/golden/fixtures/generators/gen_ioi.py
 """

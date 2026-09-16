@@ -228,7 +228,7 @@ class TestHierarchicalEqualityMechanismProperty:
 
 
 class TestHierarchicalEqualityOutputTokens:
-    """``output_tokens`` invariants: bool → digit forms, prefix match (#296)."""
+    """``output_tokens`` invariants: bool → digit forms, prefix match."""
 
     pytestmark = pytest.mark.property
 
@@ -250,8 +250,15 @@ class TestHierarchicalEqualityOutputTokens:
                 (False, [" 0", "0"]),
             ]
 
-    def test_match_modes_are_prefix(self) -> None:
-        """The model emits a bare digit possibly followed by text → prefix match."""
+    def test_string_mode_is_prefix(self) -> None:
+        """The model emits a bare digit possibly followed by text → ``prefix``
+        string mode, graded on ``result_equality``'s digit (the spec's
+        ``answer_variable``); the derived per-variable view says the same."""
+        spec = CAUSAL_MODEL.scoring
+        assert spec is not None
+        assert (
+            spec.string_mode == "prefix" and spec.answer_variable == "result_equality"
+        )
         mm = CAUSAL_MODEL.match_modes
         assert mm is not None and all(mode == "prefix" for mode in mm.values())
 

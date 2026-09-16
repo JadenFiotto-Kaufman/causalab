@@ -1,4 +1,4 @@
-"""Neural-network execution for intervention protocols.
+"""Neural-network execution for compiled interventions.
 
 After the protocol refactor this package holds exactly two things: the
 reference engine over native pytorch hooks (:mod:`.pytorch_hooks`, the

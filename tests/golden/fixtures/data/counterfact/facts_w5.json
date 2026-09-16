@@ -1,232 +1,278 @@
 [
  {
+  "answer": " Poland",
   "input": "Marcin Libicki is a citizen of",
-  "subject": "Marcin Libicki",
-  "answer": " Poland"
+  "split": "all",
+  "subject": "Marcin Libicki"
  },
  {
+  "answer": " Idaho",
   "input": "Nez Perce County is in the middle of the",
-  "subject": "Nez Perce County",
-  "answer": " Idaho"
+  "split": "all",
+  "subject": "Nez Perce County"
  },
  {
+  "answer": " violin",
   "input": "Sergiu Luca plays the instrument of the",
-  "subject": "Sergiu Luca",
-  "answer": " violin"
+  "split": "all",
+  "subject": "Sergiu Luca"
  },
  {
+  "answer": " Spanish",
   "input": "A las Barricadas is written in",
-  "subject": "A las Barricadas",
-  "answer": " Spanish"
+  "split": "all",
+  "subject": "A las Barricadas"
  },
  {
+  "answer": " FIFA",
   "input": "Costa Rican Football Federation is a part of the",
-  "subject": "Costa Rican Football Federation",
-  "answer": " FIFA"
+  "split": "all",
+  "subject": "Costa Rican Football Federation"
  },
  {
+  "answer": " Japan",
   "input": "Nonchan Noriben was created in the country of",
-  "subject": "Nonchan Noriben",
-  "answer": " Japan"
+  "split": "all",
+  "subject": "Nonchan Noriben"
  },
  {
+  "answer": " FIFA",
   "input": "National Football Federation of Guatemala is a part of the",
-  "subject": "National Football Federation of Guatemala",
-  "answer": " FIFA"
+  "split": "all",
+  "subject": "National Football Federation of Guatemala"
  },
  {
+  "answer": " Russian",
   "input": "In Luhansk Oblast, the language spoken is",
-  "subject": "Luhansk Oblast",
-  "answer": " Russian"
+  "split": "all",
+  "subject": "Luhansk Oblast"
  },
  {
+  "answer": " Warsaw",
   "input": "Antoni Brodowski worked in the office of the mayor of the city of",
-  "subject": "Antoni Brodowski",
-  "answer": " Warsaw"
+  "split": "all",
+  "subject": "Antoni Brodowski"
  },
  {
+  "answer": " Russian",
   "input": "The native language of Nikolay Strakhov is",
-  "subject": "Nikolay Strakhov",
-  "answer": " Russian"
+  "split": "all",
+  "subject": "Nikolay Strakhov"
  },
  {
+  "answer": " Athens",
   "input": "Panathenaic Stadium is located in the heart of the city of",
-  "subject": "Panathenaic Stadium",
-  "answer": " Athens"
+  "split": "all",
+  "subject": "Panathenaic Stadium"
  },
  {
+  "answer": " Fiat",
   "input": "Alfa Romeo 155, produced by",
-  "subject": "Alfa Romeo 155",
-  "answer": " Fiat"
+  "split": "all",
+  "subject": "Alfa Romeo 155"
  },
  {
+  "answer": " Finnish",
   "input": "In Kauniainen, the language spoken is",
-  "subject": "Kauniainen",
-  "answer": " Finnish"
+  "split": "all",
+  "subject": "Kauniainen"
  },
  {
+  "answer": " Brazil",
   "input": "Frederick Noronha, who has a citizenship of",
-  "subject": "Frederick Noronha",
-  "answer": " Brazil"
+  "split": "all",
+  "subject": "Frederick Noronha"
  },
  {
+  "answer": " French",
   "input": "In history of Limousin, the language spoken is",
-  "subject": "history of Limousin",
-  "answer": " French"
+  "split": "all",
+  "subject": "history of Limousin"
  },
  {
+  "answer": " Naples",
   "input": "Banco di Napoli, that originated in",
-  "subject": "Banco di Napoli",
-  "answer": " Naples"
+  "split": "all",
+  "subject": "Banco di Napoli"
  },
  {
+  "answer": " Warsaw",
   "input": "The capital city of People's Republic of Poland is",
-  "subject": "People's Republic of Poland",
-  "answer": " Warsaw"
+  "split": "all",
+  "subject": "People's Republic of Poland"
  },
  {
+  "answer": " French",
   "input": "The native language of Roger Garaudy is",
-  "subject": "Roger Garaudy",
-  "answer": " French"
+  "split": "all",
+  "subject": "Roger Garaudy"
  },
  {
+  "answer": " hockey",
   "input": "Evgeni Malkin professionally plays the sport of",
-  "subject": "Evgeni Malkin",
-  "answer": " hockey"
+  "split": "all",
+  "subject": "Evgeni Malkin"
  },
  {
+  "answer": " philosophy",
   "input": "Leonard Peikoff works in the area of the",
-  "subject": "Leonard Peikoff",
-  "answer": " philosophy"
+  "split": "all",
+  "subject": "Leonard Peikoff"
  },
  {
+  "answer": " Canada",
   "input": "Etobicoke North is located in the country of",
-  "subject": "Etobicoke North",
-  "answer": " Canada"
+  "split": "all",
+  "subject": "Etobicoke North"
  },
  {
+  "answer": " Munich",
   "input": "The headquarter of Lokalbahn AG is in the city of",
-  "subject": "Lokalbahn AG",
-  "answer": " Munich"
+  "split": "all",
+  "subject": "Lokalbahn AG"
  },
  {
+  "answer": " psychology",
   "input": "Amos Tversky works in the area of cognitive",
-  "subject": "Amos Tversky",
-  "answer": " psychology"
+  "split": "all",
+  "subject": "Amos Tversky"
  },
  {
+  "answer": " goaltender",
   "input": "Pekka Rinne plays in the position of",
-  "subject": "Pekka Rinne",
-  "answer": " goaltender"
+  "split": "all",
+  "subject": "Pekka Rinne"
  },
  {
+  "answer": " Florence",
   "input": "Sandro Botticelli died in the city of",
-  "subject": "Sandro Botticelli",
-  "answer": " Florence"
+  "split": "all",
+  "subject": "Sandro Botticelli"
  },
  {
+  "answer": " journalist",
   "input": "Sunny Hundal, who works as a",
-  "subject": "Sunny Hundal",
-  "answer": " journalist"
+  "split": "all",
+  "subject": "Sunny Hundal"
  },
  {
+  "answer": " Islam",
   "input": "Ahmed Zewail follows the religion of",
-  "subject": "Ahmed Zewail",
-  "answer": " Islam"
+  "split": "all",
+  "subject": "Ahmed Zewail"
  },
  {
+  "answer": " linebacker",
   "input": "D'Qwell Jackson plays in the position of a",
-  "subject": "D'Qwell Jackson",
-  "answer": " linebacker"
+  "split": "all",
+  "subject": "D'Qwell Jackson"
  },
  {
+  "answer": " French",
   "input": "The native language of Anne-Marie Idrac is",
-  "subject": "Anne-Marie Idrac",
-  "answer": " French"
+  "split": "all",
+  "subject": "Anne-Marie Idrac"
  },
  {
+  "answer": " Italian",
   "input": "Il Gazzettino was written in the early 1980s, when the",
-  "subject": "Il Gazzettino",
-  "answer": " Italian"
+  "split": "all",
+  "subject": "Il Gazzettino"
  },
  {
+  "answer": " France",
   "input": "Yohann Diniz is a citizen of",
-  "subject": "Yohann Diniz",
-  "answer": " France"
+  "split": "all",
+  "subject": "Yohann Diniz"
  },
  {
+  "answer": " Italy",
   "input": "Caciocavallo was created in the country of her birth,",
-  "subject": "Caciocavallo",
-  "answer": " Italy"
+  "split": "all",
+  "subject": "Caciocavallo"
  },
  {
+  "answer": " Berlin",
   "input": "Ernst Reuter died at the age of 87 in",
-  "subject": "Ernst Reuter",
-  "answer": " Berlin"
+  "split": "all",
+  "subject": "Ernst Reuter"
  },
  {
+  "answer": " Sweden",
   "input": "Henrik Zetterberg, a citizen of",
-  "subject": "Henrik Zetterberg",
-  "answer": " Sweden"
+  "split": "all",
+  "subject": "Henrik Zetterberg"
  },
  {
+  "answer": " NBC",
   "input": "Freaks and Geeks debuted on",
-  "subject": "Freaks and Geeks",
-  "answer": " NBC"
+  "split": "all",
+  "subject": "Freaks and Geeks"
  },
  {
+  "answer": " Brazil",
   "input": "Grupo Globo, that originated in",
-  "subject": "Grupo Globo",
-  "answer": " Brazil"
+  "split": "all",
+  "subject": "Grupo Globo"
  },
  {
+  "answer": " French",
   "input": "Le Matin de Paris is written in the",
-  "subject": "Le Matin de Paris",
-  "answer": " French"
+  "split": "all",
+  "subject": "Le Matin de Paris"
  },
  {
+  "answer": " Moscow",
   "input": "Alexander Afanasyev passed away in a",
-  "subject": "Alexander Afanasyev",
-  "answer": " Moscow"
+  "split": "all",
+  "subject": "Alexander Afanasyev"
  },
  {
+  "answer": " Munich",
   "input": "Bavarian National Museum is located in the city of",
-  "subject": "Bavarian National Museum",
-  "answer": " Munich"
+  "split": "all",
+  "subject": "Bavarian National Museum"
  },
  {
+  "answer": " Apple",
   "input": "Angela Ahrendts is employed by",
-  "subject": "Angela Ahrendts",
-  "answer": " Apple"
+  "split": "all",
+  "subject": "Angela Ahrendts"
  },
  {
+  "answer": " Sweden",
   "input": "TUIfly Nordic is located in the country of",
-  "subject": "TUIfly Nordic",
-  "answer": " Sweden"
+  "split": "all",
+  "subject": "TUIfly Nordic"
  },
  {
+  "answer": " Microsoft",
   "input": "Windows Phone 8.1 is developed by",
-  "subject": "Windows Phone 8.1",
-  "answer": " Microsoft"
+  "split": "all",
+  "subject": "Windows Phone 8.1"
  },
  {
+  "answer": " Arizona",
   "input": "The location of Hualapai people is in the northern part of",
-  "subject": "Hualapai people",
-  "answer": " Arizona"
+  "split": "all",
+  "subject": "Hualapai people"
  },
  {
+  "answer": " French",
   "input": "The native language of Alain Marleix is",
-  "subject": "Alain Marleix",
-  "answer": " French"
+  "split": "all",
+  "subject": "Alain Marleix"
  },
  {
+  "answer": " jazz",
   "input": "The genre played by Eureka Brass Band is a blend of",
-  "subject": "Eureka Brass Band",
-  "answer": " jazz"
+  "split": "all",
+  "subject": "Eureka Brass Band"
  },
  {
+  "answer": " Rome",
   "input": "Adele Faccio worked in the city of",
-  "subject": "Adele Faccio",
-  "answer": " Rome"
+  "split": "all",
+  "subject": "Adele Faccio"
  }
 ]

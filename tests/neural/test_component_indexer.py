@@ -1,9 +1,9 @@
 """Direct ``is_original`` plumbing tests for :class:`ComponentIndexer`, now
 homed in ``causalab.neural.token_positions`` (relocated verbatim from the
-retired ``causalab.neural.units`` by the WU6 where-unification sweep, #508;
+retired ``causalab.neural.units`` when the where-vocabulary was unified;
 ``TokenPosition`` subclasses it there).
 
-These pin the #430 contract: whether the wrapped indexer accepts
+These pin the signature-detection contract: whether the wrapped indexer accepts
 ``is_original`` is decided once, from its *signature* at construction
 (``_indexer_accepts_is_original``) — never by catching a ``TypeError`` at
 call time. Catching the ``TypeError`` conflated "the indexer does not take
@@ -16,13 +16,13 @@ Provenance:
 
 * The round-trip cases (both flag values, batched propagation, the omitted
   default) were extracted from the legacy
-  ``tests/neural/test_is_original_flag.py`` during the Wave-2 test refactor;
+  ``tests/neural/test_is_original_flag.py`` when the test tree was reorganized;
   the ``TokenPosition``-specific ``is_original`` cases went to
-  ``tests/neural/test_token_positions.py`` (PR #113).
+  ``tests/neural/test_token_positions.py``.
 * The signature-detection dispatch matrix
   (:class:`TestComponentIndexerIsOriginalDispatch`) is re-homed here from
-  ``tests/neural/test_units.py``, deleted by the WU6 sweep along with the
-  unit surface it otherwise covered.
+  ``tests/neural/test_units.py``, deleted with the unit surface it otherwise
+  covered.
 * The retired ``AtomicModelUnit.index_component`` forwarding case was
   dropped with that class — the arrow-syntax interchange path
   (``var1<-var2``) now reaches ``ComponentIndexer`` through the position
@@ -147,7 +147,7 @@ class TestComponentIndexerIsOriginal:
 
 class TestComponentIndexerIsOriginalDispatch:
     """``is_original`` is threaded by signature detection at construction, never
-    by catching a ``TypeError`` at call time (#430).
+    by catching a ``TypeError`` at call time.
 
     Tier: unit (class-scoped since the module mixes tiers).
 
@@ -173,7 +173,7 @@ class TestComponentIndexerIsOriginalDispatch:
             ci.index("inp", is_original=False)
 
     def test_internal_typeerror_not_masked_as_base_positions(self) -> None:
-        """The exact #430 hazard: a flag-aware indexer that raises on its CF
+        """The exact hazard: a flag-aware indexer that raises on its CF
         branch must crash, not fall back to the (base) ``is_original=True``
         branch — which would be a silent wrong-position intervention."""
 

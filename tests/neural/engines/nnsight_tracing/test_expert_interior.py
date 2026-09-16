@@ -1,4 +1,4 @@
-"""The per-expert MoE interior on the nnsight engine (engine plan §8, N6).
+"""The per-expert MoE interior on the nnsight engine.
 
 No cross-engine parity exists for these — the reference engine has no
 mechanism for tensors inside a fused forward — so the correctness story rests
@@ -6,16 +6,16 @@ on three legs instead:
 
 * **two implementations of the same math**: the grouped_mm kernel this engine
   serves from, against transformers' own eager per-expert loop, reconstructed
-  through ``tracer.iter`` (the clq §2 cross-check, as a test);
+  through ``tracer.iter``;
 * **identities**: the slot-sum of ``expert_output · router_scores`` is
-  ``routed_output`` exactly (the registry's pre-routing-weight identity,
-  round 3); the activation is ``act(gate)`` exactly; the permutation is a
+  ``routed_output`` exactly (the registry's pre-routing-weight identity); the
+  activation is ``act(gate)`` exactly; the permutation is a
   permutation;
 * **causal writes**: a swap moves the logits, a same-value swap moves nothing,
   a written slot reads back written.
 
-Plus the ownership seam that survives round 3 (which taught the reference
-engine to serve the four slot components through its dispatch wrapper):
+Plus the ownership seam that survives the reference engine serving the four
+slot components through its dispatch wrapper:
 ``expert_permutation`` is still this engine's alone, and routing knows it.
 """
 
@@ -44,6 +44,7 @@ EXPERT_COMPONENTS = (
     "expert_gate_proj",
     "expert_up_proj",
     "expert_activation",
+    "expert_neuron_output",
     "expert_permutation",
     "expert_output",
 )
@@ -51,31 +52,33 @@ EXPERT_COMPONENTS = (
 
 def _read_doc(component: str, *, pos: object = -1, extra: dict | None = None) -> dict:
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {"tap": {"component": component, "layer": LAYER}},
-        "reads": {
-            "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": {"component": component, "layers": [LAYER]}},
+            "reads": {
+                "r": {"site": "tap", "pos": pos, "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
     for name, site in (extra or {}).items():
-        doc["sites"][f"{name}_site"] = site
-        doc["reads"][name] = {
+        doc["method"]["sites"][f"{name}_site"] = site
+        doc["method"]["reads"][name] = {
             "site": f"{name}_site",
             "pos": pos,
             "model": "original",
             "input": "base",
         }
-        doc["save"].append(
+        doc["method"]["save"].append(
             {
                 "value": name,
                 "model": "original",
@@ -88,32 +91,39 @@ def _read_doc(component: str, *, pos: object = -1, extra: dict | None = None) ->
 
 def _swap_doc(component: str) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=True),
-        "sites": {
-            "tap": {"component": component, "layer": LAYER},
-            "head": {"component": "lm_head"},
-        },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": -1,
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {
+                "tap": {"component": component, "layers": [LAYER]},
+                "head": {"component": "lm_head"},
             },
-            "logits": {"site": "head", "pos": -1, "model": "patched", "input": "base"},
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": -1,
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "logits": {
+                    "site": "head",
+                    "pos": -1,
+                    "model": "patched",
+                    "input": "base",
+                },
+            },
+            "writes": {"patch": {"site": "tap", "pos": -1, "do": {"swap": "v_cf"}}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "logits",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "l.safetensors",
+                }
+            ],
         },
-        "writes": {"patch": {"site": "tap", "pos": -1, "do": {"swap": "v_cf"}}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "logits",
-                "model": "patched",
-                "input": "base",
-                "file_path": "l.safetensors",
-            }
-        ],
     }
 
 
@@ -153,6 +163,7 @@ def test_the_interior_reads_with_the_declared_widths(trace_qwen):
         ("expert_gate_proj", k * info.moe_intermediate_size),
         ("expert_up_proj", k * info.moe_intermediate_size),
         ("expert_activation", k * info.moe_intermediate_size),
+        ("expert_neuron_output", k * info.moe_intermediate_size),
         ("expert_output", k * info.hidden_size),
         ("expert_permutation", k),
     ):
@@ -165,12 +176,12 @@ def test_the_interior_reads_with_the_declared_widths(trace_qwen):
 def test_the_activation_is_act_of_gate_exactly(trace_qwen):
     """The identity that says the three taps share one fused capture and its
     gate: ``expert_activation`` is ``act_fn(gate)`` alone (the registry's
-    round-3 semantics, the llama ``mlp_activation`` precedent) — same rows,
+    semantics, the llama ``mlp_activation`` precedent) — same rows,
     same order, before the ``· up`` multiply."""
     doc = _read_doc(
         "expert_gate_proj",
         extra={
-            "act": {"component": "expert_activation", "layer": LAYER},
+            "act": {"component": "expert_activation", "layers": [LAYER]},
         },
     )
     executor = _executor(TracePointExecutor, doc, trace_qwen, with_cf=False)
@@ -181,15 +192,15 @@ def test_the_activation_is_act_of_gate_exactly(trace_qwen):
 def test_expert_output_weighted_sums_to_routed_output(trace_qwen):
     """The registry identity, on this engine: ``routed_output == Σ_slot
     expert_output · router_scores`` — ``expert_output`` is the down-projection
-    output BEFORE the routing weight (round 3), so the scores re-enter here —
+    output BEFORE the routing weight, so the scores re-enter here —
     pinned against the module-boundary tap, which the parity suite already
     proves against the reference engine."""
     info = trace_qwen.info
     doc = _read_doc(
         "expert_output",
         extra={
-            "routed": {"component": "routed_output", "layer": LAYER},
-            "scores": {"component": "router_scores", "layer": LAYER},
+            "routed": {"component": "routed_output", "layers": [LAYER]},
+            "scores": {"component": "router_scores", "layers": [LAYER]},
         },
     )
     executor = _executor(TracePointExecutor, doc, trace_qwen, with_cf=False)
@@ -218,7 +229,7 @@ def test_grouped_and_eager_implementations_agree(trace_qwen):
     """The §8 cross-check: transformers' own eager per-expert loop — a wholly
     independent implementation, one Python iteration per hit expert — rebuilt
     into the same (token, slot) frame through ``tracer.iter``, against the
-    grouped_mm tensor this engine serves. clq §2, as a test."""
+    grouped_mm tensor this engine serves."""
     import nnsight
 
     info = trace_qwen.info
@@ -241,7 +252,7 @@ def test_grouped_and_eager_implementations_agree(trace_qwen):
                 for _ in tracer.iter[:n_hit]:
                     top_k_pos, token_idx = loop.torch_where_0.output
                     # `_1` is the down-projection's output, BEFORE the routing
-                    # weight — the round-3 semantics `expert_output` names
+                    # weight — the semantics `expert_output` names
                     # (`_2` is the weighted value one line later)
                     per_expert.append(
                         (top_k_pos, token_idx, loop.current_hidden_states_1.output)
@@ -261,7 +272,8 @@ def test_grouped_and_eager_implementations_agree(trace_qwen):
 
 
 @pytest.mark.parametrize(
-    "component", ["expert_gate_proj", "expert_activation", "expert_output"]
+    "component",
+    ["expert_gate_proj", "expert_activation", "expert_neuron_output", "expert_output"],
 )
 def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component):
     def logits(doc: dict) -> torch.Tensor:
@@ -270,7 +282,7 @@ def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component)
         )
 
     clean_doc = _read_doc("expert_output")
-    clean_doc["sites"]["tap"] = {"component": "lm_head"}
+    clean_doc["method"]["sites"]["tap"] = {"component": "lm_head"}
     clean = _executor(
         TracePointExecutor, clean_doc, trace_qwen, with_cf=False
     ).read_value("r")
@@ -279,20 +291,20 @@ def test_a_swap_moves_the_logits_and_a_self_swap_does_not(trace_qwen, component)
     assert moved > 1e-5, f"{component}: the swap landed nowhere"
 
     self_swap = _swap_doc(component)
-    self_swap["reads"]["v_cf"]["input"] = "base"
+    self_swap["method"]["reads"]["v_cf"]["input"] = "base"
     unmoved = float((logits(self_swap) - clean).abs().max())
     assert unmoved == 0.0, f"{component}: a same-value swap must be the identity"
 
 
 def test_a_written_slot_reads_back_written(trace_qwen):
     doc = _swap_doc("expert_gate_proj")
-    doc["reads"]["obs"] = {
+    doc["method"]["reads"]["obs"] = {
         "site": "tap",
         "pos": -1,
         "model": "patched",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "obs",
             "model": "patched",
@@ -312,8 +324,8 @@ def test_the_permutation_refuses_writes_as_kernel_bookkeeping(trace_qwen):
 
 
 # --------------------------------------------------------------------------- #
-# ownership: round 3 taught the reference engine the four slot components
-# (its dispatch wrapper), so only the kernel's own bookkeeping is left to
+# ownership: the reference engine serves the four slot components through
+# its dispatch wrapper, so only the kernel's own bookkeeping is left to
 # refuse by name — and routing still knows this engine owns it.
 # --------------------------------------------------------------------------- #
 

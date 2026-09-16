@@ -101,10 +101,12 @@ Statement-only resolution matters because the same entity (`Ann`) can appear bot
 
 ## How to Run
 
+The task runs from an intervention document that names its table
+(`entity_binding/data/<variant>`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
+
 ```bash
-# Add a runner config that mounts task: entity_binding and the analyses you need.
-# Example sketch (no preset shipped yet):
-./scripts/run_exp.sh <preset>
+uv run causalab run <document.json>
 ```
 
 Outputs land under `artifacts/entity_binding/<model>/<analysis>/...` per `docs/CODEBASE.md` invariant 7.
@@ -114,9 +116,10 @@ Outputs land under `artifacts/entity_binding/<model>/<analysis>/...` per `docs/C
 | File | Role |
 |---|---|
 | `config.py` | `EntityBindingTaskConfig`, `create_sample_love_config`, template-build helpers (`_build_conjoined_template`, `_expand_delimiters`) |
-| `causal_models.py` | `create_positional_entity_causal_model`, `sample_valid_entity_binding_input`, the default `causal_model` instance (which declares `output_tokens` + `match_modes`), plus loader hooks (`CAUSAL_MODEL`, `TARGET_VARIABLE`) |
+| `causal_models.py` | `create_positional_entity_causal_model`, `sample_valid_entity_binding_input`, the default `causal_model` instance (with its `ScoringSpec`: the entity forms on `raw_output`, `string_mode="prefix"`), plus loader hooks (`CAUSAL_MODEL`, `TARGET_VARIABLE`) |
 | `templates.py` | Template-rendering helpers used by `_compute_raw_input` |
 | `counterfactuals.py` | `swap_query_group`, `random_counterfactual`, `generate_dataset` (query_group-only resampling), `COUNTERFACTUAL_GENERATORS` |
 | `token_positions.py` | `create_token_positions`, statement/question entity-position resolvers |
-| `checker.py`, `metrics.py` | Task-specific scoring and evaluation utilities |
+| `data/` | none yet — `output_tokens` is declared on `positional_answer` (an index) with entity-name forms, so the serializer refuses; declare it on `raw_output` first |
+| `metrics.py` | Task-specific scoring and evaluation utilities |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

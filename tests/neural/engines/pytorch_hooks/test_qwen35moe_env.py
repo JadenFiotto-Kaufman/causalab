@@ -1,17 +1,20 @@
-"""The environment PR0 buys: the Qwen3.5-MoE architecture must actually load.
+"""The environment the hookpoint vocabulary needs: the Qwen3.5-MoE architecture must actually load.
 
 Everything in the hookpoint-vocabulary work targets ``qwen3_5_moe`` (the text
 tower of Qwen3.6-35B-A3B), which only exists from transformers 5.16. These tests
 are the gate on that bump: they assert the architecture is importable, that the
 engine's own loader reaches the text tower rather than the composite
 vision-language model, and that the layer stack really is hybrid — because the
-per-layer split is the assumption every later PR in the stack builds on.
+per-layer split is the assumption every hookpoint suite builds on.
 
 They deliberately assert *structure*, not activations: numerical behaviour is
 pinned by the parity goldens, which this bump leaves untouched.
 """
 
 from __future__ import annotations
+
+import importlib
+import re
 
 import pytest
 
@@ -20,16 +23,67 @@ from .conftest import TINY_QWEN35_MOE
 #: structural assertions on a tiny CPU model — no numerics, no GPU
 pytestmark = pytest.mark.smoke
 
+#: the first transformers release carrying ``models/qwen3_5_moe`` — the floor
+#: ``pyproject.toml`` declares (``transformers>=5.16``) and the lock resolves
+TRANSFORMERS_FLOOR = (5, 16)
+
+_RELEASE = re.compile(r"^(\d+)\.(\d+)")
+
+
+def release_meets_floor(
+    version: str, floor: tuple[int, int] = TRANSFORMERS_FLOOR
+) -> bool:
+    """``True`` when ``version``'s leading ``MAJOR.MINOR`` is at or above ``floor``.
+
+    Only the two leading numeric segments count, so a pre-release of a later
+    major (``"6.0.0.dev0"``) passes and ``"5.15.9"`` is refused. A string that
+    does not begin ``int.int`` is refused too: an unparseable version can never
+    pass the gate by accident.
+    """
+    match = _RELEASE.match(version)
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2))) >= floor
+
 
 def test_transformers_ships_the_architecture():
-    """``qwen3_5_moe`` is absent before transformers 5.16 — fail loudly if pinned back."""
-    pytest.importorskip(
-        "transformers.models.qwen3_5_moe",
-        reason="transformers < 5.16 has no qwen3_5_moe; the lock must not slip back",
-    )
-    from transformers.models.qwen3_5_moe import modeling_qwen3_5_moe
+    """The installed transformers is at least 5.16 and carries ``qwen3_5_moe``.
 
-    assert hasattr(modeling_qwen3_5_moe, "Qwen3_5MoeForCausalLM")
+    This is the gate on the floor, and it *fails* — it does not skip — when the
+    lock slips back: the version is asserted against ``TRANSFORMERS_FLOOR`` and
+    the architecture module is imported outright rather than through
+    ``pytest.importorskip``, which turned a pinned-back lock into a green skip.
+    On the locked 5.16.1 the same test is the positive witness: it passes.
+    """
+    import transformers
+
+    assert release_meets_floor(transformers.__version__), (
+        f"transformers {transformers.__version__} is below the "
+        f"{'.'.join(map(str, TRANSFORMERS_FLOOR))} floor pyproject.toml declares; "
+        "qwen3_5_moe does not exist there and the lock must not slip back"
+    )
+    # a missing module raises ModuleNotFoundError here, which is a failure
+    modeling = importlib.import_module(
+        "transformers.models.qwen3_5_moe.modeling_qwen3_5_moe"
+    )
+    assert hasattr(modeling, "Qwen3_5MoeForCausalLM")
+
+
+@pytest.mark.parametrize(
+    ("version", "ok"),
+    [
+        ("5.16.1", True),  # the locked release
+        ("5.16", True),
+        ("5.17.0", True),
+        ("6.0.0.dev0", True),  # a later major's pre-release still clears the floor
+        ("5.15.9", False),  # the last minor without qwen3_5_moe
+        ("4.57.1", False),  # the parity goldens' capture context — below the floor
+        ("dev", False),  # unparseable never passes
+    ],
+)
+def test_the_floor_parse_refuses_what_is_below_5_16(version: str, ok: bool):
+    """The negative half of the gate, without installing an old transformers."""
+    assert release_meets_floor(version) is ok
 
 
 def test_the_config_offers_a_text_tower_beside_the_vlm():
@@ -86,7 +140,7 @@ def test_every_layer_has_a_sparse_moe_block(qwen35moe_bundle):
     for idx, block in enumerate(qwen35moe_bundle.model.model.layers):
         mlp = block.mlp
         assert type(mlp).__name__ == "Qwen3_5MoeSparseMoeBlock", idx
-        # the four sub-taps the round-1 MoE components resolve against
+        # the four sub-taps the module-boundary MoE components resolve against
         for attr in ("gate", "experts", "shared_expert", "shared_expert_gate"):
             assert hasattr(mlp, attr), (idx, attr)
 
@@ -104,3 +158,14 @@ def test_model_info_unwraps_the_composite_config(qwen35moe_bundle):
 def test_fixture_key_is_the_documented_one():
     """Guards against the fixture silently drifting to another checkpoint."""
     assert TINY_QWEN35_MOE == "tiny-random/qwen3.5-moe"
+
+
+def test_the_registry_layer_pattern_is_the_module_probe(qwen35moe_bundle):
+    """The two halves of the stream check must agree on every layer.
+
+    The canonicalizer refuses a stream-bound component against
+    ``ModelInfo.layer_types`` (read from the config), the site resolver against
+    the mixer child the block actually carries. This is the one place both
+    answers exist for one model, so it is where a disagreement would show.
+    """
+    assert qwen35moe_bundle.info.layer_types == qwen35moe_bundle.streams

@@ -137,8 +137,10 @@ def test_document_seed_reads_train_seed() -> None:
 
 def test_document_seed_is_zero_without_a_train_block() -> None:
     raw = das_doc(seed=5)
-    del raw["train"]
-    raw["save"] = [entry for entry in raw["save"] if entry["value"] != "rot"]
+    del raw["method"]["train"]
+    raw["method"]["save"] = [
+        entry for entry in raw["method"]["save"] if entry["value"] != "rot"
+    ]
     assert document_seed(parse_document(in_order(raw))) == 0
 
 
@@ -354,13 +356,16 @@ def test_a_seed_on_a_loaded_featurizer_is_refused() -> None:
     doc = in_order(
         {
             **das_doc(),
-            "featurizers": {
-                "rot": {
-                    "kind": "subspace",
-                    "k": 2,
-                    "file_path": "rot.safetensors",
-                    "seed": 3,
-                }
+            "method": {
+                **das_doc()["method"],
+                "featurizers": {
+                    "rot": {
+                        "kind": "subspace",
+                        "k": 2,
+                        "file_path": "rot.safetensors",
+                        "seed": 3,
+                    }
+                },
             },
         }
     )

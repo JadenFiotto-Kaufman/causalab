@@ -1,0 +1,293 @@
+{
+  "base": "fd61afb9",
+  "entries": [
+    {
+      "id": "1",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V13",
+      "path": null,
+      "message": "[V13] no engine supports this document: it requires ['component:block_output', 'component:block_output:write', 'component:lm_head', 'paired_forward']; bare lacks ['component:block_output', 'component:block_output:write', 'component:lm_head']"
+    },
+    {
+      "id": "2",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "sites.tgt.head",
+      "message": "[V4] at sites.tgt.head site 'tgt': component 'block_output' has no head axis — its shape is (batch, position, feature) — so head 0 would be validated and then silently dropped. Name a component that has heads ('attention_premix'), or drop the 'head' field."
+    },
+    {
+      "id": "3",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "sites.tgt.head",
+      "message": "[V4] at sites.tgt.head site 'tgt': head 99 out of range (12 heads in 'attention_premix''s head space, (batch, position, head·feature))"
+    },
+    {
+      "id": "4",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "featurizers.f",
+      "message": "[V4] at featurizers.f featurizer 'f' ('pca') fits a basis on site 'tgt', whose component 'router_scores' is not one: component 'router_scores' is not a feature space: its axes are (batch·position, topk). Its axis is a per-token ranking: column k is the k-th ranked expert, a different expert for different tokens, so a basis fitted across positions is fitted across a shuffled basis. Read it directly, or featurize 'router_logits', whose axis is the fixed all-experts one."
+    },
+    {
+      "id": "5",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": null,
+      "message": "[V4] component 'input_ids' is not a feature space: it carries integer labels on (batch, position), so there is no width for a featurizer to match and no gradient to train through. Read it directly, or read 'embeddings' if you want the vector the ids look up."
+    },
+    {
+      "id": "6",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": null,
+      "message": "[V4] component 'block_output' has no head axis — its shape is (batch, position, feature) — so head 0 would be validated and then silently dropped. Name a component that has heads ('attention_premix'), or drop the 'head' field."
+    },
+    {
+      "id": "7",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": null,
+      "message": "[V4] model 'gpt2' declares no experts; router_logits has no width"
+    },
+    {
+      "id": "8",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "model.key",
+      "message": "[V4] at model.key model 'snapshot/unregistered' is not in the protocol model registry — register its static config (causalab.protocol.registry.register_model, or model_info_from_hf_config on a loaded HF config)"
+    },
+    {
+      "id": "9",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "sites.tgt.stream",
+      "message": "[V4] at sites.tgt.stream site 'tgt': stream 'full_attention' is declared at layer 0, but that layer of 'Qwen/Qwen3.6-35B-A3B' carries 'linear_attention' — on a hybrid tower the stream is a per-layer fact, not a model-wide one"
+    },
+    {
+      "id": "10",
+      "layer": "load",
+      "captured": true,
+      "exc_class": "ValidationError",
+      "code": "V4",
+      "path": "sites.tgt.component",
+      "message": "[V4] at sites.tgt.component site 'tgt': component 'attention_premix' exists only on a 'full_attention' mixer, but layer 0 of 'Qwen/Qwen3.6-35B-A3B' carries 'linear_attention' — there is no such tensor at this layer. Layers carrying 'full_attention': [3, 7, 11, 15, 19, 23, 27, 31, 35, 39]"
+    },
+    {
+      "id": "11",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] write 'patch' targets 'router_logits', which no write may change: the MoE block discards the router's logits (it destructures them into '_') and routes on the scores and indices it computed from them, so a write here cannot reach anything — write 'router_scores' to reweight the chosen experts, or 'expert_idx' to change which experts fire. Refusing at the plan, before anything runs."
+    },
+    {
+      "id": "12",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] write 'patch' applies 'add_scaled' to 'expert_idx', which only a whole-value 'swap' may change: the routing table carries integer expert ids, not features: a delta, a scale or a clamp over them yields ids chosen by arithmetic on labels, which route to arbitrary experts where they stay in range and fail at the gather where they do not. Swap in an index tensor read from elsewhere to change which experts fire, or write 'router_scores' to reweight the experts already chosen. Refusing rather than doing arithmetic on values that are labels."
+    },
+    {
+      "id": "13",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] write 'patch' applies 'add_scaled' to 'attention_probs', which only a whole-tensor 'swap' may change: its rows are a probability distribution and the value multiply immediately downstream assumes they sum to 1 — nothing renormalizes them after an edit. Write 'attention_scores' instead: it is the same tensor one step earlier, upstream of the model's own softmax, so every mechanism is legal there and the rows still sum to 1 by construction."
+    },
+    {
+      "id": "14",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] site names stream 'full_attention' at layer 0, but that layer carries 'linear_attention' — this is a hybrid tower (linear_attention, linear_attention, linear_attention, full_attention), so the stream is a per-layer fact, not a model-wide one"
+    },
+    {
+      "id": "15",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'attention_premix' needs a full-attention mixer, but layer 0 of 'tiny-random/qwen3.5-moe' carries 'linear_attention' — a Gated DeltaNet block computes no attention matrix, so there is no such tensor at this layer. This tower is (linear_attention, linear_attention, linear_attention, full_attention)."
+    },
+    {
+      "id": "16",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'delta_qkv' needs a Gated DeltaNet (linear-attention) mixer, but layer 3 of 'tiny-random/qwen3.5-moe' carries 'full_attention' — a gated-attention mixer computes no delta-rule state, so there is no such tensor at this layer. This tower is (linear_attention, linear_attention, linear_attention, full_attention)."
+    },
+    {
+      "id": "17",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'deltanet_qkv' needs a Gated DeltaNet mixer, but layer 3 of 'tiny-random/qwen3.5-moe' carries 'full_attention' — a softmax-attention block computes no recurrent state and runs no delta kernel, so there is no such tensor at this layer. This tower is (linear_attention, linear_attention, linear_attention, full_attention)."
+    },
+    {
+      "id": "18",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] site names expert 3 on component 'router_scores', which has no per-expert axis: the router's axes are all-experts or top-k, and the shared expert is not one of the routed experts. The per-expert interior components are 'expert_gate_proj', 'expert_up_proj', 'expert_activation' and 'expert_output'."
+    },
+    {
+      "id": "19",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] site names expert 128 on component 'expert_activation', but 'tiny-random/qwen3.5-moe' routes over 128 experts — the sub-axis selects one of them by its id."
+    },
+    {
+      "id": "20",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'expert_activation' taps the interior of the grouped experts dispatch, but this model runs experts_implementation='eager' — a different factorization whose intermediates are different tensors, even though the block's output agrees. Load the model with experts_implementation='grouped_mm' (the default), or extend experts_interface.py for this implementation."
+    },
+    {
+      "id": "21",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'delta_qkv' has no head axis — its shape is (batch, position, feature) — so head 0 would be validated and then silently dropped. Name a component that has heads ('attention_premix'), or drop the 'head' field. It is the fused [q | k | v] projection, widths 128/128/256 — unequal, so it has no head axis. The per-head faces are the kernel-boundary components ('delta_query'/'delta_key'/'delta_value')."
+    },
+    {
+      "id": "22",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] site names head 99 on component 'delta_state', which has 8 heads ((batch, position[steps], head, state, state))"
+    },
+    {
+      "id": "23",
+      "layer": "run",
+      "captured": false,
+      "reason": "Retired: GPT-2's fused c_attn no longer refuses the interior q/k/v — the per-family tap table (registry.Capability.overrides, family 'gpt2') addresses them as the three H·d column blocks of c_attn's output, read and written through the layout conversion's fused scatter. The refusal survives for a fused-projection family WITHOUT a row and is pinned in tests/neural/engines/pytorch_hooks/test_family_tap_table.py."
+    },
+    {
+      "id": "24",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] component 'attention_gate' at layer 0 of 'hf-internal-testing/tiny-random-LlamaForCausalLM': this mixer computes no output gate. The box exists only on the gated-attention family (Qwen3.5/3.6), whose q-projection emits [q | gate] per head and which multiplies the mixer's output by sigmoid(gate) before projecting out. On this family there is no such tensor to read or write."
+    },
+    {
+      "id": "25",
+      "layer": "run",
+      "captured": false,
+      "reason": "sites._attention_interior_site: a gated q-projection with no q_norm/k_norm to tap after it — no cached fixture family has that shape (qwen3.5-moe has the norms, llama and gpt2 are ungated)"
+    },
+    {
+      "id": "26",
+      "layer": "run",
+      "captured": false,
+      "reason": "sites._q_projection_splits: a q-projection of neither H·d nor 2·H·d width — no cached fixture family has one"
+    },
+    {
+      "id": "27",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "NotImplementedError",
+      "code": null,
+      "path": null,
+      "message": "component 'router_logits' needs a sparse-MoE block at layer 0, but this MLP (children=['act_fn', 'down_proj', 'gate_proj', 'up_proj']) is not one — extend the tap table in pytorch_hooks/sites.py."
+    },
+    {
+      "id": "28",
+      "layer": "run",
+      "captured": false,
+      "reason": "sites._moe_site: a sparse-MoE block without a shared expert — the only MoE fixture (tiny-random/qwen3.5-moe) has one at every layer"
+    },
+    {
+      "id": "29",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "NotImplementedError",
+      "code": null,
+      "path": null,
+      "message": "mlp_activation: this MLP (children=['experts', 'gate', 'shared_expert', 'shared_expert_gate']) matches no known family — extend the tap table in pytorch_hooks/sites.py (and mirror it in the hook oracle)."
+    },
+    {
+      "id": "30",
+      "layer": "run",
+      "captured": false,
+      "reason": "The alias fold: 'deltanet_qkv' is an alias of 'delta_qkv' — the eight DeltaNet tensors the two engines reached under two spellings carry one name each (schema.DEPRECATED_COMPONENTS), and the reference engine serves the name through in_proj_qkv's output. The refusal survives for the three faces only the nnsight engine serves ('deltanet_query', 'deltanet_key', 'deltanet_state' — registry.BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_tracing/test_deltanet_interior.py::test_the_reference_engine_refuses_by_name."
+    },
+    {
+      "id": "31",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] site names expert 0 on 'expert_activation', and the nnsight engine does not serve the ragged 'expert:' face — read the token-major form here, or route to the reference engine."
+    },
+    {
+      "id": "32",
+      "layer": "run",
+      "captured": false,
+      "reason": "nnsight executor: an interior component with no address in its tables — every interior component in the vocabulary has one today, so the branch is reachable only by editing the address table"
+    },
+    {
+      "id": "33",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] read 'r' slices 'dims' on the 'expert: 0' face of 'expert_activation': 'dims' indexes the token-major top_k·d axis, and these rows are d-wide. Drop 'expert' or drop 'dims'."
+    },
+    {
+      "id": "34",
+      "layer": "run",
+      "captured": true,
+      "exc_class": "ProtocolError",
+      "code": "P4",
+      "path": null,
+      "message": "[P4] read 'r' addresses positions on 'attention_probs' ((batch, head, position[query], key_position[key])), which has 2 position axes (position[query], key_position[key]) — a position index would be ambiguous between them. Read the whole tensor with pos: \"all\"."
+    }
+  ]
+}

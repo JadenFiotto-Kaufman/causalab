@@ -9,7 +9,7 @@ next protocol needs (the locate → DAS handoff), as data instead of a notebook.
   "inputs": {
     "table": {"step": "locate", "file": "iia.json"},
     "choose": "max",
-    "emit": {"best_layer": "sites.target.layer", "best_pos": "positions.tap"}
+    "emit": {"best_layer": "sites.target.layers", "best_pos": "positions.tap"}
   },
   "outputs": {"values": {"file": "values.json",
                          "keys": {"best_layer": 0, "best_pos": {"index": -1}}}}

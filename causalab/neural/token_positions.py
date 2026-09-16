@@ -1,25 +1,26 @@
 """
 Token Position Utilities
 
-⚠️ **Chat templates are not part of the protocol engine's contract.**
-``apply_chat_template`` is called **nowhere** in this package. A protocol
-document's prompts are tokenized as the *raw text* of the ``input`` column
-(``neural/shared/encoding.py``, whose ``prefix_lengths`` is 0 for every row),
-so a model that needs a chat frame gets it by baking the **rendered** template
-into the table — which works, and is what the A3B studies did. What it must not
-do is leave the template's leading BOS in place: the encoder adds special
-tokens as the tokenizer defines them, and a second BOS shifts every position by
-one. That case is refused at encode.
+⚠️ **The chat frame belongs to the intervention specification, not to this
+module.** The protocol engine calls ``apply_chat_template`` in exactly one
+place — ``neural/shared/framing.py`` — and only for a document that declares
+``segments.frame: chat`` (spec §2.2.1). Such a document's prompts are
+rendered through the tokenizer's own template and ``prefix_lengths`` becomes
+the real chat-prefix token count per row. Every other specification's prompts
+are tokenized as the *raw text* of the ``input`` column
+(``neural/shared/encoding.py``, ``prefix_lengths`` 0 for every row), so a
+model that needs a chat frame under the plain frame still gets it by baking
+the **rendered** template into the table — which works. What it must not do is leave the template's leading BOS in place:
+the encoder adds special tokens as the tokenizer defines them, and a second
+BOS shifts every position by one. That case is refused at encode.
 
 The ``use_chat_template`` field on :class:`EncodingPipeline` below, its
 ``_chat_prefix_token_count`` hook, and the "Chat template altered …" error are
-therefore **inert under every shipped engine**: they belong to the Plan-era
+**inert under every shipped engine**: they belong to the retired
 ``LMPipeline`` surface the task packages' own ``token_positions`` modules are
 annotated against, and are kept so those keep type-checking. Nothing in
-``protocol/`` or ``neural/engines/`` implements them. Read them as the shape a
-future first-class ``chat`` field would fill, not as a code path you can reach
-from a document today; a first-class ``chat`` field is a spec change and its
-own PR.
+``protocol/`` or ``neural/engines/`` implements them; the engine's chat frame
+is the ``segments`` section, not this field.
 
 This module provides tools for working with token positions in language models:
 
@@ -69,7 +70,7 @@ from typing import Protocol, runtime_checkable
 class EncodingPipeline(Protocol):
     """The structural surface this module needs from a pipeline: a
     tokenizer, batch loading with offset mappings, and the chat-prefix
-    facts. The Plan-era ``LMPipeline`` satisfied it; any encoder that
+    facts. The retired ``LMPipeline`` satisfied it; any encoder that
     tokenizes the way the run does (one padded frame, offset mappings,
     optional chat prefix) can drive these utilities."""
 
@@ -95,7 +96,7 @@ def _indexer_accepts_is_original(indexer: Callable[..., Any]) -> bool:
     flag" with "the indexer took the flag but a bug inside it raised", silently
     re-running such an indexer *without* the flag; for a paired position that
     returns base positions on a counterfactual read — a wrong-position
-    intervention instead of a crash (#430).
+    intervention instead of a crash.
 
     Returns ``True`` when the signature has a ``**kwargs`` catch-all, or a
     parameter named ``is_original`` that is reachable by keyword
@@ -126,7 +127,7 @@ class ComponentIndexer:
     indices that are the positions of the tokens to be intervened upon.
 
     :class:`TokenPosition`'s base class (relocated here from the retired
-    ``causalab.neural.units`` in the where-unification sweep, #508); it
+    ``causalab.neural.units``); it
     satisfies the :class:`~causalab.neural.positions.PositionResolver`
     protocol, so any instance binds directly as a
     :attr:`~causalab.neural.specs.SiteSpec.positions` value.
@@ -163,7 +164,7 @@ class ComponentIndexer:
         # Detected once, at construction, from the signature — see
         # `_indexer_accepts_is_original`. Dispatch reads this flag instead of
         # probing the indexer with a try/except, so a `TypeError` raised inside
-        # the indexer propagates as the real bug it is (#430).
+        # the indexer propagates as the real bug it is.
         self._accepts_is_original = _indexer_accepts_is_original(indexer)
 
     # ------------------------------------------------------------------ #
@@ -195,7 +196,7 @@ class ComponentIndexer:
         *inside* an ``is_original``-accepting indexer propagates like any other
         bug, instead of being swallowed and the indexer silently re-invoked
         without the flag — which for a paired position would read base positions
-        on a counterfactual pass (#430).
+        on a counterfactual pass.
         """
         if is_original is not None and self._accepts_is_original:
             return self.indexer(input, is_original=is_original)
@@ -263,7 +264,7 @@ class TokenPosition(ComponentIndexer):
     inputs is decided per call, via the ``is_original`` keyword threaded through
     :meth:`ComponentIndexer.index` to indexers that accept it (see
     :func:`paired_token_position`). There is deliberately no ``is_original``
-    *constructor* flag: it routed nothing and only duplicated that name (#430).
+    *constructor* flag: it routed nothing and only duplicated that name.
     """
 
     def __init__(
@@ -282,7 +283,7 @@ class TokenPosition(ComponentIndexer):
         # Declarative structure, when this position was built from one. The
         # spec-built factories attach (spec, template); the combinators attach
         # paired / combined. This is what lets `index_on_encoding` re-derive
-        # positions directly on a batch's run encoding (PL3, #405) instead of
+        # positions directly on a batch's run encoding instead of
         # replaying the per-example indexer closures.
         self.spec = spec
         self.template = template
@@ -328,7 +329,7 @@ class TokenPosition(ComponentIndexer):
         (offset row, attention-mask row, char range), so the returned indices
         are **born in the padded frame**: no per-example re-tokenization, no
         unpadded→padded shift, and no way to compute positions against a
-        different tokenization than the run (the #176 stale-index class).
+        different tokenization than the run (the stale-index failure class).
         Truncation is consistent by construction — positions resolve against
         whatever the run encoding actually contains.
 
@@ -982,7 +983,7 @@ def build_token_positions(
 
     Prefer this over calling :func:`build_token_position_factories` directly in a task
     wrapper. Returning the un-materialized factories crashes the ``locate`` step with
-    ``AttributeError: 'function' object has no attribute 'id'`` (issue #179).
+    ``AttributeError: 'function' object has no attribute 'id'``.
 
     Args:
         specs: Position name → declarative spec dict or dynamic spec generator, as
@@ -1365,7 +1366,7 @@ def combined_token_position(
 
 
 # --------------------------------------------------------------------------- #
-#  Batch-first resolution on the run encoding (PL3, #405)                      #
+#  Batch-first resolution on the run encoding                                  #
 # --------------------------------------------------------------------------- #
 
 

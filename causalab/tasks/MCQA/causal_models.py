@@ -5,6 +5,7 @@ including variables, values, parent relationships, and mechanisms.
 """
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 
 # Constants
@@ -117,22 +118,30 @@ mechanisms = {
     ),
 }
 
-# ``output_tokens`` declares the surface forms for the two variables MCQA is
-# scored on: ``answer`` (the option *letter*, the variable configs localize on)
-# drives the probability path, and ``answer_position`` (the module
-# ``TARGET_VARIABLE``) drives the derived checker. The letter/value the model
-# emits is example-dependent (the per-example ``CLASS_TOKEN_IDS`` path handles
-# class scoring), so the derived checker falls back to a literal exact match on
-# ``raw_output`` — reproducing the former checker.py for both the letter and the
-# ``score_by: value`` conventions (#296).
+# The task's definition of correct, once. Two variables declare forms:
+# ``answer`` (the option *letter* — what ``raw_output`` is, ``" " + answer``)
+# and ``answer_position`` (the module ``TARGET_VARIABLE``, the variable an
+# interchange targets). ``answer_variable="answer"`` says which one the
+# generated string is graded against: the former derived checker was keyed on
+# ``answer_position``, whose forms are the digits ``" 0"`` / ``" 1"`` the model
+# never emits, and only a literal-match fallback on ``raw_output`` made it
+# grade letters at all — while the serialized answer forms for the same
+# example were the digits. That was the disagreement the scoring differential
+# (``tests/tasks/test_scoring_differential.py``) exists to refuse. The retired
+# ``score_by: value`` convention (a colour word accepted in place of the
+# letter) belonged to a runner that no longer exists; a colour word is now an
+# undeclared value and the grader refuses it rather than crediting it.
 positional_causal_model = CausalModel(
     mechanisms,
     values,
     id=f"{NUM_CHOICES}_answer_MCQA",
-    output_tokens={
-        "answer": build_output_tokens(list(ALPHABET)),
-        "answer_position": build_output_tokens(list(range(NUM_CHOICES))),
-    },
+    scoring=ScoringSpec(
+        forms={
+            "answer": build_output_tokens(list(ALPHABET)),
+            "answer_position": build_output_tokens(list(range(NUM_CHOICES))),
+        },
+        answer_variable="answer",
+    ),
 )
 
 
@@ -143,111 +152,3 @@ positional_causal_model = CausalModel(
 CAUSAL_MODEL = positional_causal_model
 TARGET_VARIABLE = "answer_position"
 TEMPLATE = TEMPLATES[0]
-
-
-def PREDICT_CLASS(ex, generated: str) -> int | None:
-    """Map a model's generated string back to an answer_position index.
-
-    Returns None if the generated token doesn't match any symbol in the example.
-    """
-    trace = ex["input"]
-    generated = generated.strip()
-    for i in range(NUM_CHOICES):
-        if generated == trace[f"symbol{i}"]:
-            return i
-    return None
-
-
-def CLASS_TOKEN_IDS(ex, tokenizer) -> list[int]:
-    """Return one token ID per class for this example.
-
-    For MCQA, each class corresponds to a choice position whose answer symbol
-    varies per example.  Returns [token_id_for_position_0, token_id_for_position_1, ...].
-    """
-    trace = ex["input"]
-    ids = []
-    for i in range(NUM_CHOICES):
-        symbol = trace[f"symbol{i}"]
-        toks = tokenizer.encode(f" {symbol}", add_special_tokens=False)
-        ids.append(toks[-1])
-    return ids
-
-
-# ---------------------------------------------------------------------------
-# Value-based scoring (the ``score_by: value`` mode)
-# ---------------------------------------------------------------------------
-#
-# The default convention above scores the option *letter* (``symbol{i}``): the
-# prompt ends ``…Y. orange\nAnswer:`` and the model is expected to emit ``Y``.
-# A base model trained on MCQA-style data does that; an instruct/chat model
-# fed the same prompt answers with the *value* — the colour word ``orange`` —
-# and so scores ~0 under the letter contract even though it solved the task.
-#
-# Value mode is mode-agnostic: it accepts the choice *value* (the colour)
-# OR the option *letter*, because both identify the correct choice and the
-# chat instruct model is bimodal — it answers most MCQA questions with the
-# colour but a minority with the letter (measured at seed 0 on
-# Qwen3-4B-Instruct: 24/30 colour, 6/30 letter, exactly disjoint → 30/30
-# accept-either, vs 0.8 colour-only / 0.2 letter-only). It is opt-in via
-# ``task.score_by: value``. All ten colours and the A/B letters are
-# single-token, so ``max_new_tokens=1`` and ``prob_accuracy`` are retained.
-
-
-def _answer_value(ex) -> list[str]:
-    """Accepted base-accuracy answers for value scoring: the correct colour
-    OR its option letter.
-
-    Returns both with a leading space (mirroring the letter convention's
-    ``" " + answer``). ``compute_base_accuracy`` any-matches the list for
-    accuracy and unions their token variants for prob_accuracy, and it tries
-    both the space-prefixed and bare forms — so this captures the bare
-    ``orange`` / ``B`` token the chat model actually emits. Accepting either
-    notation is the correct MCQA contract (both name the right choice) and is
-    what lets the golden clear the 0.9 floor on the bimodal chat model.
-    """
-    trace = ex["input"]
-    return [" " + trace["color"], " " + trace["answer"]]
-
-
-def _predict_class_value(ex, generated: str) -> int | None:
-    """Map a generated string back to an answer_position by matching the colour.
-
-    Value-mode counterpart of :func:`PREDICT_CLASS`: matches ``choice{i}`` (the
-    colour) rather than ``symbol{i}`` (the letter). Returns None on no match.
-    """
-    trace = ex["input"]
-    generated = generated.strip()
-    for i in range(NUM_CHOICES):
-        if generated == trace[f"choice{i}"]:
-            return i
-    return None
-
-
-def _class_token_ids_value(ex, tokenizer) -> list[int]:
-    """Return one colour-token ID per choice for this example.
-
-    Value-mode counterpart of :func:`CLASS_TOKEN_IDS`. Uses the **bare** colour
-    token (no leading space) because that is what the chat model emits as the
-    first generated token.
-    """
-    trace = ex["input"]
-    ids = []
-    for i in range(NUM_CHOICES):
-        color = trace[f"choice{i}"]
-        toks = tokenizer.encode(color, add_special_tokens=False)
-        ids.append(toks[-1])
-    return ids
-
-
-# Scoring conventions selectable via ``task.score_by`` (consumed by
-# ``Task.apply_score_mode`` in causalab/tasks/loader.py). ``"letter"`` is the
-# default: an empty override leaves the module-level PREDICT_CLASS /
-# CLASS_TOKEN_IDS exports (and raw_output scoring) in place.
-SCORE_MODES = {
-    "letter": {},
-    "value": {
-        "answer": _answer_value,
-        "predict_class": _predict_class_value,
-        "class_token_ids": _class_token_ids_value,
-    },
-}

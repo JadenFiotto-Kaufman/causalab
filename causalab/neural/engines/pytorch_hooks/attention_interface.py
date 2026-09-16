@@ -31,8 +31,8 @@ How the call is intercepted
 📐 ``"eager"`` is **not** registered by default, so that call falls through to
 the module's own ``eager_attention_forward``. Registering ``"eager"`` therefore
 *inserts* a wrapper rather than replacing one, and removing the key restores the
-original behaviour exactly. The backend forces eager attention at load time
-(``loading.py``), which is what makes this the only implementation to wrap.
+original behaviour exactly. The executor temporarily selects eager for
+forwards using these taps, so this is the only implementation to wrap.
 
 The registry entry is process-global while installed, so this context manager
 must wrap the single forward it applies to and nothing wider.
@@ -331,11 +331,11 @@ def module_eager_attention(module: Any) -> Callable[..., Any]:
     whose modeling file exports no such function is refused by name rather than
     served somebody else's.
 
-    ⚠️ Deliberately asks for **only** this symbol. Round 2.3 also needed
+    ⚠️ Deliberately asks for **only** this symbol. An earlier version also needed
     ``repeat_kv`` here, to redo the value multiply after a pattern edit; 📐 GPT-2
     exports the first and not the second (no GQA, nothing to repeat), so asking
     for both made a plain read of the attention interior on gpt2 fail with a
-    message about pattern writes. Round 2.5 removed the second requirement
+    message about pattern writes. A later version removed the second requirement
     entirely along with the recompute that needed it.
     """
     modeling = importlib.import_module(type(module).__module__)

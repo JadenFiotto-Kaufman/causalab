@@ -1,6 +1,6 @@
 """Unit tests for the shared figure-format helpers.
 
-Pins the codebase default to PNG and verifies PDF stays opt-in (GH #163):
+Pins the codebase default to PNG and verifies PDF stays opt-in:
 the format is determined by config/argument, never baked into a hardcoded
 extension, and an absent/empty config resolves to ``png``.
 """
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 class TestNormalizeFigureFormat:
     def test_default_is_png(self):
-        """No value supplied → png (the #163 default flip)."""
+        """No value supplied → png (the default)."""
         assert normalize_figure_format(None) == "png"
 
     def test_pdf_opt_in_preserved(self):

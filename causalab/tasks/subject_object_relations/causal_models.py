@@ -11,7 +11,7 @@ renders ``raw_input`` from ``templates[0]`` and ``counterfactuals.py`` provides
 template variation by overriding ``raw_input`` per example.
 
 Objects can be multi-token ("Washington D.C."); the answer is graded first-token
-/ prefix-aware via ``output_tokens`` + ``match_modes={"object": "prefix"}``. The
+/ prefix-aware via the task's ``ScoringSpec`` (``string_mode="prefix"``). The
 curation sweep (see README) records which relations are single-token-decodable
 and first-token-distinct enough to clear the accuracy gate on a given model.
 """
@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import Mechanism, input_var
 
 from .config import SubjectObjectRelationsConfig
@@ -99,8 +100,9 @@ def create_causal_model(config: Any) -> CausalModel:
         values,
         id=f"subject_object_relations_{config.relation}",
         embeddings=embeddings,
-        output_tokens={"object": build_output_tokens(objects)},
-        match_modes={"object": "prefix"},
+        scoring=ScoringSpec(
+            forms={"object": build_output_tokens(objects)}, string_mode="prefix"
+        ),
     )
     model._in_config = config  # type: ignore[attr-defined]
     return model

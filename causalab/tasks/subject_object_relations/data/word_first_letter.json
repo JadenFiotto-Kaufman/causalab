@@ -1,0 +1,8194 @@
+[
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "UGLY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UGLY"
+   }
+  ],
+  "input": "CONSTRUCTION starts with the letter",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CONSTRUCTION"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SOFTWARE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SOFTWARE"
+   }
+  ],
+  "input": "The first character of the word RUN is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RUN"
+ },
+ {
+  "base_answer": " U",
+  "base_answer_forms": [
+   " U",
+   "U"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PAST starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PAST"
+   }
+  ],
+  "input": "UGLY starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "U",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "UGLY"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word POOR is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "POOR"
+   }
+  ],
+  "input": "The first character of the word BRING is",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRING"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "POLITE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "POLITE"
+   }
+  ],
+  "input": "ATTACK starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ATTACK"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ADMINISTER is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ADMINISTER"
+   }
+  ],
+  "input": "The first character of the word QUESTION is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUESTION"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PIANO starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PIANO"
+   }
+  ],
+  "input": "DISH starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DISH"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word PULL is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PULL"
+   }
+  ],
+  "input": "The first character of the word SPEAK is",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SPEAK"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "EDUCATION starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "EDUCATION"
+   }
+  ],
+  "input": "LOSE starts with the letter",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LOSE"
+ },
+ {
+  "base_answer": " I",
+  "base_answer_forms": [
+   " I",
+   "I"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FRESH is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FRESH"
+   }
+  ],
+  "input": "The first character of the word INCREASE is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "I",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "INCREASE"
+ },
+ {
+  "base_answer": " J",
+  "base_answer_forms": [
+   " J",
+   "J"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CLIMB starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLIMB"
+   }
+  ],
+  "input": "JUMP starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "J",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "JUMP"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DANCE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DANCE"
+   }
+  ],
+  "input": "The first character of the word LEND is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEND"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WITTY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WITTY"
+   }
+  ],
+  "input": "CLOSE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CLOSE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " Q",
+  "cf_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word QUIET is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "Q",
+    "subject": "QUIET"
+   }
+  ],
+  "input": "The first character of the word HARD is",
+  "label": " Q",
+  "label_forms": [
+   " Q",
+   "Q"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HARD"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WEAK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WEAK"
+   }
+  ],
+  "input": "CHANGE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHANGE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " O",
+  "cf_answer_forms": [
+   " O",
+   "O"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word OLD is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "O",
+    "subject": "OLD"
+   }
+  ],
+  "input": "The first character of the word HONEST is",
+  "label": " O",
+  "label_forms": [
+   " O",
+   "O"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HONEST"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "BICYCLE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BICYCLE"
+   }
+  ],
+  "input": "FULL starts with the letter",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FULL"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WIDE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WIDE"
+   }
+  ],
+  "input": "The first character of the word FIERCE is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FIERCE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WEBSITE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WEBSITE"
+   }
+  ],
+  "input": "FORGIVE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FORGIVE"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word UNDERSTAND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UNDERSTAND"
+   }
+  ],
+  "input": "The first character of the word TINY is",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TINY"
+ },
+ {
+  "base_answer": " U",
+  "base_answer_forms": [
+   " U",
+   "U"
+  ],
+  "cf_answer": " Y",
+  "cf_answer_forms": [
+   " Y",
+   "Y"
+  ],
+  "counterfactual_inputs": [
+   "YOUNG starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "Y",
+    "subject": "YOUNG"
+   }
+  ],
+  "input": "UP starts with the letter",
+  "label": " Y",
+  "label_forms": [
+   " Y",
+   "Y"
+  ],
+  "object": "U",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "UP"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HAPPY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HAPPY"
+   }
+  ],
+  "input": "The first character of the word DANCE is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DANCE"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WRITE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WRITE"
+   }
+  ],
+  "input": "ATTRACT starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ATTRACT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRIVE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRIVE"
+   }
+  ],
+  "input": "The first character of the word SMART is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SMART"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "DIRTY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DIRTY"
+   }
+  ],
+  "input": "FILM starts with the letter",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FILM"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SPEAK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SPEAK"
+   }
+  ],
+  "input": "The first character of the word QUIET is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUIET"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "BOOK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BOOK"
+   }
+  ],
+  "input": "LONG starts with the letter",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LONG"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word TRUE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TRUE"
+   }
+  ],
+  "input": "The first character of the word LEAVE is",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEAVE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "HOT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HOT"
+   }
+  ],
+  "input": "FALL starts with the letter",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FALL"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FRIEND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FRIEND"
+   }
+  ],
+  "input": "The first character of the word QUESTION is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUESTION"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "ASK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ASK"
+   }
+  ],
+  "input": "SOFTWARE starts with the letter",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SOFTWARE"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRIVE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRIVE"
+   }
+  ],
+  "input": "The first character of the word AIRPLANE is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "AIRPLANE"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STRONG starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STRONG"
+   }
+  ],
+  "input": "DAY starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DAY"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SEE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SEE"
+   }
+  ],
+  "input": "The first character of the word RISE is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RISE"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SUCCEED starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SUCCEED"
+   }
+  ],
+  "input": "MESSY starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MESSY"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word BEND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BEND"
+   }
+  ],
+  "input": "The first character of the word DULL is",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DULL"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TALK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TALK"
+   }
+  ],
+  "input": "SMART starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SMART"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRY"
+   }
+  ],
+  "input": "The first character of the word CONNECT is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CONNECT"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "HEALTHY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HEALTHY"
+   }
+  ],
+  "input": "LIKE starts with the letter",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LIKE"
+ },
+ {
+  "base_answer": " E",
+  "base_answer_forms": [
+   " E",
+   "E"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DO is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DO"
+   }
+  ],
+  "input": "The first character of the word EAT is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "E",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "EAT"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CRAZY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRAZY"
+   }
+  ],
+  "input": "RICH starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RICH"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word START is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "START"
+   }
+  ],
+  "input": "The first character of the word MACHINE is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MACHINE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FINISH starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FINISH"
+   }
+  ],
+  "input": "SOUR starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SOUR"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LOOK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOOK"
+   }
+  ],
+  "input": "The first character of the word HEAR is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEAR"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TALK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TALK"
+   }
+  ],
+  "input": "HEAR starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEAR"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WIN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WIN"
+   }
+  ],
+  "input": "The first character of the word BORROW is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BORROW"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PUSH starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PUSH"
+   }
+  ],
+  "input": "LEARN starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEARN"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CHEAP is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CHEAP"
+   }
+  ],
+  "input": "The first character of the word HOT is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HOT"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SEPARATE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SEPARATE"
+   }
+  ],
+  "input": "CODE starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CODE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word UNDERSTAND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UNDERSTAND"
+   }
+  ],
+  "input": "The first character of the word BELIEVE is",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BELIEVE"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TRUE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TRUE"
+   }
+  ],
+  "input": "QUIET starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUIET"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " K",
+  "cf_answer_forms": [
+   " K",
+   "K"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word KNOW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "K",
+    "subject": "KNOW"
+   }
+  ],
+  "input": "The first character of the word CHANGE is",
+  "label": " K",
+  "label_forms": [
+   " K",
+   "K"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHANGE"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PUSH starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PUSH"
+   }
+  ],
+  "input": "GAME starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GAME"
+ },
+ {
+  "base_answer": " N",
+  "base_answer_forms": [
+   " N",
+   "N"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ENGINE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "ENGINE"
+   }
+  ],
+  "input": "The first character of the word NARROW is",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "N",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "NARROW"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FALSE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FALSE"
+   }
+  ],
+  "input": "QUICK starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUICK"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SHY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SHY"
+   }
+  ],
+  "input": "The first character of the word HEALTHY is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEALTHY"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "GAME starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GAME"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SPEAK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SPEAK"
+   }
+  ],
+  "input": "The first character of the word WET is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WET"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "AIRPLANE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "AIRPLANE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SWIM is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SWIM"
+   }
+  ],
+  "input": "The first character of the word HEALTHY is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEALTHY"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SMART starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SMART"
+   }
+  ],
+  "input": "PIANO starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PIANO"
+ },
+ {
+  "base_answer": " E",
+  "base_answer_forms": [
+   " E",
+   "E"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SIMPLE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SIMPLE"
+   }
+  ],
+  "input": "The first character of the word EDUCATION is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "E",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "EDUCATION"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CALM starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CALM"
+   }
+  ],
+  "input": "RUDE starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RUDE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word RIGHT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "RIGHT"
+   }
+  ],
+  "input": "The first character of the word SCIENCE is",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SCIENCE"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "THIN starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "THIN"
+   }
+  ],
+  "input": "GO starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GO"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SAD is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SAD"
+   }
+  ],
+  "input": "The first character of the word TRY is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TRY"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FROWN starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FROWN"
+   }
+  ],
+  "input": "SWEET starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SWEET"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LOW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOW"
+   }
+  ],
+  "input": "The first character of the word WIDE is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WIDE"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CLIMB starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLIMB"
+   }
+  ],
+  "input": "LEND starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEND"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word GYM is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GYM"
+   }
+  ],
+  "input": "The first character of the word HOT is",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HOT"
+ },
+ {
+  "base_answer": " N",
+  "base_answer_forms": [
+   " N",
+   "N"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SURGERY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SURGERY"
+   }
+  ],
+  "input": "NEW starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "N",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "NEW"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LEARN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEARN"
+   }
+  ],
+  "input": "The first character of the word DAY is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DAY"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "DRIVE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRIVE"
+   }
+  ],
+  "input": "WEAK starts with the letter",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WEAK"
+ },
+ {
+  "base_answer": " N",
+  "base_answer_forms": [
+   " N",
+   "N"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CAR is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CAR"
+   }
+  ],
+  "input": "The first character of the word NEW is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "N",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "NEW"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SUCCEED starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SUCCEED"
+   }
+  ],
+  "input": "QUICK starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUICK"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CONNECT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CONNECT"
+   }
+  ],
+  "input": "The first character of the word SICK is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SICK"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CHEER starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CHEER"
+   }
+  ],
+  "input": "SIT starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SIT"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word NEAR is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEAR"
+   }
+  ],
+  "input": "The first character of the word LEAVE is",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEAVE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SOFTWARE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SOFTWARE"
+   }
+  ],
+  "input": "BUILD starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BUILD"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word STUDY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STUDY"
+   }
+  ],
+  "input": "The first character of the word LAUGH is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LAUGH"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "UP starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UP"
+   }
+  ],
+  "input": "START starts with the letter",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "START"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word PIANO is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PIANO"
+   }
+  ],
+  "input": "The first character of the word BRIGHT is",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRIGHT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TALK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TALK"
+   }
+  ],
+  "input": "SAVE starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAVE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ANGRY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ANGRY"
+   }
+  ],
+  "input": "The first character of the word FARM is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FARM"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEAR starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEAR"
+   }
+  ],
+  "input": "CLOCKWISE starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CLOCKWISE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WIDE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WIDE"
+   }
+  ],
+  "input": "The first character of the word COLD is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "COLD"
+ },
+ {
+  "base_answer": " E",
+  "base_answer_forms": [
+   " E",
+   "E"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SHY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SHY"
+   }
+  ],
+  "input": "EAT starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "E",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "EAT"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word EASY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "EASY"
+   }
+  ],
+  "input": "The first character of the word BICYCLE is",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BICYCLE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CLEAN starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLEAN"
+   }
+  ],
+  "input": "START starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "START"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HOT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HOT"
+   }
+  ],
+  "input": "The first character of the word GENTLE is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GENTLE"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEED starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEED"
+   }
+  ],
+  "input": "MACHINE starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MACHINE"
+ },
+ {
+  "base_answer": " E",
+  "base_answer_forms": [
+   " E",
+   "E"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CRY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRY"
+   }
+  ],
+  "input": "The first character of the word EXPAND is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "E",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "EXPAND"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STALE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STALE"
+   }
+  ],
+  "input": "LAZY starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LAZY"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LIKE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LIKE"
+   }
+  ],
+  "input": "The first character of the word CHANGE is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHANGE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "ENGINE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "ENGINE"
+   }
+  ],
+  "input": "SHAKE starts with the letter",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SHAKE"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRY"
+   }
+  ],
+  "input": "The first character of the word WANT is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WANT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CRAZY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRAZY"
+   }
+  ],
+  "input": "STRONG starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STRONG"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word PUT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PUT"
+   }
+  ],
+  "input": "The first character of the word DANCE is",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DANCE"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEW starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEW"
+   }
+  ],
+  "input": "LOOK starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LOOK"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DIRTY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DIRTY"
+   }
+  ],
+  "input": "The first character of the word ANGRY is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ANGRY"
+ },
+ {
+  "base_answer": " I",
+  "base_answer_forms": [
+   " I",
+   "I"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PUT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PUT"
+   }
+  ],
+  "input": "INSIDE starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "I",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "INSIDE"
+ },
+ {
+  "base_answer": " Y",
+  "base_answer_forms": [
+   " Y",
+   "Y"
+  ],
+  "cf_answer": " Z",
+  "cf_answer_forms": [
+   " Z",
+   "Z"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ZESTY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "Z",
+    "subject": "ZESTY"
+   }
+  ],
+  "input": "The first character of the word YOUNG is",
+  "label": " Z",
+  "label_forms": [
+   " Z",
+   "Z"
+  ],
+  "object": "Y",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "YOUNG"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "START starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "START"
+   }
+  ],
+  "input": "BRAVE starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRAVE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word MAKE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MAKE"
+   }
+  ],
+  "input": "The first character of the word HONEST is",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HONEST"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " K",
+  "cf_answer_forms": [
+   " K",
+   "K"
+  ],
+  "counterfactual_inputs": [
+   "KIND starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "K",
+    "subject": "KIND"
+   }
+  ],
+  "input": "FROWN starts with the letter",
+  "label": " K",
+  "label_forms": [
+   " K",
+   "K"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FROWN"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word THICK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "THICK"
+   }
+  ],
+  "input": "The first character of the word LIBRARY is",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LIBRARY"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "DULL starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DULL"
+   }
+  ],
+  "input": "MACHINE starts with the letter",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MACHINE"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HONEST is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HONEST"
+   }
+  ],
+  "input": "The first character of the word DISH is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DISH"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "POSITIVE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "POSITIVE"
+   }
+  ],
+  "input": "STALE starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STALE"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HAPPY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HAPPY"
+   }
+  ],
+  "input": "The first character of the word AIRPLANE is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "AIRPLANE"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STALE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STALE"
+   }
+  ],
+  "input": "PUT starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PUT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word RISE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "RISE"
+   }
+  ],
+  "input": "The first character of the word SURGERY is",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SURGERY"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LAUGH starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LAUGH"
+   }
+  ],
+  "input": "FRONT starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FRONT"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DIGGING is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DIGGING"
+   }
+  ],
+  "input": "The first character of the word RUDE is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RUDE"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SIT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SIT"
+   }
+  ],
+  "input": "LIBRARY starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LIBRARY"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SHIP is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SHIP"
+   }
+  ],
+  "input": "The first character of the word WHISPER is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WHISPER"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CRAZY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRAZY"
+   }
+  ],
+  "input": "HEALTHY starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEALTHY"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word STUDY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STUDY"
+   }
+  ],
+  "input": "The first character of the word BOOK is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BOOK"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "BREAK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BREAK"
+   }
+  ],
+  "input": "FRONT starts with the letter",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FRONT"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CREATE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CREATE"
+   }
+  ],
+  "input": "The first character of the word PRAISE is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PRAISE"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PAINTING starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PAINTING"
+   }
+  ],
+  "input": "DANCE starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DANCE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LEARN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEARN"
+   }
+  ],
+  "input": "The first character of the word BRING is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRING"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "GREAT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GREAT"
+   }
+  ],
+  "input": "SOUR starts with the letter",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SOUR"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FOLLOW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FOLLOW"
+   }
+  ],
+  "input": "The first character of the word CATCH is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CATCH"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "ATTACK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ATTACK"
+   }
+  ],
+  "input": "BUY starts with the letter",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BUY"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FROWN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FROWN"
+   }
+  ],
+  "input": "The first character of the word BOX is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BOX"
+ },
+ {
+  "base_answer": " O",
+  "base_answer_forms": [
+   " O",
+   "O"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "UP starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UP"
+   }
+  ],
+  "input": "OPEN starts with the letter",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "O",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "OPEN"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SHY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SHY"
+   }
+  ],
+  "input": "The first character of the word PAST is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PAST"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "HIT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HIT"
+   }
+  ],
+  "input": "DANCE starts with the letter",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DANCE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DEEP is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DEEP"
+   }
+  ],
+  "input": "The first character of the word SICK is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SICK"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FAST starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FAST"
+   }
+  ],
+  "input": "BRING starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRING"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LEND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEND"
+   }
+  ],
+  "input": "The first character of the word MEAN is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MEAN"
+ },
+ {
+  "base_answer": " U",
+  "base_answer_forms": [
+   " U",
+   "U"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SEE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SEE"
+   }
+  ],
+  "input": "UP starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "U",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "UP"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WISE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "The first character of the word FORGIVE is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FORGIVE"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STUDY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STUDY"
+   }
+  ],
+  "input": "WANT starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WANT"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DIRTY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DIRTY"
+   }
+  ],
+  "input": "The first character of the word FLOAT is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FLOAT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FALL starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FALL"
+   }
+  ],
+  "input": "STRAIGHT starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STRAIGHT"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LOW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOW"
+   }
+  ],
+  "input": "The first character of the word WILD is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WILD"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WEAK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WEAK"
+   }
+  ],
+  "input": "HIGH starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HIGH"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " Y",
+  "cf_answer_forms": [
+   " Y",
+   "Y"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word YES is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "Y",
+    "subject": "YES"
+   }
+  ],
+  "input": "The first character of the word DECIDE is",
+  "label": " Y",
+  "label_forms": [
+   " Y",
+   "Y"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DECIDE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TOGETHER starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TOGETHER"
+   }
+  ],
+  "input": "CHEAP starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHEAP"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ANGRY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ANGRY"
+   }
+  ],
+  "input": "The first character of the word STALE is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STALE"
+ },
+ {
+  "base_answer": " Q",
+  "base_answer_forms": [
+   " Q",
+   "Q"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LONG starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LONG"
+   }
+  ],
+  "input": "QUESTION starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "Q",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "QUESTION"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word MACHINE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MACHINE"
+   }
+  ],
+  "input": "The first character of the word LARGE is",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LARGE"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "MANUFACTURE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MANUFACTURE"
+   }
+  ],
+  "input": "ASK starts with the letter",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ASK"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word MEDICINE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MEDICINE"
+   }
+  ],
+  "input": "The first character of the word BIG is",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BIG"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "FORGIVE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FORGIVE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LOSE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOSE"
+   }
+  ],
+  "input": "The first character of the word SAY is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAY"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "DRAMA starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRAMA"
+   }
+  ],
+  "input": "SOFTWARE starts with the letter",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SOFTWARE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FRIENDLY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FRIENDLY"
+   }
+  ],
+  "input": "The first character of the word HATE is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HATE"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEAR starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEAR"
+   }
+  ],
+  "input": "TAKE starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TAKE"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FINISH is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FINISH"
+   }
+  ],
+  "input": "The first character of the word TRY is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TRY"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LOSE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOSE"
+   }
+  ],
+  "input": "GYM starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GYM"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ASK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ASK"
+   }
+  ],
+  "input": "The first character of the word SUCCEED is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SUCCEED"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "HUNGRY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HUNGRY"
+   }
+  ],
+  "input": "MEDICINE starts with the letter",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MEDICINE"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FRIENDLY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FRIENDLY"
+   }
+  ],
+  "input": "The first character of the word LEARN is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEARN"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "ENTER starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "ENTER"
+   }
+  ],
+  "input": "STUDY starts with the letter",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STUDY"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SLOW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SLOW"
+   }
+  ],
+  "input": "The first character of the word CUT is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CUT"
+ },
+ {
+  "base_answer": " K",
+  "base_answer_forms": [
+   " K",
+   "K"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEED starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEED"
+   }
+  ],
+  "input": "KNOW starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "K",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "KNOW"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SAFE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SAFE"
+   }
+  ],
+  "input": "The first character of the word HUNGRY is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HUNGRY"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CATCH starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CATCH"
+   }
+  ],
+  "input": "PUSH starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PUSH"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word MAKE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MAKE"
+   }
+  ],
+  "input": "The first character of the word WET is",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WET"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " Z",
+  "cf_answer_forms": [
+   " Z",
+   "Z"
+  ],
+  "counterfactual_inputs": [
+   "ZESTY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "Z",
+    "subject": "ZESTY"
+   }
+  ],
+  "input": "COLD starts with the letter",
+  "label": " Z",
+  "label_forms": [
+   " Z",
+   "Z"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "COLD"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SMALL is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SMALL"
+   }
+  ],
+  "input": "The first character of the word PAINTING is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PAINTING"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CREATE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CREATE"
+   }
+  ],
+  "input": "DESIGN starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DESIGN"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRIVE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRIVE"
+   }
+  ],
+  "input": "The first character of the word GIVE is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GIVE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CRUEL starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRUEL"
+   }
+  ],
+  "input": "FULL starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FULL"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CRUEL is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CRUEL"
+   }
+  ],
+  "input": "The first character of the word HIT is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HIT"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TINY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TINY"
+   }
+  ],
+  "input": "DISH starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DISH"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word BEND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BEND"
+   }
+  ],
+  "input": "The first character of the word LEARN is",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEARN"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WHISPER starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WHISPER"
+   }
+  ],
+  "input": "LAW starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LAW"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRAMA is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRAMA"
+   }
+  ],
+  "input": "The first character of the word ANGRY is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ANGRY"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "NEED starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NEED"
+   }
+  ],
+  "input": "HIGH starts with the letter",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HIGH"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CLOCKWISE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLOCKWISE"
+   }
+  ],
+  "input": "The first character of the word BLESS is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BLESS"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PRAISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PRAISE"
+   }
+  ],
+  "input": "BORROW starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BORROW"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " M",
+  "cf_answer_forms": [
+   " M",
+   "M"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word MEAN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "M",
+    "subject": "MEAN"
+   }
+  ],
+  "input": "The first character of the word RISE is",
+  "label": " M",
+  "label_forms": [
+   " M",
+   "M"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RISE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "FLOAT starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FLOAT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WORK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WORK"
+   }
+  ],
+  "input": "The first character of the word SAY is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAY"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "UGLY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UGLY"
+   }
+  ],
+  "input": "GO starts with the letter",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GO"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " N",
+  "cf_answer_forms": [
+   " N",
+   "N"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word NARROW is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "N",
+    "subject": "NARROW"
+   }
+  ],
+  "input": "The first character of the word SAY is",
+  "label": " N",
+  "label_forms": [
+   " N",
+   "N"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAY"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "POSITIVE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "POSITIVE"
+   }
+  ],
+  "input": "TALK starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TALK"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word GET is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GET"
+   }
+  ],
+  "input": "The first character of the word SHIP is",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SHIP"
+ },
+ {
+  "base_answer": " R",
+  "base_answer_forms": [
+   " R",
+   "R"
+  ],
+  "cf_answer": " I",
+  "cf_answer_forms": [
+   " I",
+   "I"
+  ],
+  "counterfactual_inputs": [
+   "INSIDE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "I",
+    "subject": "INSIDE"
+   }
+  ],
+  "input": "RISE starts with the letter",
+  "label": " I",
+  "label_forms": [
+   " I",
+   "I"
+  ],
+  "object": "R",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "RISE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ATTACK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ATTACK"
+   }
+  ],
+  "input": "The first character of the word CHOOSE is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHOOSE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " J",
+  "cf_answer_forms": [
+   " J",
+   "J"
+  ],
+  "counterfactual_inputs": [
+   "JUMP starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "J",
+    "subject": "JUMP"
+   }
+  ],
+  "input": "CRAZY starts with the letter",
+  "label": " J",
+  "label_forms": [
+   " J",
+   "J"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CRAZY"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WALK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WALK"
+   }
+  ],
+  "input": "The first character of the word CLOCKWISE is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CLOCKWISE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LOSE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOSE"
+   }
+  ],
+  "input": "BORROW starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BORROW"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LEAVE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEAVE"
+   }
+  ],
+  "input": "The first character of the word WITTY is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WITTY"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CLOSE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLOSE"
+   }
+  ],
+  "input": "BRAVE starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRAVE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ACCEPT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ACCEPT"
+   }
+  ],
+  "input": "The first character of the word HONEST is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HONEST"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " I",
+  "cf_answer_forms": [
+   " I",
+   "I"
+  ],
+  "counterfactual_inputs": [
+   "INSIDE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "I",
+    "subject": "INSIDE"
+   }
+  ],
+  "input": "BEND starts with the letter",
+  "label": " I",
+  "label_forms": [
+   " I",
+   "I"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BEND"
+ },
+ {
+  "base_answer": " I",
+  "base_answer_forms": [
+   " I",
+   "I"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word GENTLE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GENTLE"
+   }
+  ],
+  "input": "The first character of the word INHALE is",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "I",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "INHALE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SOFTWARE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SOFTWARE"
+   }
+  ],
+  "input": "FULL starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FULL"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ENTER is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "ENTER"
+   }
+  ],
+  "input": "The first character of the word WORK is",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WORK"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PAINTING starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PAINTING"
+   }
+  ],
+  "input": "FLY starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FLY"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FUNNY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FUNNY"
+   }
+  ],
+  "input": "The first character of the word HOT is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HOT"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "DEEP starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DEEP"
+   }
+  ],
+  "input": "COME starts with the letter",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "COME"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FARM is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FARM"
+   }
+  ],
+  "input": "The first character of the word GAME is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GAME"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CONSTRUCTION starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CONSTRUCTION"
+   }
+  ],
+  "input": "SMOOTH starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SMOOTH"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word ASK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ASK"
+   }
+  ],
+  "input": "The first character of the word GIVE is",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GIVE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " A",
+  "cf_answer_forms": [
+   " A",
+   "A"
+  ],
+  "counterfactual_inputs": [
+   "ADMINISTER starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "A",
+    "subject": "ADMINISTER"
+   }
+  ],
+  "input": "SWIM starts with the letter",
+  "label": " A",
+  "label_forms": [
+   " A",
+   "A"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SWIM"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " D",
+  "cf_answer_forms": [
+   " D",
+   "D"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word DRAMA is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "D",
+    "subject": "DRAMA"
+   }
+  ],
+  "input": "The first character of the word COME is",
+  "label": " D",
+  "label_forms": [
+   " D",
+   "D"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "COME"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LIKE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LIKE"
+   }
+  ],
+  "input": "BEND starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BEND"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word STUDY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STUDY"
+   }
+  ],
+  "input": "The first character of the word ASK is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ASK"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "BEND starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BEND"
+   }
+  ],
+  "input": "LEND starts with the letter",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LEND"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WILD is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WILD"
+   }
+  ],
+  "input": "The first character of the word SCIENCE is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SCIENCE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SMALL starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SMALL"
+   }
+  ],
+  "input": "CHEAP starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CHEAP"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word RIGHT is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "RIGHT"
+   }
+  ],
+  "input": "The first character of the word DANCE is",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DANCE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "RISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "RISE"
+   }
+  ],
+  "input": "STALE starts with the letter",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STALE"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FALSE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FALSE"
+   }
+  ],
+  "input": "The first character of the word HATE is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HATE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "GENTLE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GENTLE"
+   }
+  ],
+  "input": "SAY starts with the letter",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAY"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HEAR is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HEAR"
+   }
+  ],
+  "input": "The first character of the word SHORT is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SHORT"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STALE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STALE"
+   }
+  ],
+  "input": "BOX starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BOX"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LONG is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LONG"
+   }
+  ],
+  "input": "The first character of the word SWEET is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SWEET"
+ },
+ {
+  "base_answer": " D",
+  "base_answer_forms": [
+   " D",
+   "D"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LEARN starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEARN"
+   }
+  ],
+  "input": "DULL starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "D",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "DULL"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SIMPLE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SIMPLE"
+   }
+  ],
+  "input": "The first character of the word FRONT is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FRONT"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " I",
+  "cf_answer_forms": [
+   " I",
+   "I"
+  ],
+  "counterfactual_inputs": [
+   "INHALE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "I",
+    "subject": "INHALE"
+   }
+  ],
+  "input": "FILM starts with the letter",
+  "label": " I",
+  "label_forms": [
+   " I",
+   "I"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FILM"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word CAR is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CAR"
+   }
+  ],
+  "input": "The first character of the word HEALTHY is",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HEALTHY"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WEBSITE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WEBSITE"
+   }
+  ],
+  "input": "BICYCLE starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BICYCLE"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word GYM is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GYM"
+   }
+  ],
+  "input": "The first character of the word FINISH is",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FINISH"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TALK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TALK"
+   }
+  ],
+  "input": "CREATE starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CREATE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LEND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LEND"
+   }
+  ],
+  "input": "The first character of the word SHALLOW is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SHALLOW"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "HAPPY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HAPPY"
+   }
+  ],
+  "input": "CATCH starts with the letter",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CATCH"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LOUD is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOUD"
+   }
+  ],
+  "input": "The first character of the word BICYCLE is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BICYCLE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " E",
+  "cf_answer_forms": [
+   " E",
+   "E"
+  ],
+  "counterfactual_inputs": [
+   "EXPAND starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "E",
+    "subject": "EXPAND"
+   }
+  ],
+  "input": "SHORT starts with the letter",
+  "label": " E",
+  "label_forms": [
+   " E",
+   "E"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SHORT"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " I",
+  "cf_answer_forms": [
+   " I",
+   "I"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word INSIDE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "I",
+    "subject": "INSIDE"
+   }
+  ],
+  "input": "The first character of the word PAST is",
+  "label": " I",
+  "label_forms": [
+   " I",
+   "I"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PAST"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "STUDY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STUDY"
+   }
+  ],
+  "input": "FALSE starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FALSE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WISE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "The first character of the word BRING is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRING"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SWIM starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SWIM"
+   }
+  ],
+  "input": "LIGHT starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LIGHT"
+ },
+ {
+  "base_answer": " E",
+  "base_answer_forms": [
+   " E",
+   "E"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word START is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "START"
+   }
+  ],
+  "input": "The first character of the word ENGINE is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "E",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ENGINE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "SOFTWARE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SOFTWARE"
+   }
+  ],
+  "input": "BRAVE starts with the letter",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BRAVE"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WITTY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WITTY"
+   }
+  ],
+  "input": "The first character of the word PAST is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PAST"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CLEAN starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CLEAN"
+   }
+  ],
+  "input": "HIT starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HIT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word RUN is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "RUN"
+   }
+  ],
+  "input": "The first character of the word STUPID is",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "STUPID"
+ },
+ {
+  "base_answer": " I",
+  "base_answer_forms": [
+   " I",
+   "I"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "FIERCE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FIERCE"
+   }
+  ],
+  "input": "INHALE starts with the letter",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "I",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "INHALE"
+ },
+ {
+  "base_answer": " Z",
+  "base_answer_forms": [
+   " Z",
+   "Z"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word BRAVE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BRAVE"
+   }
+  ],
+  "input": "The first character of the word ZESTY is",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "Z",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ZESTY"
+ },
+ {
+  "base_answer": " M",
+  "base_answer_forms": [
+   " M",
+   "M"
+  ],
+  "cf_answer": " T",
+  "cf_answer_forms": [
+   " T",
+   "T"
+  ],
+  "counterfactual_inputs": [
+   "TRY starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "T",
+    "subject": "TRY"
+   }
+  ],
+  "input": "MEDICINE starts with the letter",
+  "label": " T",
+  "label_forms": [
+   " T",
+   "T"
+  ],
+  "object": "M",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "MEDICINE"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word REMEMBER is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "REMEMBER"
+   }
+  ],
+  "input": "The first character of the word ATTRACT is",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "ATTRACT"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " R",
+  "cf_answer_forms": [
+   " R",
+   "R"
+  ],
+  "counterfactual_inputs": [
+   "READ starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "R",
+    "subject": "READ"
+   }
+  ],
+  "input": "SAY starts with the letter",
+  "label": " R",
+  "label_forms": [
+   " R",
+   "R"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SAY"
+ },
+ {
+  "base_answer": " W",
+  "base_answer_forms": [
+   " W",
+   "W"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word LITTLE is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LITTLE"
+   }
+  ],
+  "input": "The first character of the word WALK is",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "W",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "WALK"
+ },
+ {
+  "base_answer": " H",
+  "base_answer_forms": [
+   " H",
+   "H"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WISE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WISE"
+   }
+  ],
+  "input": "HAPPY starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "H",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "HAPPY"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word BEAUTIFUL is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BEAUTIFUL"
+   }
+  ],
+  "input": "The first character of the word TRUE is",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TRUE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "WANT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WANT"
+   }
+  ],
+  "input": "CLIMB starts with the letter",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CLIMB"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FRIENDLY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FRIENDLY"
+   }
+  ],
+  "input": "The first character of the word LAZY is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LAZY"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " P",
+  "cf_answer_forms": [
+   " P",
+   "P"
+  ],
+  "counterfactual_inputs": [
+   "PUT starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "P",
+    "subject": "PUT"
+   }
+  ],
+  "input": "THINK starts with the letter",
+  "label": " P",
+  "label_forms": [
+   " P",
+   "P"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "THINK"
+ },
+ {
+  "base_answer": " F",
+  "base_answer_forms": [
+   " F",
+   "F"
+  ],
+  "cf_answer": " G",
+  "cf_answer_forms": [
+   " G",
+   "G"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word GET is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "G",
+    "subject": "GET"
+   }
+  ],
+  "input": "The first character of the word FRIENDLY is",
+  "label": " G",
+  "label_forms": [
+   " G",
+   "G"
+  ],
+  "object": "F",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "FRIENDLY"
+ },
+ {
+  "base_answer": " A",
+  "base_answer_forms": [
+   " A",
+   "A"
+  ],
+  "cf_answer": " U",
+  "cf_answer_forms": [
+   " U",
+   "U"
+  ],
+  "counterfactual_inputs": [
+   "UNDERSTAND starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "U",
+    "subject": "UNDERSTAND"
+   }
+  ],
+  "input": "AIRPLANE starts with the letter",
+  "label": " U",
+  "label_forms": [
+   " U",
+   "U"
+  ],
+  "object": "A",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "AIRPLANE"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word STAND is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "STAND"
+   }
+  ],
+  "input": "The first character of the word LIVE is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LIVE"
+ },
+ {
+  "base_answer": " S",
+  "base_answer_forms": [
+   " S",
+   "S"
+  ],
+  "cf_answer": " I",
+  "cf_answer_forms": [
+   " I",
+   "I"
+  ],
+  "counterfactual_inputs": [
+   "INSIDE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "I",
+    "subject": "INSIDE"
+   }
+  ],
+  "input": "SURGERY starts with the letter",
+  "label": " I",
+  "label_forms": [
+   " I",
+   "I"
+  ],
+  "object": "S",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "SURGERY"
+ },
+ {
+  "base_answer": " L",
+  "base_answer_forms": [
+   " L",
+   "L"
+  ],
+  "cf_answer": " W",
+  "cf_answer_forms": [
+   " W",
+   "W"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word WALK is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "W",
+    "subject": "WALK"
+   }
+  ],
+  "input": "The first character of the word LAZY is",
+  "label": " W",
+  "label_forms": [
+   " W",
+   "W"
+  ],
+  "object": "L",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "LAZY"
+ },
+ {
+  "base_answer": " O",
+  "base_answer_forms": [
+   " O",
+   "O"
+  ],
+  "cf_answer": " B",
+  "cf_answer_forms": [
+   " B",
+   "B"
+  ],
+  "counterfactual_inputs": [
+   "BREAK starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "B",
+    "subject": "BREAK"
+   }
+  ],
+  "input": "OLD starts with the letter",
+  "label": " B",
+  "label_forms": [
+   " B",
+   "B"
+  ],
+  "object": "O",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "OLD"
+ },
+ {
+  "base_answer": " T",
+  "base_answer_forms": [
+   " T",
+   "T"
+  ],
+  "cf_answer": " H",
+  "cf_answer_forms": [
+   " H",
+   "H"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word HAPPY is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "H",
+    "subject": "HAPPY"
+   }
+  ],
+  "input": "The first character of the word TRUE is",
+  "label": " H",
+  "label_forms": [
+   " H",
+   "H"
+  ],
+  "object": "T",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "TRUE"
+ },
+ {
+  "base_answer": " P",
+  "base_answer_forms": [
+   " P",
+   "P"
+  ],
+  "cf_answer": " L",
+  "cf_answer_forms": [
+   " L",
+   "L"
+  ],
+  "counterfactual_inputs": [
+   "LOSE starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "L",
+    "subject": "LOSE"
+   }
+  ],
+  "input": "PULL starts with the letter",
+  "label": " L",
+  "label_forms": [
+   " L",
+   "L"
+  ],
+  "object": "P",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "PULL"
+ },
+ {
+  "base_answer": " G",
+  "base_answer_forms": [
+   " G",
+   "G"
+  ],
+  "cf_answer": " F",
+  "cf_answer_forms": [
+   " F",
+   "F"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word FULL is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "F",
+    "subject": "FULL"
+   }
+  ],
+  "input": "The first character of the word GIVE is",
+  "label": " F",
+  "label_forms": [
+   " F",
+   "F"
+  ],
+  "object": "G",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "GIVE"
+ },
+ {
+  "base_answer": " B",
+  "base_answer_forms": [
+   " B",
+   "B"
+  ],
+  "cf_answer": " C",
+  "cf_answer_forms": [
+   " C",
+   "C"
+  ],
+  "counterfactual_inputs": [
+   "CHEAP starts with the letter"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "C",
+    "subject": "CHEAP"
+   }
+  ],
+  "input": "BICYCLE starts with the letter",
+  "label": " C",
+  "label_forms": [
+   " C",
+   "C"
+  ],
+  "object": "B",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "BICYCLE"
+ },
+ {
+  "base_answer": " C",
+  "base_answer_forms": [
+   " C",
+   "C"
+  ],
+  "cf_answer": " S",
+  "cf_answer_forms": [
+   " S",
+   "S"
+  ],
+  "counterfactual_inputs": [
+   "The first character of the word SAD is"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "object": "S",
+    "subject": "SAD"
+   }
+  ],
+  "input": "The first character of the word CLEAN is",
+  "label": " S",
+  "label_forms": [
+   " S",
+   "S"
+  ],
+  "object": "C",
+  "scoring_digest": "6058869f1141d719ceda7d8715ab13fda074e42cbd8b7a1ed72dbfa327bc6239",
+  "split": "all",
+  "string_mode": "prefix",
+  "subject": "CLEAN"
+ }
+]

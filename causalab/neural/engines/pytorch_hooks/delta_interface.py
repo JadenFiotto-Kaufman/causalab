@@ -10,8 +10,8 @@ of two **module-global** call sites inside the mixer's forward
     core_attn_out, S = torch_chunk_gated_delta_rule(q, k, v, g=g, beta=beta, ...)
                      | torch_recurrent_gated_delta_rule(...)   # cached decode
 
-📐 The ``conv1d`` *module* is never called (its hook never fires — pinned in
-round 4.1's suite), so the conv output exists only as this function's return;
+📐 The ``conv1d`` *module* is never called (its hook never fires — pinned by
+the suite), so the conv output exists only as this function's return;
 the kernel's arguments are the post-conv, post-tiling, **pre**-l2norm q/k/v
 plus the per-head gates ``beta``/``g``; and its return[0] is the pre-norm,
 pre-gate ``core_attn_out``. During decode the model natively runs the
@@ -20,8 +20,8 @@ linear layer at prefill, recurrent + conv-update at every cached step), so all
 four globals are swapped together and decode steps are tapped identically to
 prefill.
 
-Containment — the R2.3 replace-restore shape, one level down
-------------------------------------------------------------
+Containment — the attention interface's replace-restore shape, one level down
+-----------------------------------------------------------------------------
 
 The globals are resolved **from the tapped mixer's own modeling module**
 (``importlib.import_module(type(mixer).__module__)`` — the
@@ -29,7 +29,7 @@ The globals are resolved **from the tapped mixer's own modeling module**
 patched. The wrappers are ``**kwargs``-transparent and call through to the
 *original globals captured at entry* — which keeps whatever hub/``fla``
 dispatch the environment resolved, because the taps only touch arguments and
-returns; only interiors care which body runs (round-4 plan §0). Identity is
+returns; only interiors care which body runs. Identity is
 bit-exact by construction: 📐 a pass-through wrapper on either surface measured
 0.0.
 
@@ -56,6 +56,7 @@ from typing import Any, Callable, Iterator, Mapping
 
 import torch
 
+from causalab.neural.shared.kernels import KERNEL_GLOBALS
 from causalab.protocol.errors import ProtocolError
 
 __all__ = [
@@ -82,7 +83,7 @@ DELTA_SLOTS: tuple[str, ...] = (
     "kernel_output",
 )
 
-#: The per-step interior (round 4.3). At prefill these exist only inside the
+#: The per-step interior. At prefill these exist only inside the
 #: recurrent formulation, which the chunked kernel never materializes — so a
 #: read **steps the library's own recurrent kernel** in the chunked call's
 #: shadow (nothing transcribed: every number is the library's), and a state
@@ -91,13 +92,9 @@ DELTA_SLOTS: tuple[str, ...] = (
 #: the recurrent kernel natively and all three are plain per-step captures.
 _STATE_SLOTS: frozenset[str] = frozenset({"kv_mem", "state_update", "state"})
 
-#: The four module globals swapped together, per modeling module.
-_GLOBALS: tuple[str, ...] = (
-    "causal_conv1d_fn",
-    "causal_conv1d_update",
-    "torch_chunk_gated_delta_rule",
-    "torch_recurrent_gated_delta_rule",
-)
+#: The four module globals swapped together, per modeling module — the same
+#: four ``shared/kernels.py`` binds to the torch path for a model off CUDA.
+_GLOBALS: tuple[str, ...] = KERNEL_GLOBALS
 
 
 @dataclasses.dataclass(frozen=True)
@@ -323,8 +320,8 @@ def _state_faces(
     l2norm: Callable[..., torch.Tensor],
     use_l2: bool,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """The two derived per-step faces, from adjacent states (round-4 plan
-    §2.3): ``kv_mem_t = (S_{t-1}·exp(g_t) · k̂_t).sum(-2)`` and
+    """The two derived per-step faces, from adjacent states:
+    ``kv_mem_t = (S_{t-1}·exp(g_t) · k̂_t).sum(-2)`` and
     ``delta_t = (v_t − kv_mem_t)·β_t`` — the recurrent kernel's own lines
     (``modeling:369-374``), computed in float32 exactly as it computes them,
     and pinned by the reconstruction identity

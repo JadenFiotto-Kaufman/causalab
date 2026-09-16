@@ -22,10 +22,10 @@ from tests.step_scripts import put_sidecar, put_table, run_step
 pytestmark = pytest.mark.unit
 
 SWEPT = [
-    {"featurizers.rot.k": 2, "train.seed": 0, "value": 0.1, "example": 0},
-    {"featurizers.rot.k": 2, "train.seed": 0, "value": 0.3, "example": 1},
-    {"featurizers.rot.k": 16, "train.seed": 1, "value": 0.8, "example": 0},
-    {"featurizers.rot.k": 16, "train.seed": 1, "value": 0.6, "example": 1},
+    {"featurizers.rot.k": 2, "train.seed": 0, "value": 0.1, "example_id": "0"},
+    {"featurizers.rot.k": 2, "train.seed": 0, "value": 0.3, "example_id": "1"},
+    {"featurizers.rot.k": 16, "train.seed": 1, "value": 0.8, "example_id": "0"},
+    {"featurizers.rot.k": 16, "train.seed": 1, "value": 0.6, "example_id": "1"},
 ]
 
 AXES = ["featurizers.rot.k", "train.seed"]
@@ -80,7 +80,7 @@ def test_unswept_producer_is_one_group(tmp_path):
     apply_dir = tmp_path / "apply"
     put_table(
         apply_dir / "iia.json",
-        [{"value": 0.2, "example": 0}, {"value": 0.4, "example": 1}],
+        [{"value": 0.2, "example_id": "0"}, {"value": 0.4, "example_id": "1"}],
     )
     put_sidecar(apply_dir, [])
     run_step(
@@ -163,7 +163,7 @@ def test_emit_column_absent_from_the_table(swept, tmp_path):
     with pytest.raises(StepError) as err:
         run_step(
             select,
-            {"table": swept, "emit": {"x": "sites.ghost.layer"}},
+            {"table": swept, "emit": {"x": "sites.ghost.layers"}},
             {"values": tmp_path / "values.json"},
         )
     assert "carried no such axis" in str(err.value)
@@ -189,10 +189,10 @@ def test_empty_table_is_refused(tmp_path):
 #: A saturating IIA-versus-k curve at one seed: k=8 already has everything, and
 #: k=16/32 buy 0.005 and 0.008 more. `max` picks 32; the curve's answer is 8.
 SATURATED = [
-    {"featurizers.rot.k": 2, "value": 0.41, "example": 0},
-    {"featurizers.rot.k": 8, "value": 0.90, "example": 0},
-    {"featurizers.rot.k": 16, "value": 0.905, "example": 0},
-    {"featurizers.rot.k": 32, "value": 0.908, "example": 0},
+    {"featurizers.rot.k": 2, "value": 0.41, "example_id": "0"},
+    {"featurizers.rot.k": 8, "value": 0.90, "example_id": "0"},
+    {"featurizers.rot.k": 16, "value": 0.905, "example_id": "0"},
+    {"featurizers.rot.k": 32, "value": 0.908, "example_id": "0"},
 ]
 
 
@@ -228,9 +228,9 @@ def test_knee_reproduces_max_on_a_monotone_curve(tmp_path):
     put_table(
         fit / "iia.json",
         [
-            {"featurizers.rot.k": 2, "value": 0.1, "example": 0},
-            {"featurizers.rot.k": 8, "value": 0.5, "example": 0},
-            {"featurizers.rot.k": 32, "value": 0.9, "example": 0},
+            {"featurizers.rot.k": 2, "value": 0.1, "example_id": "0"},
+            {"featurizers.rot.k": 8, "value": 0.5, "example_id": "0"},
+            {"featurizers.rot.k": 32, "value": 0.9, "example_id": "0"},
         ],
     )
     put_sidecar(fit, ["featurizers.rot.k"])

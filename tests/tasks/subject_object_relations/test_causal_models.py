@@ -47,7 +47,7 @@ _DATA_DIR = (
     / "causalab"
     / "tasks"
     / "subject_object_relations"
-    / "data"
+    / "sources"
 )
 
 # Llama-3.1-8B-specific keys the build script must have dropped.
@@ -138,8 +138,9 @@ def test_output_tokens_declared_for_object(model_and_config) -> None:
     ot = model.output_tokens["object"]
     assert set(ot) == set(config.objects)
     assert all(forms for forms in ot.values())
-    # prefix match mode (first-token / continuation-aware grading).
-    assert model.match_modes == {"object": "prefix"}
+    # prefix string mode (first-token / continuation-aware grading).
+    assert model.scoring is not None and model.scoring.string_mode == "prefix"
+    assert model.match_modes == {"object": "prefix"}  # the derived view
 
 
 def test_target_variable_is_object() -> None:
@@ -149,7 +150,7 @@ def test_target_variable_is_object() -> None:
 
 
 def test_derived_checker_prefix_semantics() -> None:
-    """The loader derives a prefix checker from output_tokens for the object var."""
+    """The task's grader is the spec's: prefix semantics over the object forms."""
     from causalab.tasks.loader import load_task
 
     task = load_task(
@@ -288,7 +289,7 @@ def test_bundled_json_has_no_literal_unicode_escapes() -> None:
     Guards against the double-encoding class of bug: the upstream ``filtered.jsonl``
     stored some values double-escaped (e.g. ``Bras\\u00edlia`` with a real
     backslash), which the model can never emit → unscoreable. ``build_relations.py``
-    now normalizes these at ingest; this asserts every ``data/relations/*.json``
+    now normalizes these at ingest; this asserts every ``sources/relations/*.json``
     value decodes to real characters, not a backslash-escape literal.
     """
     literal_escape = re.compile(r"\\u[0-9a-fA-F]{4}|\\x[0-9a-fA-F]{2}")

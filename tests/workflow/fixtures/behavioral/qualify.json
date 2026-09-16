@@ -1,0 +1,41 @@
+{
+  "version": "1",
+  "description": "A development qualification of the tiny weekdays probe: one behavioral step, no experiment code.",
+  "output_dir": "qualify_weekdays",
+  "steps": {
+    "qualify": {
+      "type": "behavioral",
+      "document": "protocols/qa_probe.json",
+      "set": {
+        "data.base.dataset": "qa/data#development",
+        "model.key": "hf-internal-testing/tiny-random-LlamaForCausalLM",
+        "model.dtype": "fp32"
+      },
+      "decoding": {
+        "mode": "deterministic"
+      },
+      "checker": {
+        "task": "natural_domains_arithmetic",
+        "task_cfg": {
+          "domain_type": "weekdays"
+        },
+        "scoring_digest": "961fabc779af7766d806961664dbf346bf54e932690c14d15b664a840b6adfdb"
+      },
+      "split": "development",
+      "thresholds": {
+        "min_examples": 4,
+        "min_valid_rate": 0.0,
+        "min_correct_rate": 0.0
+      },
+      "retain": {
+        "generations": {
+          "max_rows": 2
+        }
+      },
+      "decision": {
+        "on_pass": "advance",
+        "on_fail": "narrow"
+      }
+    }
+  }
+}

@@ -1,11 +1,12 @@
-"""Round-1 MoE components: the router, the routed output, and the shared expert.
+"""Module-boundary MoE components: the router, the routed output, and the shared expert.
 
-PR3 of the hookpoint-vocabulary stack. Nine components, every one a plain module
+Nine components, every one a plain module
 output or input (§2.1) — the router is a module returning a 3-tuple and the
 experts are a fused module, so nothing here needs the ragged value shape that
-the per-expert interior does (that is round 3's ``expert_output``).
+the per-expert interior does (that is ``expert_output``,
+``test_sites_round3_moe_interior.py``).
 
-Two kinds of assertion, as in PR2. Shapes are 📐 measurements against a real
+Two kinds of assertion, as in the block-level suite. Shapes are 📐 measurements against a real
 ``qwen3_5_moe`` checkpoint, so a mismatch is a finding. Identities are stronger:
 they pin that the three router taps are *mutually consistent* — that
 ``router_scores`` really is the renormalized top-k of ``softmax(router_logits)``
@@ -21,12 +22,11 @@ import pytest
 import torch
 
 from causalab.neural.shared.sites import (
-    READ_ONLY_COMPONENTS,
     resolve_site,
 )
 from causalab.protocol.errors import ProtocolError, ValidationError
 from causalab.protocol.plan import COMPONENT_RANK
-from causalab.protocol.registry import component_width
+from causalab.protocol.registry import CAPABILITIES, component_width
 from causalab.protocol.schema import COMPONENTS, SiteSpec
 
 from ._drive import base_data_section, executor_for
@@ -79,22 +79,24 @@ def _doc(component: str, *, layer: int = 0, featurizer: bool = False) -> dict:
         "input": "base",
     }
     doc: dict = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": {"component": component, "layer": layer}},
-        "reads": {"r": read},
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
+        "method": {
+            "sites": {"tap": {"component": component, "layers": [layer]}},
+            "reads": {"r": read},
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
+        },
     }
     if featurizer:
-        doc["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
+        doc["method"]["featurizers"] = {"f": {"kind": "subspace", "k": 1}}
         read["featurizer"] = "f"
     return doc
 
@@ -203,7 +205,7 @@ def test_the_fixture_cannot_distinguish_the_three_inner_widths(qwen35moe_bundle)
 def test_every_moe_tap_is_flat(qwen35moe_bundle, component: str):
     """📐 ``Qwen3_5MoeSparseMoeBlock`` reshapes to ``(-1, hidden)`` before the
     router, so the whole interior is flattened over (batch, position)."""
-    site = resolve_site(qwen35moe_bundle, SiteSpec(component=component, layer=0))
+    site = resolve_site(qwen35moe_bundle, SiteSpec(component=component, layers=(0,)))
     assert site.shape.flat_batch
 
 
@@ -213,7 +215,9 @@ def test_the_router_taps_declare_the_three_tuple_elements(qwen35moe_bundle):
     which is why ``tuple_index`` exists."""
     indices = {}
     for component in ("router_logits", "router_scores", "expert_idx"):
-        site = resolve_site(qwen35moe_bundle, SiteSpec(component=component, layer=0))
+        site = resolve_site(
+            qwen35moe_bundle, SiteSpec(component=component, layers=(0,))
+        )
         assert site.module is qwen35moe_bundle.blocks[0].mlp.gate
         indices[component] = site.tuple_index
     assert indices == {"router_logits": 0, "router_scores": 1, "expert_idx": 2}
@@ -230,11 +234,11 @@ def test_an_expert_sub_axis_refuses(qwen35moe_bundle):
     """None of these tensors is indexed by expert: the router's axes are
     all-experts or top-k, and the shared expert is not a routed one. ``expert``
     parses and nothing read it — refusing beats silently ignoring it, which is
-    the mistake ``stream`` made before PR2."""
+    the mistake ``stream`` made before dispatch became per-layer."""
     with pytest.raises(ProtocolError) as excinfo:
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="router_scores", layer=0, expert=3),
+            SiteSpec(component="router_scores", layers=(0,), expert=3),
         )
     assert "no per-expert axis" in str(excinfo.value)
 
@@ -245,7 +249,7 @@ def test_an_expert_sub_axis_refuses(qwen35moe_bundle):
 
 
 def test_router_probs_recomputed_from_logits_sums_to_one(moe_reads):
-    """The §6 gate. ``router_probs`` is derived (§0 q3), not a component: this
+    """The §6 gate. ``router_probs`` is derived, not a component: this
     is how a user gets it, and it must be a real distribution."""
     probs = torch.softmax(moe_reads["router_logits"].float(), dim=-1)
     torch.testing.assert_close(probs.sum(-1), torch.ones_like(probs.sum(-1)))
@@ -311,7 +315,7 @@ def test_the_shared_expert_interior_composes(qwen35moe_bundle, moe_reads):
 def test_the_mlp_output_is_the_two_branches_combined(qwen35moe_bundle, moe_reads):
     """``mlp_out`` = routed + sigmoid(shared_expert_gate) * shared_expert_output.
 
-    ``shared_gated`` is the derived box (§0 q3) — this is the identity that
+    ``shared_gated`` is the derived box — this is the identity that
     makes it derivable, and it pins ``routed_output`` and both shared-expert
     taps against a component that already existed.
     """
@@ -359,7 +363,7 @@ def test_router_scores_columns_are_a_ranking_not_a_basis(qwen35moe_bundle):
     flips to asserting the refusal.
     """
     doc = copy.deepcopy(_doc("expert_idx"))
-    doc["reads"]["r"]["pos"] = {"all": True}
+    doc["method"]["reads"]["r"]["pos"] = {"all": True}
     ids = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     ids = ids.reshape(-1, ids.shape[-1]).long()
     assert ids.shape[0] > 1, "need several positions for the property to be visible"
@@ -388,9 +392,10 @@ def test_a_featurizer_on_a_flat_moe_tap_is_fine(qwen35moe_bundle):
 def test_a_non_moe_family_refuses_the_moe_components(llama_bundle):
     """tiny-llama has a dense MLP, so these have nothing to tap and must say so
     rather than AttributeError from inside a hook."""
-    with pytest.raises(NotImplementedError) as excinfo:
-        resolve_site(llama_bundle, SiteSpec(component="router_logits", layer=0))
+    with pytest.raises(ProtocolError) as excinfo:
+        resolve_site(llama_bundle, SiteSpec(component="router_logits", layers=(0,)))
     assert "sparse-MoE block" in str(excinfo.value)
+    assert excinfo.value.reason == "component_unavailable"
 
 
 # --------------------------------------------------------------------------- #
@@ -401,50 +406,52 @@ def test_a_non_moe_family_refuses_the_moe_components(llama_bundle):
 def _swap_doc(component: str, *, layer: int | None = 0, pos: int = 1) -> dict:
     site: dict = {"component": component}
     if layer is not None and component not in ("input_ids",):
-        site["layer"] = layer
+        site["layers"] = layer
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {"tgt": site, "lm_head": {"component": "lm_head"}},
-        "reads": {
-            "v_cf": {
-                "site": "tgt",
-                "pos": {"index": pos},
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {"tgt": site, "lm_head": {"component": "lm_head"}},
+            "reads": {
+                "v_cf": {
+                    "site": "tgt",
+                    "pos": {"index": pos},
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
             },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
+            "writes": {
+                "patch": {"site": "tgt", "pos": {"index": pos}, "do": {"swap": "v_cf"}}
             },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "writes": {
-            "patch": {"site": "tgt", "pos": {"index": pos}, "do": {"swap": "v_cf"}}
-        },
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -454,7 +461,7 @@ def _swap_doc(component: str, *, layer: int | None = 0, pos: int = 1) -> dict:
 #: and ``shared_expert_up_proj`` were exactly that gap when this was a literal
 #: list: writable, and the only two siblings with no write-moves-logits pin.
 WRITABLE_MOE_COMPONENTS = tuple(
-    c for c in MOE_COMPONENTS if c not in READ_ONLY_COMPONENTS
+    c for c in MOE_COMPONENTS if CAPABILITIES[c].writes is not None
 )
 
 
@@ -462,7 +469,7 @@ def test_every_writable_moe_component_is_causally_checked():
     """The guard on the guard: the parametrization below must cover the whole
     writable surface, so this pins the arithmetic rather than trusting it."""
     assert len(WRITABLE_MOE_COMPONENTS) == len(MOE_COMPONENTS) - len(
-        [c for c in MOE_COMPONENTS if c in READ_ONLY_COMPONENTS]
+        [c for c in MOE_COMPONENTS if CAPABILITIES[c].writes is None]
     )
     assert set(WRITABLE_MOE_COMPONENTS) | {"router_logits"} == set(MOE_COMPONENTS)
 
@@ -471,7 +478,7 @@ def test_every_writable_moe_component_is_causally_checked():
 def test_a_write_through_a_flat_tap_actually_changes_the_logits(
     qwen35moe_bundle, component: str
 ):
-    """The property #48's review point 2 is about, checked causally rather than
+    """The view property, checked causally rather than
     by aliasing: ``flat_td`` conversion must return a view, or the write lands
     in a discarded copy and the run silently reports the clean numbers.
 
@@ -505,8 +512,8 @@ def test_a_write_that_cannot_reach_anything_refuses(qwen35moe_bundle, component:
     above). A silent no-op is the worst available outcome: the run succeeds and
     the conclusion is wrong.
 
-    ``input_ids`` is refused for the *opposite* reason, and the docstring on
-    READ_ONLY_COMPONENTS spells the difference out: 📐 a write there does land
+    ``input_ids`` is refused for the *opposite* reason, and the registry row's
+    ``why`` spells the difference out: 📐 a write there does land
     (the tap is the embedding's pre-hook input, and mutating it changes the ids
     the model looks up). It is refused because token ids are not an activation
     — editing them is a change to the dataset, and belongs in the row's text.
@@ -521,7 +528,7 @@ def test_a_write_that_cannot_reach_anything_refuses(qwen35moe_bundle, component:
     message = str(excinfo.value)
     assert "no write" in message and "may change" in message
     # and it must say what to do instead
-    assert READ_ONLY_COMPONENTS[component].split(";")[0][:20] in message
+    assert CAPABILITIES[component].why.split(";")[0][:20] in message
 
 
 # --------------------------------------------------------------------------- #
@@ -542,10 +549,10 @@ def test_arithmetic_on_the_routing_table_refuses(qwen35moe_bundle, mechanism: st
     before the model runs.
     """
     doc = copy.deepcopy(_swap_doc("expert_idx"))
-    doc["writes"]["patch"]["do"] = _MECHANISM_PAYLOADS[mechanism]
+    doc["method"]["writes"]["patch"]["do"] = _MECHANISM_PAYLOADS[mechanism]
     # `clamp` names no operand, which would leave `v_cf` dead and trip V11
     # before the rule under test fires — save it so the refusal is what we see
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "v_cf",
             "model": "original",

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from causalab.causal.causal_model import CausalModel, build_output_tokens
+from causalab.causal.scoring import ScoringSpec
 from causalab.causal.trace import CausalTrace, Mechanism, input_var
 from causalab.tasks.random_words import get_random_words
 
@@ -183,7 +184,7 @@ def create_causal_model(config: NaturalDomainConfig) -> CausalModel:
         if config.number_is_cyclic:
             periods["number"] = config.modulus
 
-    # Declare the answer's surface forms per result value (#296). The answer is
+    # Declare the answer's surface forms per result value. The answer is
     # the result entity, emitted as ``output_prefix + entity``; the case-sensitive
     # ``[" entity", "entity"]`` forms cover both BPE spacings (the grader's
     # lowercase tolerance lives in the probability path, not the declaration).
@@ -192,7 +193,7 @@ def create_causal_model(config: NaturalDomainConfig) -> CausalModel:
     # the N_entities × N_groups tuples back to N_entities score tokens. That
     # shared-form-group dedup replaces the former output_token_values override.
     if has_groups:
-        output_tokens = {
+        forms = {
             "result": {
                 (re, g): build_output_tokens([re])[re]
                 for re in result_entities
@@ -200,7 +201,8 @@ def create_causal_model(config: NaturalDomainConfig) -> CausalModel:
             }
         }
     else:
-        output_tokens = {"result": build_output_tokens(result_values)}
+        forms = {"result": build_output_tokens(result_values)}
+    scoring = ScoringSpec(forms=forms)
 
     # For non-cyclic domains with a custom compute_result, some (entity, number)
     # pairs may produce results outside the configured result_entities (e.g.
@@ -225,7 +227,7 @@ def create_causal_model(config: NaturalDomainConfig) -> CausalModel:
         id=f"natural_domains_arithmetic_{config.domain_type}",
         embeddings=embeddings,
         periods=periods,
-        output_tokens=output_tokens,
+        scoring=scoring,
         input_filter=input_filter,
     )
     model._nda_config = config  # type: ignore[attr-defined]
@@ -313,8 +315,10 @@ def create_random_causal_model(config: NaturalDomainConfig) -> CausalModel:
         id=f"natural_domains_arithmetic_{config.domain_type}_random",
         embeddings=embeddings,
         # Random baseline is always 1D (no number_groups): one form group per
-        # random entity, matching the migrated real model (#296).
-        output_tokens={"result": build_output_tokens(list(random_entities))},
+        # random entity, matching the migrated real model.
+        scoring=ScoringSpec(
+            forms={"result": build_output_tokens(list(random_entities))}
+        ),
     )
     model._nda_config = config  # type: ignore[attr-defined]
     return model

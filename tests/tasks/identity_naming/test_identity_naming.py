@@ -326,7 +326,7 @@ class TestIdentityNamingAccessorProperty:
     def test_output_tokens_prepend_prefix(
         self, model_and_config: ModelAndConfig
     ) -> None:
-        """``output_tokens["result"]`` carries the ``output_prefix + name`` form (#296)."""
+        """``output_tokens["result"]`` carries the ``output_prefix + name`` form."""
         model, config = model_and_config
         ot = model.output_tokens["result"]
         for v in model.values["result"]:

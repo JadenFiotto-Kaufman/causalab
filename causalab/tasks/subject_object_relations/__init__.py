@@ -2,8 +2,8 @@
 
 Factory task — use ``SubjectObjectRelationsConfig(relation=<name>)`` (or
 ``task.relation=<name>`` in a runner config) to select the relation. Relation
-content is bundled as model-agnostic JSON under ``data/relations/`` (built by
-``data/build_relations.py``).
+content is bundled as model-agnostic JSON under ``sources/relations/`` (built by
+``sources/build_relations.py``).
 """
 
 from .config import (

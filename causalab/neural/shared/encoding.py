@@ -3,8 +3,10 @@
 The engine's ``PositionFrame`` (spec §2.3, §8) is the padded batch the
 model actually runs, plus what position resolution needs to address it:
 pad side (always left here), per-row content offsets, offset mappings for
-char→token resolution, and per-row prefix lengths (0 without a chat
-template; the chat seam is the field, not a code path yet).
+char→token resolution, per-row prefix lengths (0 in the plain frame; the
+real chat-prefix token count under a document's ``segments.frame: chat``,
+computed by ``framing.encode_framed`` from where the tokenizer's own template
+put the user turn), and per-row segment locations (§2.2.1).
 
 Position rules implemented against this frame (spec §2.3, §6.1):
 
@@ -15,8 +17,11 @@ Position rules implemented against this frame (spec §2.3, §6.1):
   row's value for ``x``. The value comes from the dataset row: for a text
   column ``<col>`` the sibling ``<col>_variables`` mapping (aligned
   per-element for list columns), else a plain column named ``x``. The
-  value must occur exactly once in the row's text — zero or several
-  occurrences refuse loudly rather than address the wrong tokens.
+  value must occur exactly once in the row's text — zero occurrences is the
+  ``absent`` cardinality and several the ``ambiguous`` one (§2.3), refused
+  with the matching reason code (``alignment_missing`` /
+  ``alignment_ambiguous``) rather than addressing the wrong tokens; a read's
+  executor records such a row as an ``unavailable`` cell instead (§4.1).
 * ``{"column": "c"}`` — the same token run, from the row's top-level
   column ``c`` only (never the ``<col>_variables`` sibling). The column is
   a property of the *row*, so it resolves to the same string whichever
@@ -30,11 +35,18 @@ Position rules implemented against this frame (spec §2.3, §6.1):
 * ``scope`` — the index/span interpreted inside the anchor's token run;
   ``relative_to`` — an index offset from the run (``+1`` = first token
   after it, ``-1`` = last token before it; ``0`` is refused). The anchor is
-  ``{"variable": …}`` or ``{"column": …}``.
+  ``{"variable": …}``, ``{"column": …}`` or ``{"segment": …}`` — a declared
+  segment (§2.2.1), located by the frame that encoded the batch and resolved
+  here through the same offset mapping, with the same ``absent`` /
+  ``ambiguous`` refusals a variable has.
+* a **span** (``protocol/spans.py``: ``segment``, ``indices``, ``union``,
+  ``intersection``, ``before`` / ``after`` / ``between``, ``atomic``) — the
+  algebra is torch-free and pure over this row's frame; members and anchors
+  resolve back through :func:`resolve_position`.
 
 Every resolved index is bounds-checked in the padded frame — a stale or
 impossible position must fail here as a legible error, never reach a
-gather (the #176 failure class the old resolver guarded the same way).
+gather (the stale-index failure class the old resolver guarded the same way).
 
 **The continuation frame.** A position carrying ``generated`` resolves
 against a :class:`Continuation` instead: the greedy decode's steps, indexed
@@ -70,14 +82,19 @@ from typing import Any, Mapping, Sequence
 
 import torch
 
+from causalab.protocol.alignment import alignment_of, refuse_unalignable
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import PositionSpec, concrete_int, concrete_str
+from causalab.protocol.spans import SpanSpec, constituents, resolve_span
 
 __all__ = [
     "Continuation",
     "EncodedBatch",
+    "candidate_runs",
+    "constituent_candidate_runs",
     "continuation_frame",
     "encode",
+    "first_real_indices",
     "resolve_position",
     "resolve_steps",
 ]
@@ -92,21 +109,99 @@ class EncodedBatch:
     attention_mask: torch.Tensor
     offset_mapping: tuple[tuple[tuple[int, int], ...], ...]
     prefix_lengths: tuple[int, ...]  # chat-prefix token counts; 0 = plain text
+    #: Per row, each declared segment's **candidate** char spans in
+    #: ``texts[row]`` (§2.2.1): none is ``absent``, several ``ambiguous``,
+    #: exactly one is the segment. Empty for a document with no ``segments``
+    #: section — the plain-text frame, byte-identical to before the field.
+    segments: tuple[Mapping[str, tuple[tuple[int, int], ...]], ...] = ()
+    #: Per row, the padded index of its first real token — the ``argmax`` of
+    #: the mask row — read off the device **once** for the whole batch, so
+    #: :meth:`first_real`, :meth:`content_start` and every position
+    #: resolution built on them are host arithmetic. Resolved per row per
+    #: read and per write at every layer, the per-call round trip used to be
+    #: most of the cohort forward's synchronizations. Derived from
+    #: ``attention_mask`` when left empty; :meth:`select` and the cohort's
+    #: frame concatenation pass theirs through, since a row's index does not
+    #: change when it travels. ``dataclasses.replace`` copies this field like
+    #: any other, so a caller replacing ``attention_mask`` through it must
+    #: pass ``first_reals=()`` explicitly to have it re-derived — or, better,
+    #: build the new frame as a row selection (``graph_cohort.slotted_frame``
+    #: is the worked example). On the CPU, where the check costs no
+    #: synchronization, the constructor refuses a cache the mask disagrees
+    #: with.
+    first_reals: tuple[int, ...] = dataclasses.field(
+        default=(), compare=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        if not self.first_reals:
+            object.__setattr__(
+                self, "first_reals", first_real_indices(self.attention_mask)
+            )
+            return
+        rows = int(self.attention_mask.shape[0])
+        if len(self.first_reals) != rows:
+            raise ValueError(
+                f"first_reals carries {len(self.first_reals)} entries for a "
+                f"{rows}-row attention mask"
+            )
+        if self.attention_mask.device.type == "cpu" and (
+            self.first_reals != first_real_indices(self.attention_mask)
+        ):
+            raise ValueError(
+                "first_reals disagrees with attention_mask — a frame whose mask "
+                "was replaced must leave the cache empty to be re-derived"
+            )
 
     @property
     def padded_len(self) -> int:
         return int(self.input_ids.shape[1])
 
+    def first_real(self, row: int) -> int:
+        """First real token of ``row`` in the padded frame — past the left
+        padding, any chat prefix included."""
+        return self.first_reals[row]
+
     def content_start(self, row: int) -> int:
         """First real token of ``row`` in the padded frame, past any prefix."""
-        mask = self.attention_mask[row].int()
-        return int(torch.argmax(mask).item()) + self.prefix_lengths[row]
+        return self.first_real(row) + self.prefix_lengths[row]
 
     def position_ids(self) -> torch.Tensor:
         """Left-pad position ids: ``cumsum(mask) - 1``, clamped at 0 — the
         plain-forward convention (RoPE is shift-blind, absolute embeddings
         like GPT-2's ``wpe`` are not, so this must always be passed)."""
         return (self.attention_mask.cumsum(dim=1) - 1).clamp(min=0)
+
+    def select(self, indices: Sequence[int]) -> "EncodedBatch":
+        """The rows ``indices`` of this batch, in that order, **in this frame**:
+        the same padded width, every per-row field sliced in step.
+
+        A fit's minibatch is a selection of its point's frame rather than a
+        fresh encode of its rows (spec §4, "Cohorts"): minibatches of several
+        points then share one frame and concatenate into one forward, and a
+        row's position indices — resolved against the frame — hold whichever
+        selection it travels in."""
+        if not indices:
+            raise ValueError("a selection names at least one row")
+        rows = list(indices)
+        index = torch.tensor(rows, dtype=torch.long, device=self.input_ids.device)
+        return EncodedBatch(
+            texts=tuple(self.texts[i] for i in rows),
+            input_ids=self.input_ids.index_select(0, index),
+            attention_mask=self.attention_mask.index_select(0, index),
+            offset_mapping=tuple(self.offset_mapping[i] for i in rows),
+            prefix_lengths=tuple(self.prefix_lengths[i] for i in rows),
+            segments=tuple(self.segments[i] for i in rows) if self.segments else (),
+            first_reals=tuple(self.first_reals[i] for i in rows),
+        )
+
+
+def first_real_indices(attention_mask: torch.Tensor) -> tuple[int, ...]:
+    """Per row of a left-padded mask, the index of its first real token: the
+    ``argmax`` of the row (its first maximal entry; a row with no real token
+    reads 0, as ``argmax`` of zeros does). One reduction over the batch and
+    one host read, however many rows."""
+    return tuple(int(i) for i in attention_mask.int().argmax(dim=1).tolist())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -145,39 +240,75 @@ class Continuation:
 
 
 def encode(
-    tokenizer: Any, texts: Sequence[str], *, device: str = "cpu"
+    tokenizer: Any,
+    texts: Sequence[str],
+    *,
+    device: str = "cpu",
+    add_special_tokens: bool = True,
+    segments: Sequence[Mapping[str, tuple[tuple[int, int], ...]]] = (),
 ) -> EncodedBatch:
     """Tokenize one batch with the engine's single convention: left
     padding, special tokens as the tokenizer defines them, offset mapping
     kept for char→token position resolution.
 
-    ⚠️ ``prefix_lengths`` is ``0`` for every row in v1: there is no
-    chat-template code path, so a dataset that wants an instruct model's chat
-    frame bakes the *rendered* template into its ``input`` column. That is a
-    working idiom — but this call adds special tokens as the tokenizer defines
-    them, so a rendered template that already opens with BOS gets a second one.
-    A double BOS is a wrong number, not a crash: every position shifts by one
-    and nothing says so. :func:`refuse_double_bos` catches it here, which is
-    the only place that can see both halves.
+    ``prefix_lengths`` is ``0`` for every row **here**: this is the plain-text
+    frame, and every document without a ``segments`` section takes it. The
+    chat frame (§2.2.1, ``framing.encode_framed``) renders each row through
+    the tokenizer's own chat template, encodes the rendered text with
+    ``add_special_tokens=False`` (the template owns its specials) and sets
+    the real prefix length from where the user turn was located. A dataset
+    that bakes a *rendered* template into its ``input`` column under the plain
+    frame still works — but this call then adds special tokens as the
+    tokenizer defines them, so a rendered template that already opens with
+    BOS gets a second one. A double BOS is a wrong number, not a crash: every
+    position shifts by one and nothing says so. :func:`refuse_double_bos`
+    catches it here, which is the only place that can see both halves.
+
+    ``segments`` is the per-row segment location table the frame computed
+    (:attr:`EncodedBatch.segments`); the plain frame passes none.
     """
     enc = tokenizer(
         list(texts),
         return_tensors="pt",
         padding=True,
         return_offsets_mapping=True,
+        add_special_tokens=add_special_tokens,
     )
-    input_ids = enc["input_ids"].to(device)
-    attention_mask = enc["attention_mask"].to(device)
+    # the BOS check and the first-real cache read the tokenizer's host tensors
+    # before they move, so an encode onto an accelerator makes no round trip
+    input_ids, attention_mask = enc["input_ids"], enc["attention_mask"]
+    refuse_empty_rows(texts, attention_mask)
     refuse_double_bos(tokenizer, input_ids, attention_mask)
     return EncodedBatch(
         texts=tuple(texts),
-        input_ids=input_ids,
-        attention_mask=attention_mask,
+        input_ids=input_ids.to(device),
+        attention_mask=attention_mask.to(device),
         offset_mapping=tuple(
-            tuple((int(a), int(b)) for a, b in row) for row in enc["offset_mapping"]
+            tuple((int(a), int(b)) for a, b in row)
+            for row in enc["offset_mapping"].tolist()
         ),
         prefix_lengths=tuple(0 for _ in texts),
+        segments=tuple(dict(row) for row in segments),
+        first_reals=first_real_indices(attention_mask),
     )
+
+
+def refuse_empty_rows(texts: Sequence[str], attention_mask: torch.Tensor) -> None:
+    """Refuse a batch with a row that encodes to no token at all.
+
+    Every position of such a row would address padding, and the engine's
+    frame arithmetic assumes each row has a first real token: its cached
+    index is 0 for an empty row as for a full one, so the two would share a
+    mask signature. An empty text (a tokenizer adding no special token) is a
+    data error, named by row rather than run."""
+    for row, count in enumerate(attention_mask.sum(dim=1).tolist()):
+        if count == 0:
+            raise ProtocolError(
+                "P2",
+                f"row {row} ({texts[row]!r}) encodes to no token: a frame's row "
+                "has at least one real token, or every position in it would "
+                "address padding",
+            )
 
 
 def refuse_double_bos(
@@ -199,11 +330,13 @@ def refuse_double_bos(
     bos_id = getattr(tokenizer, "bos_token_id", None)
     if bos_id is None or input_ids.shape[1] < 2:
         return
-    for row in range(input_ids.shape[0]):
-        start = int(attention_mask[row].int().argmax().item())
+    # one host read of the ids and one reduction over the mask, then row
+    # arithmetic — not two reads per row from wherever the batch lives
+    ids = input_ids.tolist()
+    for row, start in enumerate(first_real_indices(attention_mask)):
         if start + 1 >= input_ids.shape[1]:
             continue
-        if int(input_ids[row, start]) == bos_id == int(input_ids[row, start + 1]):
+        if ids[row][start] == bos_id == ids[row][start + 1]:
             bos = getattr(tokenizer, "bos_token", None) or f"id {bos_id}"
             raise ProtocolError(
                 "P2",
@@ -281,29 +414,183 @@ def column_value(row: Mapping[str, Any], column: str) -> str:
     return value
 
 
-def _variable_token_run(batch: EncodedBatch, row: int, value: str) -> list[int]:
-    """The padded-frame token indices covering the (unique) occurrence of
-    ``value`` in the row's text, via the offset mapping ((0, 0) entries are
-    specials/padding and never match)."""
+def _variable_token_runs(
+    batch: EncodedBatch, row: int, value: str
+) -> tuple[list[int], ...]:
+    """The padded-frame token runs covering **each** occurrence of ``value``
+    in the row's text — the *candidate* runs one address has here, via the
+    offset mapping ((0, 0) entries are specials/padding and never match).
+
+    How many candidates there are is the address's cardinality on this input
+    (:func:`~causalab.protocol.alignment.alignment_of`, §2.3): none is
+    ``absent``, several is ``ambiguous``, exactly one is the run. An
+    occurrence that overlaps no token is kept as an empty run, so it too
+    reads as ``absent`` rather than as a second candidate.
+    """
     text = batch.texts[row]
-    starts = [m.start() for m in re.finditer(re.escape(value), text)]
-    if len(starts) != 1:
-        raise ProtocolError(
-            "P2",
-            f"prompt variable value {value!r} occurs {len(starts)} times in "
-            f"{text!r} — position resolution needs exactly one occurrence",
-        )
-    lo, hi = starts[0], starts[0] + len(value)
-    run = [
+    return tuple(
+        _chars_to_tokens(batch, row, match.start(), match.end())
+        for match in re.finditer(re.escape(value), text)
+    )
+
+
+def _chars_to_tokens(batch: EncodedBatch, row: int, lo: int, hi: int) -> list[int]:
+    """The padded-frame tokens overlapping the char span ``[lo, hi)`` of the
+    row's text, via the offset mapping ((0, 0) entries are padding / specials
+    the text does not spell and never match)."""
+    return [
         idx
         for idx, (a, b) in enumerate(batch.offset_mapping[row])
         if not (a == 0 and b == 0) and a < hi and b > lo
     ]
-    if not run:
+
+
+def _segment_token_runs(
+    batch: EncodedBatch, row: int, name: str
+) -> tuple[list[int], ...]:
+    """The candidate token runs of a declared segment in this row — one per
+    char span the frame located it at (§2.2.1). The frame that encoded the
+    batch located every declared segment; a batch with no location table is a
+    plain-frame batch under a document that never declared one."""
+    if row >= len(batch.segments) or name not in batch.segments[row]:
         raise ProtocolError(
-            "P2", f"variable value {value!r} maps to no tokens in row {row}"
+            "P2",
+            f"segment {name!r} was not located on this batch — the document "
+            "declares no segments section, or the frame that encoded it never "
+            "declared this name (§2.2.1)",
         )
-    return run
+    return tuple(
+        _chars_to_tokens(batch, row, lo, hi) for lo, hi in batch.segments[row][name]
+    )
+
+
+def _segment_run(batch: EncodedBatch, row: int, name: str) -> list[int]:
+    """The one run a declared segment has in this row, or the typed refusal —
+    ``absent`` is ``alignment_missing``, ``ambiguous`` is
+    ``alignment_ambiguous`` — through the same path a ``variable`` takes."""
+    runs = _segment_token_runs(batch, row, name)
+    observed = alignment_of(runs)
+    refuse_unalignable(
+        observed,
+        f"segment {name!r} occurs {len(runs)} time(s) in the rendered text of "
+        f"row {row} ({batch.texts[row]!r}) — a segment anchor needs exactly one "
+        f"occurrence, and this one is {observed!r} here",
+    )
+    return runs[0]
+
+
+def _unique_run(batch: EncodedBatch, row: int, value: str, what: str) -> list[int]:
+    """The one run ``value`` has in this row, or the typed refusal for none
+    or several — ``absent`` is ``alignment_missing``, ``ambiguous`` is
+    ``alignment_ambiguous`` (§2.3, §2.4). The executor turns that refusal
+    into an ``unavailable`` cell for a read (§4.1) and lets it stand for a
+    write, which cannot skip a row and still report a number."""
+    runs = _variable_token_runs(batch, row, value)
+    observed = alignment_of(runs)
+    refuse_unalignable(
+        observed,
+        f"{what} value {value!r} occurs {len(runs)} times in {batch.texts[row]!r} "
+        f"(row {row}) — position resolution needs exactly one occurrence, and "
+        f"this address is {observed!r} here",
+    )
+    return runs[0]
+
+
+def _row_value(
+    dataset_row: Mapping[str, Any] | None,
+    field: str | None,
+    name: str,
+    *,
+    from_column: bool,
+) -> str:
+    """The row's string for an anchor or an anchor-free reference — a
+    top-level column (``column``) or a per-role prompt variable
+    (``variable``), §2.3."""
+    if dataset_row is None:
+        raise ProtocolError("P2", "variable/column positions need a dataset row")
+    if from_column:
+        return column_value(dataset_row, name)
+    if field is None:
+        raise ProtocolError("P2", "variable positions need a dataset row")
+    return variable_value(dataset_row, field, name)
+
+
+def candidate_runs(
+    spec: PositionSpec,
+    batch: EncodedBatch,
+    row: int,
+    *,
+    dataset_row: Mapping[str, Any] | None = None,
+    field: str | None = None,
+) -> tuple[list[int], ...]:
+    """The candidate runs one prompt-frame spec has in one row — what
+    :func:`~causalab.protocol.alignment.alignment_of` classifies when a
+    declared ``alignment`` is checked against the pair (§2.3).
+
+    A ``variable`` / ``column`` address has one candidate per occurrence of
+    its value; an anchored ``index`` / ``span`` inherits its anchor's
+    candidates when the anchor is not unique (the derived address is exactly
+    as ambiguous as the anchor); everything else has the one run
+    :func:`resolve_position` returns. A ``generated`` spec has no candidates
+    here: the continuation is a result, not one of the pair's inputs.
+    """
+    if spec.generated is not None:
+        raise ProtocolError(
+            "P2",
+            "a generated position has no pair alignment — the continuation is a "
+            "result, not one of the pair's inputs (§2.3)",
+        )
+    if isinstance(spec, SpanSpec):
+        # A whole-segment span has one candidate per occurrence of the segment;
+        # every other span — atomic or not — is the one run its algebra
+        # resolves to (its constituents are classified through
+        # :func:`constituent_candidate_runs`).
+        if spec.segment is not None:
+            return _segment_token_runs(batch, row, spec.segment)
+        return (
+            resolve_position(spec, batch, row, dataset_row=dataset_row, field=field),
+        )
+    if spec.variable is not None:
+        value = _row_value(dataset_row, field, str(spec.variable), from_column=False)
+        return _variable_token_runs(batch, row, value)
+    if spec.column is not None:
+        value = _row_value(dataset_row, field, str(spec.column), from_column=True)
+        return _variable_token_runs(batch, row, value)
+    if spec.scope is not None or spec.relative_to is not None:
+        anchor_name = str(spec.scope or spec.relative_to)
+        if spec.anchor_source == "segment":
+            anchors = _segment_token_runs(batch, row, anchor_name)
+        else:
+            anchor = _row_value(
+                dataset_row,
+                field,
+                anchor_name,
+                from_column=spec.anchor_source == "column",
+            )
+            anchors = _variable_token_runs(batch, row, anchor)
+        if len(anchors) != 1:
+            return anchors
+    return (resolve_position(spec, batch, row, dataset_row=dataset_row, field=field),)
+
+
+def constituent_candidate_runs(
+    spec: PositionSpec,
+    batch: EncodedBatch,
+    row: int,
+    *,
+    dataset_row: Mapping[str, Any] | None = None,
+    field: str | None = None,
+) -> list[tuple[list[int], ...]]:
+    """The candidate runs of each address a spec is classified as (§2.3):
+    one entry for an ordinary position or an ``atomic`` span, one per
+    constituent of a non-atomic set (``spans.constituents``) — the
+    "composable groups" half: the same two tokens are one joint
+    ``one_to_one`` address when atomic and two single-token addresses when
+    not, and a declared ``alignment`` is checked against each."""
+    return [
+        candidate_runs(part, batch, row, dataset_row=dataset_row, field=field)
+        for part in constituents(spec)
+    ]
 
 
 def _generated_variable_run(
@@ -415,25 +702,36 @@ def resolve_position(
             )
         return indices
 
-    def row_value(name: str, *, from_column: bool) -> str:
-        """The row's string for an anchor or an anchor-free reference —
-        a top-level column (``column``) or a per-role prompt variable
-        (``variable``), §2.3."""
-        if dataset_row is None:
-            raise ProtocolError("P2", "variable/column positions need a dataset row")
-        if from_column:
-            return column_value(dataset_row, name)
-        if field is None:
-            raise ProtocolError("P2", "variable positions need a dataset row")
-        return variable_value(dataset_row, field, name)
+    if isinstance(spec, SpanSpec):
+        # the span algebra (protocol/spans.py) is torch-free and pure over this
+        # row's frame; members and anchors come back through this resolver
+        return check(
+            resolve_span(
+                spec,
+                frame=(batch.first_real(row), start, padded),
+                resolve=lambda member: resolve_position(
+                    member, batch, row, dataset_row=dataset_row, field=field
+                ),
+                segment_run=lambda name: _segment_run(batch, row, name),
+                where=f"row {row}",
+            )
+        )
 
     anchor_run: list[int] | None = None
     if spec.scope is not None or spec.relative_to is not None:
         anchor_name = str(spec.scope or spec.relative_to)
-        anchor_value = row_value(
-            anchor_name, from_column=spec.anchor_source == "column"
-        )
-        anchor_run = _variable_token_run(batch, row, anchor_value)
+        if spec.anchor_source == "segment":
+            anchor_run = _segment_run(batch, row, anchor_name)
+        else:
+            anchor_value = _row_value(
+                dataset_row,
+                field,
+                anchor_name,
+                from_column=spec.anchor_source == "column",
+            )
+            anchor_run = _unique_run(
+                batch, row, anchor_value, f"anchor {anchor_name!r}"
+            )
 
     if spec.all is not None:
         # content_start is already past the pad and any chat prefix; left
@@ -441,18 +739,12 @@ def resolve_position(
         return check(list(range(start, padded)))
 
     if spec.variable is not None:
-        return check(
-            _variable_token_run(
-                batch, row, row_value(str(spec.variable), from_column=False)
-            )
-        )
+        value = _row_value(dataset_row, field, str(spec.variable), from_column=False)
+        return check(_unique_run(batch, row, value, "prompt variable"))
 
     if spec.column is not None:
-        return check(
-            _variable_token_run(
-                batch, row, row_value(str(spec.column), from_column=True)
-            )
-        )
+        value = _row_value(dataset_row, field, str(spec.column), from_column=True)
+        return check(_unique_run(batch, row, value, "position column"))
 
     if spec.index is not None:
         n = concrete_int(spec.index, "position index")
@@ -512,7 +804,11 @@ def continuation_frame(
         spans: list[tuple[int, int]] = []
         text = ""
         for k in range(width):
-            grown = tokenizer.decode(ids[: k + 1], skip_special_tokens=True)
+            grown = tokenizer.decode(
+                ids[: k + 1],
+                skip_special_tokens=False,
+                clean_up_tokenization_spaces=False,
+            )
             spans.append((len(text), len(grown)))
             text = grown
         texts.append(text)

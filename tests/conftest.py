@@ -24,7 +24,7 @@ def pytest_runtest_teardown(item, nextitem):
     """Reset the smoke flag so off-test composition (e.g. fixture teardown
     that happens to call ``load_runner_config``) defaults to non-smoke.
 
-    After teardown, release GPU memory leaked by golden-tier tests (#442).
+    After teardown, release GPU memory leaked by golden-tier tests.
     Golden tests load multi-GB coherent backbones as function locals or
     module-scoped fixtures with no teardown of their own; the nnsight/nnterp
     object graphs are cyclic, so those models survive the end of the test

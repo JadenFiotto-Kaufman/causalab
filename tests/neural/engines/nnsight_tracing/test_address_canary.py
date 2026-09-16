@@ -1,4 +1,4 @@
-"""The address-table CI canary (engine plan §5.1(b), lands with N5).
+"""The address-table CI canary.
 
 One trace per fixture stream type resolves **every** table entry — match,
 peel, field, value — and fails with the op-inventory diff on any miss. It has
@@ -49,21 +49,23 @@ def _layer_of(bundle, stream: str) -> int | None:
 
 def _canary_doc(layer: int) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": _data(with_cf=False),
-        "sites": {"tap": {"component": "block_output", "layer": layer}},
-        "reads": {
-            "r": {"site": "tap", "pos": -1, "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": {"component": "block_output", "layers": [layer]}},
+            "reads": {
+                "r": {"site": "tap", "pos": -1, "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
@@ -86,7 +88,7 @@ def test_every_table_entry_resolves_in_one_trace(trace_qwen):
     saves: dict[str, object] = {}
     for label, table, layer in tables:
         if not table:
-            continue  # N7 fills this; an empty table has nothing to drift
+            continue  # an empty table has nothing to drift
         assert layer is not None, f"no {label!r} layer on the fixture"
         executor = _executor(
             TracePointExecutor, _canary_doc(layer), trace_qwen, with_cf=False
@@ -100,7 +102,7 @@ def test_every_table_entry_resolves_in_one_trace(trace_qwen):
             with trace_qwen.model.trace(TEXT):
                 for component, address in table.items():
                     site = resolve_site(
-                        trace_qwen, SiteSpec(component=component, layer=layer)
+                        trace_qwen, SiteSpec(component=component, layers=(layer,))
                     )
                     tap = ResolvedTap(site=site, source=address)
                     if address.fires != "once":

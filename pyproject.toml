@@ -15,25 +15,23 @@ dependencies = [
     "pandas",
     "numpy",
     "scikit-learn",
-    "ipywidgets",
-    "jupyterlab",
-    "ipycytoscape",
     "seaborn",
     # 5.16 is the first release carrying models/qwen3_5_moe (Qwen3.6-35B-A3B's
     # text tower); the hookpoint vocabulary work targets that architecture.
     "transformers>=5.16",
     "safetensors",
+    # transformers 5 refuses `device_map` without accelerate, and the reference
+    # engine's loader materializes weights on the target device through a
+    # device_map (threaded reads straight to the accelerator) instead of a
+    # CPU load followed by `.to(device)`.
+    # capped: 1.15.0 was released 2026-09-09, the day this was locked; lift the
+    # cap once it has been out a week
+    "accelerate>=1.14.0,<1.15",
     "tensorboard",
-    "dash",
-    "dash-cytoscape",
-    "jupyter-dash",
     "rich",
-    "ipykernel>=7.0.1",
     "umap-learn>=0.5.0",
     "pot>=0.9.0",
-    "openai>=1.50.0",
     "datasets>=2.20.0",
-    "python-dotenv>=1.0.0",
     # the protocol stack's YAML authoring surface (transitive before, via
     # hydra-core/omegaconf). Metric tables are JSON, so no parquet engine.
     "pyyaml>=6.0",
@@ -41,15 +39,27 @@ dependencies = [
     # before (via scikit-learn), but an op's dependency belongs in the record
     # of what this package requires, not in another library's install tree.
     "scipy>=1.10",
+    # the interactive HTML figures (`io/plots/receptive_field.py`,
+    # `plot_3d_interactive.py`) import it at module scope, so a wheel without
+    # it cannot import them. Transitive before, through the `notebook` extra's
+    # `dash`, which is why every checkout had it and no `uv pip install` did
+    # (tests/test_declared_dependencies.py is the guard). Not in the extra: it
+    # writes a file, it runs no server.
+    "plotly>=5.0",
 ]
 
 [tool.pytest.ini_options]
 markers = [
     "smoke: tiny-config end-to-end runner smoke tests; <5 min total wall, no numerical assertions beyond artifact existence",
     "numerical_unit: pinned-value CPU tests on fixed seeds (losses, metrics, sample outputs)",
-    "golden: value-pinned end-to-end runner goldens on the coherent model; the sole GPU tier (CI selects -m golden)",
+    "golden: value-pinned end-to-end runner goldens on the coherent model; the sole GPU tier (CI runs -m 'not golden' and skips it)",
     "property: invariances/equivariances and determinism",
     "unit: default tier — pure-function tests, parsers, small utilities",
+    # hardware marker of tests/io/fastersafetensors, orthogonal to the tiers:
+    # skipped by its conftest when there is no CUDA device (the GPUDirect
+    # Storage tests are Rust, crates/fst-cuda/tests/cuda_node.rs, behind
+    # FST_CUDA_TESTS)
+    "cuda: needs a CUDA device",
 ]
 testpaths = ["tests"]
 norecursedirs = [".venv", "__pycache__"]
@@ -73,37 +83,104 @@ exclude_lines = [
 # One entry point over both document types; it dispatches on the `steps` section
 causalab = "causalab.cli:main"
 
-[tool.uv.build-backend]
-module-name = ["causalab"]
-module-root = ""
+[tool.maturin]
+# causalab is a mixed Rust/Python project: the `causalab/` package beside this
+# file, plus the PyO3 extension `causalab.io.fastersafetensors._core` built from
+# the Cargo workspace at the repository root (crates/; docs/fastersafetensors.md).
+# maturin finds the package by the first component of `module-name`.
+module-name = "causalab.io.fastersafetensors._core"
+manifest-path = "crates/fst-py/Cargo.toml"
+features = ["extension-module"]
+strip = true
+include = [{ path = "docs/profiles/*.json", format = "sdist" }]
+
+[tool.uv]
+# The project is rebuilt when one of these changes — the Rust sources included,
+# which uv's default keys (pyproject.toml alone) would never see.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "rust-toolchain.toml" },
+    { file = "crates/**/Cargo.toml" },
+    { file = "crates/**/*.rs" },
+]
 
 [project.optional-dependencies]
+# The interactive half: Jupyter, and the Dash/Cytoscape causal-graph views
+# (`causalab.io.plots.causal_graph.build_*_app` / `display_*`). Nothing in
+# causalab/ or tests/ imports the jupyter five at all;
+# dash and dash-cytoscape are imported inside the four functions that build an
+# app, so importing the plots package needs neither (see `_require_dash`).
+#
+# Out of core because a headless install has no use for a jupyter-server stack
+# or a web-app server — a GPU job image that merges causalab into a
+# network-less venv would pay for all of it. The jupyter five moved out first;
+# dash followed once its import went lazy.
+notebook = [
+    "ipywidgets",
+    "jupyterlab",
+    "ipycytoscape",
+    "jupyter-dash",
+    "ipykernel>=7.0.1",
+    "dash",
+    "dash-cytoscape",
+]
 # The nnsight tracing engine (causalab/neural/engines/nnsight_tracing/).
 # Pinned to the 0.8-branch rev the engine was verified against on the real
-# Qwen3.6-35B-A3B (cockpit notes/causalab-nnsight-engine-plan.md §0 decision 1;
-# experiments/2026-08-28 nnsight 0.8 verification): bump deliberately, re-running
-# the address canary, never implicitly.
+# Qwen3.6-35B-A3B: bump deliberately, re-running the address canary, never
+# implicitly.
 nnsight = ["nnsight"]
 
+# Optional Linux GPU kernels. Neither is part of the base or dev install.
+# Transformers selects installed FLA/causal-conv1d functions automatically;
+# FlashAttention is selected explicitly through attn_implementation.
+flash-attn = ["flash-attn==2.8.3.post1; sys_platform == 'linux'"]
+flash-linear-attention = [
+    "flash-linear-attention[cuda]>=0.5.2; sys_platform == 'linux'",
+    "causal-conv1d==1.7.0; sys_platform == 'linux'",
+]
+
 [build-system]
-requires = ["uv_build>=0.9.5,<0.10.0"]
-build-backend = "uv_build"
+# maturin, because the wheel carries a compiled extension (see [tool.maturin]);
+# a Rust toolchain is required to build, install or `uv sync` this project
+# (`rustup` on PATH; rust-toolchain.toml pins the version, Cargo.toml's
+# `rust-version` is the floor the code needs).
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
 
 [dependency-groups]
+# The CI lint job's whole world, deliberately separate from `dev`. Every hook in
+# .pre-commit-config.yaml comes from a remote repo and builds its own isolated
+# env, and nothing the lint job runs imports causalab — so `pre-commit` on PATH
+# is all it needs. It cannot just sync `dev`: `dev` pins nnsight, which drags in
+# the CUDA torch stack, so `--only-group dev` still installs torch (84 of the
+# 147 locked packages, torch among them). `dev` includes this group, so a dev
+# environment is unchanged and `pre-commit` is pinned in exactly one place.
+lint = [
+    "pre-commit>=4.4.0",
+]
 dev = [
+    {include-group = "lint"},
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.6.0",
     # pinned exactly: formatting is a CI gate, and an unpinned formatter turns
-    # a green tree red on a bystander ruff release (it bit the N-stack)
+    # a green tree red on a bystander ruff release
     "ruff==0.14.5",
-    "pre-commit>=4.4.0",
     "basedpyright",
     "scikit-learn-stubs",
     "pandas-stubs",
     "scipy-stubs",
     "ipdb>=0.13.13",
     "hypothesis>=6.0",
+    # the interactive causal-graph builders are tested (tests/io/plots/
+    # test_causal_graph.py exercises every `build_*_app`), so the dev
+    # environment carries the two packages they need even though a runtime
+    # install does not. The jupyter half of the extra has no tests and is not
+    # here.
+    "dash",
+    "dash-cytoscape",
     # the nnsight engine's parity suite runs in the default dev env (CI uses
     # `uv sync --frozen`, which installs this group); the runtime dependency
     # itself is the optional extra above
@@ -114,6 +191,27 @@ dev = [
 # One source for the extra and the dev group alike — the 0.8-branch rev the
 # engine was verified against (see the optional-dependencies note above).
 nnsight = { git = "https://github.com/ndif-team/nnsight.git", rev = "8c480727" }
+
+[tool.uv.extra-build-dependencies]
+# Compile extensions against the same torch used at runtime, in isolation.
+flash-attn = [{ requirement = "torch", match-runtime = true }, "packaging", "ninja", "wheel"]
+causal-conv1d = [{ requirement = "torch", match-runtime = true }, "packaging", "ninja"]
+
+# These releases compute metadata through setup.py, which imports torch/CUDA.
+# Supplying their published metadata lets even CPU/macOS users resolve the
+# universal lock without building optional CUDA extensions. Keep these versions
+# aligned with the extras above; re-check upstream metadata when bumping them.
+[[tool.uv.dependency-metadata]]
+name = "flash-attn"
+version = "2.8.3.post1"
+requires-python = ">=3.9"
+requires-dist = ["torch", "einops"]
+
+[[tool.uv.dependency-metadata]]
+name = "causal-conv1d"
+version = "1.7.0"
+requires-python = ">=3.9"
+requires-dist = ["torch", "packaging", "ninja"]
 
 
 [tool.ruff]

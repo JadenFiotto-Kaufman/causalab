@@ -55,69 +55,73 @@ D_EXPERT = 32
 
 def _read_doc(component: str = "expert_activation", layer: int = MOE_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": {"component": component, "layer": layer}},
-        "reads": {
-            "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": {"component": component, "layers": [layer]}},
+            "reads": {
+                "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
 def _write_doc(component: str, do: dict, *, layer: int = MOE_LAYER) -> dict:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tap": {"component": component, "layer": layer},
-            "lm_head": {"component": "lm_head"},
+        "method": {
+            "sites": {
+                "tap": {"component": component, "layers": [layer]},
+                "lm_head": {"component": "lm_head"},
+            },
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "clean": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "original",
+                    "input": "base",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
+            },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                },
+                {
+                    "value": "clean",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "c.safetensors",
+                },
+            ],
         },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
-            },
-            "clean": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "original",
-                "input": "base",
-            },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
-            },
-        },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": do}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            },
-            {
-                "value": "clean",
-                "model": "original",
-                "input": "base",
-                "file_path": "c.safetensors",
-            },
-        ],
     }
 
 
@@ -157,7 +161,7 @@ def _eager_bundle(bundle: ModelBundle) -> ModelBundle:
 def test_the_tap_is_an_experts_slot_not_a_module_side(qwen35moe_bundle):
     """There is no per-expert module boundary, and the site says so."""
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component="expert_activation", layer=MOE_LAYER)
+        qwen35moe_bundle, SiteSpec(component="expert_activation", layers=(MOE_LAYER,))
     )
     assert site.kind == "experts"
     assert site.interface_slot == "activation"
@@ -178,7 +182,7 @@ def test_the_unsort_matches_a_manual_reference(qwen35moe_bundle):
     """The pin on the permutation plumbing: un-sorting the raw ``act_fn`` rows
     with the router's own indices reproduces the read exactly.
 
-    ⚠️ This is also the tie-order guard the round-3 plan requires: the wrapper
+    ⚠️ This is also the tie-order guard the interior needs: the wrapper
     *recomputes* ``torch.sort(top_k_index.reshape(-1))``, which does not promise
     tie order. If a kernel ever breaks ties differently than the recomputation,
     rows would be attributed to the wrong tokens — and this 0.0 would fail
@@ -239,7 +243,7 @@ def test_swapping_a_tap_with_its_own_value_moves_nothing(qwen35moe_bundle):
     tensor must be exactly the identity — through the un-sort, the write math,
     and the re-sort — or the write is landing somewhere it should not."""
     doc = _write_doc("expert_activation", {"swap": "v_cf"})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) == 0.0
 
 
@@ -247,7 +251,7 @@ def test_doubling_the_activation_moves_the_logits(qwen35moe_bundle):
     """📐 The probe's causal spike (act ×2 moved the logits by 0.2486),
     expressed in the vocabulary: add the tap's own value to itself."""
     doc = _write_doc("expert_activation", {"add_scaled": {"op": "v_cf", "alpha": 1.0}})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) > 1e-3
 
 
@@ -256,13 +260,13 @@ def test_a_read_of_a_written_slot_sees_the_written_value(qwen35moe_bundle):
     registers edits before reads, so a document that swaps and reads the same
     slot sees the written value — difference exactly 0.0."""
     doc = _write_doc("expert_activation", {"swap": "v_cf"})
-    doc["reads"]["obs"] = {
+    doc["method"]["reads"]["obs"] = {
         "site": "tap",
         "pos": "all",
         "model": "patched",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "obs",
             "model": "patched",
@@ -287,8 +291,10 @@ def test_a_continuation_read_accumulates_one_row_per_step(qwen35moe_bundle):
     per row and the steps stack — unlike ``attention_key``, nothing here grows
     with the prefix."""
     doc = _read_doc()
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert tuple(value.shape) == (1, 3, TOP_K * D_EXPERT)
 
@@ -301,7 +307,7 @@ def test_a_continuation_read_accumulates_one_row_per_step(qwen35moe_bundle):
 def test_the_fixture_runs_the_grouped_path_by_default(qwen35moe_bundle):
     """📐 The pin's premise: ``grouped_mm`` is the default dispatch even on CPU
     with no kwarg — the gate is a class check, not a device check. If a
-    transformers bump ever changes this default, the whole round's taps move,
+    transformers bump ever changes this default, the whole interior's taps move,
     and this is the test that says so first."""
     config = qwen35moe_bundle.model.config
     text = getattr(config, "text_config", None) or config
@@ -314,7 +320,9 @@ def test_a_non_grouped_model_is_refused_by_name(qwen35moe_bundle):
     change."""
     bundle = _eager_bundle(qwen35moe_bundle)
     with pytest.raises(ProtocolError, match="experts_implementation='eager'"):
-        resolve_site(bundle, SiteSpec(component="expert_activation", layer=MOE_LAYER))
+        resolve_site(
+            bundle, SiteSpec(component="expert_activation", layers=(MOE_LAYER,))
+        )
 
 
 def test_grouped_and_eager_agree_only_to_float_tolerance(qwen35moe_bundle):
@@ -421,14 +429,14 @@ def test_head_is_refused_because_nothing_here_has_heads(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="no head axis"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="expert_activation", layer=MOE_LAYER, head=0),
+            SiteSpec(component="expert_activation", layers=(MOE_LAYER,), head=0),
         )
 
 
 def test_a_dense_mlp_family_is_refused_architecturally():
     bundle = load_model(TINY_LLAMA)
-    with pytest.raises(NotImplementedError, match="sparse-MoE"):
-        resolve_site(bundle, SiteSpec(component="expert_activation", layer=1))
+    with pytest.raises(ProtocolError, match="sparse-MoE"):
+        resolve_site(bundle, SiteSpec(component="expert_activation", layers=(1,)))
 
 
 def test_the_shape_declares_the_fixtures_widths(qwen35moe_bundle):
@@ -444,7 +452,7 @@ def test_the_shape_declares_the_fixtures_widths(qwen35moe_bundle):
 
 
 # --------------------------------------------------------------------------- #
-# round 3.2 — the interface-slot components
+# the interface-slot components
 # --------------------------------------------------------------------------- #
 
 INTERIOR = (
@@ -479,7 +487,7 @@ def _hit_and_missing_expert(bundle: ModelBundle) -> tuple[int, int]:
 @pytest.mark.parametrize("component", INTERIOR)
 def test_every_interior_component_resolves_and_reads(qwen35moe_bundle, component):
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component=component, layer=MOE_LAYER)
+        qwen35moe_bundle, SiteSpec(component=component, layers=(MOE_LAYER,))
     )
     assert site.kind == "experts"
     value = executor_for(
@@ -494,14 +502,17 @@ def test_the_projection_halves_share_one_fused_capture(qwen35moe_bundle):
     ``expert_activation == act_fn(expert_gate_proj)`` pins which chunk is
     which — exactly, because the model's own SiLU is deterministic."""
     doc = _read_doc("expert_gate_proj")
-    doc["sites"]["act"] = {"component": "expert_activation", "layer": MOE_LAYER}
-    doc["reads"]["a"] = {
+    doc["method"]["sites"]["act"] = {
+        "component": "expert_activation",
+        "layers": [MOE_LAYER],
+    }
+    doc["method"]["reads"]["a"] = {
         "site": "act",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "a",
             "model": "original",
@@ -515,21 +526,38 @@ def test_the_projection_halves_share_one_fused_capture(qwen35moe_bundle):
 
 
 def test_the_registry_identity_reconstructs_routed_output_exactly(qwen35moe_bundle):
-    """The docstring identity, asserted: ``routed_output == Σ_slot
-    expert_output · router_scores`` — at exactly 0.0, because the model computes
-    precisely this sum in this order. 📐 This is also the tie-order guard on the
-    recomputed sort: rows attributed to the wrong tokens would break it loudly."""
+    """The declared identity, asserted: ``routed_output == Σ_slot
+    expert_output · router_scores`` — at the tolerance the family's row
+    declares for fp32 (exactly 0.0, because the model computes precisely this
+    sum in this order). The identity, its inputs and its tolerance are read
+    off the family adapter (``registry.identity``), not this test's
+    literals, which is what lets a new family's plugin be held to the same
+    identity. 📐 This is also the tie-order guard on the recomputed sort: rows
+    attributed to the wrong tokens would break it loudly."""
+    from causalab.neural.shared.sites import adapter_of
+    from causalab.protocol.registry import identity
+
+    declared = identity(adapter_of(qwen35moe_bundle).family, "routed_output")
+    assert declared.name == "routed_sum"
+    assert set(declared.inputs) == {"expert_output", "router_scores"}
+    atol, rtol = declared.tolerance_for(qwen35moe_bundle.dtype)
     doc = _read_doc("expert_output")
-    doc["sites"]["scores"] = {"component": "router_scores", "layer": MOE_LAYER}
-    doc["sites"]["routed"] = {"component": "routed_output", "layer": MOE_LAYER}
+    doc["method"]["sites"]["scores"] = {
+        "component": "router_scores",
+        "layers": [MOE_LAYER],
+    }
+    doc["method"]["sites"]["routed"] = {
+        "component": "routed_output",
+        "layers": [MOE_LAYER],
+    }
     for name, site in (("s", "scores"), ("o", "routed")):
-        doc["reads"][name] = {
+        doc["method"]["reads"][name] = {
             "site": site,
             "pos": "all",
             "model": "original",
             "input": "base",
         }
-        doc["save"].append(
+        doc["method"]["save"].append(
             {
                 "value": name,
                 "model": "original",
@@ -541,7 +569,7 @@ def test_the_registry_identity_reconstructs_routed_output_exactly(qwen35moe_bund
     out = executor.read_value("r").reshape(1, 5, TOP_K, 8)
     scores = executor.read_value("s").reshape(1, 5, TOP_K, 1)
     routed = executor.read_value("o")
-    torch.testing.assert_close((out * scores).sum(2), routed, atol=0.0, rtol=0.0)
+    torch.testing.assert_close((out * scores).sum(2), routed, atol=atol, rtol=rtol)
 
 
 @pytest.mark.parametrize("component", ("expert_gate_proj", "expert_output"))
@@ -550,13 +578,13 @@ def test_interior_writes_hold_the_identity_bar(qwen35moe_bundle, component):
     re-sort; a counterfactual swap moves the logits (📐 expert_out +1 moved
     them by 1.53 in the probe)."""
     doc = _write_doc(component, {"swap": "v_cf"})
-    doc["reads"]["v_cf"]["input"] = "base"
+    doc["method"]["reads"]["v_cf"]["input"] = "base"
     assert _moved(qwen35moe_bundle, doc) == 0.0
     assert _moved(qwen35moe_bundle, _write_doc(component, {"swap": "v_cf"})) > 1e-4
 
 
 # --------------------------------------------------------------------------- #
-# round 3.2 — the `expert:` sub-axis
+# the `expert:` sub-axis
 # --------------------------------------------------------------------------- #
 
 
@@ -567,14 +595,14 @@ def test_the_expert_face_selects_exactly_the_routed_pairs(qwen35moe_bundle):
 
     hit, _ = _hit_and_missing_expert(qwen35moe_bundle)
     doc = _read_doc("expert_activation")
-    doc["sites"]["idxs"] = {"component": "expert_idx", "layer": MOE_LAYER}
-    doc["reads"]["i"] = {
+    doc["method"]["sites"]["idxs"] = {"component": "expert_idx", "layers": [MOE_LAYER]}
+    doc["method"]["reads"]["i"] = {
         "site": "idxs",
         "pos": "all",
         "model": "original",
         "input": "base",
     }
-    doc["save"].append(
+    doc["method"]["save"].append(
         {
             "value": "i",
             "model": "original",
@@ -586,7 +614,7 @@ def test_the_expert_face_selects_exactly_the_routed_pairs(qwen35moe_bundle):
     full, idx = executor.read_value("r"), executor.read_value("i")
 
     faced = _read_doc("expert_activation")
-    faced["sites"]["tap"]["expert"] = hit
+    faced["method"]["sites"]["tap"]["expert"] = hit
     value = executor_for(faced, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert isinstance(value, RaggedValue)
     mask = idx.reshape(1, 5, TOP_K) == hit
@@ -603,7 +631,7 @@ def test_an_expert_no_token_chose_reads_as_width_zero(qwen35moe_bundle):
 
     _, missing = _hit_and_missing_expert(qwen35moe_bundle)
     doc = _read_doc("expert_activation")
-    doc["sites"]["tap"]["expert"] = missing
+    doc["method"]["sites"]["tap"]["expert"] = missing
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert isinstance(value, RaggedValue)
     assert value.widths == (0,)
@@ -620,10 +648,13 @@ def test_a_write_under_expert_lands_only_on_that_experts_rows(qwen35moe_bundle):
         doc = _write_doc(
             "expert_activation", {"add_scaled": {"op": "v_cf", "alpha": 1.0}}
         )
-        doc["sites"]["tap"]["expert"] = expert
+        doc["method"]["sites"]["tap"]["expert"] = expert
         # the operand reads the token-major form: the write site owns the mask
-        doc["sites"]["whole"] = {"component": "expert_activation", "layer": MOE_LAYER}
-        doc["reads"]["v_cf"] = {
+        doc["method"]["sites"]["whole"] = {
+            "component": "expert_activation",
+            "layers": [MOE_LAYER],
+        }
+        doc["method"]["reads"]["v_cf"] = {
             "site": "whole",
             "pos": "all",
             "model": "original",
@@ -642,9 +673,11 @@ def test_the_expert_face_reads_in_the_generated_frame(qwen35moe_bundle):
 
     hit, _ = _hit_and_missing_expert(qwen35moe_bundle)
     doc = _read_doc("expert_output")
-    doc["sites"]["tap"]["expert"] = hit
-    doc["positions"] = {"window": {"generated": {"max_new_tokens": 3}, "all": True}}
-    doc["reads"]["r"]["pos"] = "window"
+    doc["method"]["sites"]["tap"]["expert"] = hit
+    doc["method"]["positions"] = {
+        "window": {"generated": {"max_new_tokens": 3}, "all": True}
+    }
+    doc["method"]["reads"]["r"]["pos"] = "window"
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert isinstance(value, RaggedValue)
     assert len(value.widths) == 1
@@ -655,7 +688,7 @@ def test_expert_bounds_are_refused_by_name(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="128 experts"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="expert_activation", layer=MOE_LAYER, expert=128),
+            SiteSpec(component="expert_activation", layers=(MOE_LAYER,), expert=128),
         )
 
 
@@ -663,7 +696,7 @@ def test_expert_on_a_router_component_is_still_refused(qwen35moe_bundle):
     with pytest.raises(ProtocolError, match="no per-expert axis"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="router_scores", layer=MOE_LAYER, expert=3),
+            SiteSpec(component="router_scores", layers=(MOE_LAYER,), expert=3),
         )
 
 
@@ -678,9 +711,9 @@ def test_featurizer_and_dims_are_refused_on_the_expert_face(
     the author named."""
     hit, _ = _hit_and_missing_expert(qwen35moe_bundle)
     doc = _read_doc("expert_activation")
-    doc["sites"]["tap"]["expert"] = hit
+    doc["method"]["sites"]["tap"]["expert"] = hit
     if field == "featurizer":
-        doc["featurizers"] = {"f": {"kind": "standardize"}}
-    doc["reads"]["r"][field] = value
+        doc["method"]["featurizers"] = {"f": {"kind": "standardize"}}
+    doc["method"]["reads"]["r"][field] = value
     with pytest.raises(ProtocolError, match="expert"):
         executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")

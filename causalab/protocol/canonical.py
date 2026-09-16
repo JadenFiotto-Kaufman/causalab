@@ -4,8 +4,8 @@ The authored file is for humans; the canonical form is the record. It
 materializes every default (optimizer betas, dtypes, the implicit
 ``revision``), every resolved reference (dataset content digests, artifact
 file hashes), every derived width, expands sugar (int and ``"all"``
-positions, the ``neural_model`` alias), sorts unordered lists (IM write
-lists), and rejects
+positions), sorts unordered lists (IM write lists), drops the header's
+authoring metadata (``title``, ``description`` — §1), and rejects
 out-of-range addresses against the model's static config.
 
 ``digest = sha256(canonical bytes)`` with sorted keys and canonical floats —
@@ -15,14 +15,14 @@ are rejected at load.
 
 Two granularities share one implementation:
 
-* :func:`canonicalize` on a *concrete* raw tree (a point protocol, or an
+* :func:`canonicalize` on a *concrete* raw tree (a compiled intervention, or an
   un-swept document) materializes everything — the **point digest** is the
   provenance unit stamped on artifacts as ``produced_by``.
 * On a swept document the sweep wrappers stay in place (they are the
   campaign's identity) and any derived value that depends on a swept field
   is left unmaterialized — the **document digest** names the campaign.
 
-One deliberate interpretation, surfaced in the PR: a point protocol's
+One deliberate interpretation, surfaced in the PR: a compiled intervention's
 canonical bytes contain no campaign metadata (no coordinates, no parent
 digest), so a point re-authored standalone digests identically to the same
 point reached by expansion. Campaign linkage is recorded in run outputs,
@@ -31,32 +31,56 @@ never in the canonical bytes.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
+import math
 from typing import Any, Mapping
 
+from causalab.protocol.code import (
+    closure_sha256,
+    import_closure,
+    is_installed_module,
+    resolve_locator_or_refuse,
+    source_root,
+    source_sha256,
+)
 from causalab.protocol.errors import ValidationError
 from causalab.protocol.registry import (
     ModelInfo,
     component_shape,
+    COMPONENT_STREAMS,
     component_width,
+    gate_param_shape,
     head_space_refusal,
+    site_group_map,
+    unavailable_at_load,
 )
 from causalab.protocol.resolve import ResolutionEnv
 from causalab.protocol.schema import (
+    CONTROL_DEFAULTS,
     ALL_POSITIONS,
     DEPRECATED_COMPONENTS,
     FEATURIZER_SLOTS,
-    MODEL_DTYPE_DEFAULT,
     LAYERLESS_COMPONENTS,
     METRIC_FIELD_DEFAULTS,
+    MODEL_DTYPE_DEFAULT,
     OPTIMIZER_DEFAULTS,
     OPTIONAL_METRIC_FIELDS,
-    SECTION_ORDER,
+    METHOD_SECTIONS,
+    REGULARIZER_KINDS,
+    ModelRef,
     parse_document,
+    SCORES_INIT_DEFAULTS,
 )
 
-__all__ = ["canonical_bytes", "canonical_model", "canonicalize", "digest"]
+__all__ = [
+    "canonical_bytes",
+    "canonical_model",
+    "canonical_model_ref",
+    "canonicalize",
+    "digest",
+]
 
 
 def canonical_bytes(canonical: Mapping[str, Any]) -> bytes:
@@ -103,57 +127,74 @@ def _is_sweep(node: Any) -> bool:
     return isinstance(node, Mapping) and set(node) == {"sweep"}
 
 
-def canonicalize(raw: Mapping[str, Any], env: ResolutionEnv) -> dict[str, Any]:
+def canonicalize(
+    raw: Mapping[str, Any],
+    env: ResolutionEnv,
+    *,
+    axes: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """The canonical form of one raw document tree (artifact fields already
     resolved). Concrete documents materialize fully; swept documents keep
-    their wrappers and skip sweep-dependent derivations."""
+    their wrappers and skip sweep-dependent derivations.
+
+    ``axes`` is the campaign's named-axes block (§3.2), as the compiler's
+    ``axes`` stage parsed it (``axes.canonical_axes``): emitted between
+    ``data`` and ``method`` exactly when given — the ``unit`` / ``shuffle`` /
+    ``draw`` "digest-bearing when authored" precedent (§7) — and never read
+    from ``raw``, whose gate below knows the four groups alone. Every
+    document without the group keeps its canonical bytes."""
     doc = parse_document(raw)  # shape-checks the tree we are about to walk
     del doc  # only the raw tree is transformed; parse is the gate
 
-    normalized: dict[str, Any] = {}
-    for key, value in raw.items():
-        normalized["model" if key == "neural_model" else key] = value
-
-    model_raw = normalized["model"]
+    model_raw = raw["model"]
     model_key = model_raw.get("key")
     info: ModelInfo | None = None
     if isinstance(model_key, str):
         info = env.model_info(model_key)
 
-    out: dict[str, Any] = {}
-    for section in SECTION_ORDER:
+    # The four groups (§1), each canonicalized in place. The header keeps only
+    # `protocol_version`: `title` and `description` say what a file is for,
+    # never what the experiment is, so a rename or a reworded intent moves no
+    # digest (§7). The method's sections are walked in their recommended
+    # order, and the lookups a section's canonicalization needs (a
+    # featurizer's sites, a chain's members) resolve inside the method group.
+    normalized: Mapping[str, Any] = raw["method"]
+    out: dict[str, Any] = {
+        "header": {"protocol_version": raw["header"]["protocol_version"]},
+        "model": canonical_model(model_raw),
+        "data": _canon_data(raw["data"], env),
+    }
+    if axes is not None:
+        out["axes"] = dict(axes)
+    method_out: dict[str, Any] = {}
+    out["method"] = method_out
+    for section in METHOD_SECTIONS:
         if section not in normalized:
             continue
         value = normalized[section]
-        if section == "type":
-            continue  # authoring metadata, never content (§1.1)
-        if section == "model":
-            out["model"] = canonical_model(value)
-        elif section == "data":
-            out["data"] = _canon_data(value, env)
-        elif section == "positions":
-            out["positions"] = {
+        if section == "positions":
+            method_out["positions"] = {
                 name: _canon_position_entry(entry) for name, entry in value.items()
             }
         elif section == "sites":
-            out["sites"] = {
+            method_out["sites"] = {
                 name: _canon_site(name, entry, info) for name, entry in value.items()
             }
         elif section == "featurizers":
-            out["featurizers"] = {
+            method_out["featurizers"] = {
                 name: _canon_featurizer(name, entry, normalized, info, env)
                 for name, entry in value.items()
             }
         elif section == "reads":
-            out["reads"] = {
+            method_out["reads"] = {
                 name: _canon_read_or_edit(entry) for name, entry in value.items()
             }
         elif section == "writes":
-            out["writes"] = {
+            method_out["writes"] = {
                 name: _canon_read_or_edit(entry) for name, entry in value.items()
             }
         elif section == "intervened_models":
-            out["intervened_models"] = {
+            method_out["intervened_models"] = {
                 name: {
                     "input": entry["input"],
                     "writes": _canon_write_list(entry["writes"]),
@@ -161,24 +202,37 @@ def canonicalize(raw: Mapping[str, Any], env: ResolutionEnv) -> dict[str, Any]:
                 for name, entry in value.items()
             }
         elif section == "params":
-            out["params"] = {
+            method_out["params"] = {
                 name: _canon_param(entry, env) for name, entry in value.items()
             }
+        elif section == "code":
+            method_out["code"] = {
+                name: _canon_code(name, entry, env) for name, entry in value.items()
+            }
         elif section == "metrics":
-            out["metrics"] = {
+            method_out["metrics"] = {
                 name: _canon_metric(entry) for name, entry in value.items()
             }
         elif section == "train":
-            out["train"] = _canon_train(value, info, env)
+            method_out["train"] = _canon_train(value, info, env)
         else:
-            out[section] = value
+            method_out[section] = value
     return out
 
 
 def _canon_metric(entry: Any) -> Any:
     """Materialize a metric's optional fields to their defaults (§2.10), so a
     document that spells out ``"mode": "exact"`` and one that omits it are one
-    canonical form — the same treatment ``train.optimizer`` defaults get."""
+    canonical form — the same treatment ``train.optimizer`` defaults get.
+
+    The identity fields ``unit`` / ``estimand_version`` are **not** in
+    ``OPTIONAL_METRIC_FIELDS`` on purpose: they ride through from ``entry``
+    only when authored (§7), so a document that states neither keeps the
+    digest it had before they existed. Their derived values land on the
+    metric's rows, never here. An optional field with **no** default
+    (``js.restrict``) is left absent for the same reason: absent means
+    "unrestricted", and materializing a spelling of that would move the
+    digest of every unrestricted document."""
     if not isinstance(entry, Mapping):
         return entry
     kind = entry.get("kind")
@@ -186,7 +240,8 @@ def _canon_metric(entry: Any) -> Any:
         return entry
     out = dict(entry)
     for field in OPTIONAL_METRIC_FIELDS.get(kind, ()):
-        out.setdefault(field, METRIC_FIELD_DEFAULTS[(kind, field)])
+        if (kind, field) in METRIC_FIELD_DEFAULTS:
+            out.setdefault(field, METRIC_FIELD_DEFAULTS[(kind, field)])
     return out
 
 
@@ -194,12 +249,17 @@ def canonical_model(value: Mapping[str, Any]) -> dict[str, Any]:
     """§2.1 — the network *and* how it is realized numerically. ``revision``
     and ``dtype`` are materialized here, so no canonical form is silent about
     the precision its numbers came out of; a ``quantization`` block
-    materializes the scheme's own defaults for the same reason."""
+    materializes the scheme's own defaults for the same reason. An explicit
+    attention backend is preserved; omission leaves the engine default."""
     out: dict[str, Any] = {
         "key": value["key"],
         "revision": value.get("revision", "main"),
         "dtype": value.get("dtype", MODEL_DTYPE_DEFAULT),
     }
+    # Unlike precision, the historical attention default is engine-specific.
+    # Preserve omission, but hash an explicit backend in every model identity.
+    if "attn_implementation" in value:
+        out["attn_implementation"] = value["attn_implementation"]
     quantization = value.get("quantization")
     if quantization is not None:
         quant = dict(quantization)
@@ -224,6 +284,31 @@ def canonical_model(value: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+def canonical_model_ref(model: ModelRef) -> dict[str, Any]:
+    """:func:`canonical_model` over the *parsed* form (§2.1).
+
+    The planner holds a :class:`~causalab.protocol.schema.ModelRef`, not the
+    raw mapping, and its interning digests have to agree with the canonical
+    form field for field. Routing through :func:`canonical_model` rather than
+    re-listing the defaults is the point: a default added there — a new
+    quantization knob, say — reaches the interning digests without anyone
+    remembering to copy it, which is exactly the drift that let fp32 and nf4
+    realizations share a forward group.
+    """
+    value: dict[str, Any] = {"key": model.key, "revision": model.revision}
+    if model.dtype is not None:
+        value["dtype"] = model.dtype
+    if model.attn_implementation is not None:
+        value["attn_implementation"] = model.attn_implementation
+    if model.quantization is not None:
+        value["quantization"] = {
+            field.name: getattr(model.quantization, field.name)
+            for field in dataclasses.fields(model.quantization)
+            if getattr(model.quantization, field.name) is not None
+        }
+    return canonical_model(value)
+
+
 def _canon_param(entry: Mapping[str, Any], env: ResolutionEnv) -> dict[str, Any]:
     """§7: "each param replaced by its content hash" — a loaded constant's
     bytes are its identity (this also makes a missing file a load error)."""
@@ -231,6 +316,62 @@ def _canon_param(entry: Mapping[str, Any], env: ResolutionEnv) -> dict[str, Any]
     file_path = out.get("file_path")
     if isinstance(file_path, str):
         out["content_digest"] = env.artifacts.file_digest(file_path)
+    return out
+
+
+def _canon_code(
+    name: str, entry: Mapping[str, Any], env: ResolutionEnv
+) -> dict[str, Any]:
+    """§2.8.1 — a code reference's identity is the content of what it names.
+
+    Four derivations, all of them the same move ``_canon_param`` makes for a
+    loaded constant: the resolved module (so the record says *which file* was
+    hashed), that file's ``source_sha256`` (so editing the code moves the
+    document digest), the manifest and hash of its declared import closure
+    (``closure`` / ``closure_sha256`` — the sibling modules *beside* the code
+    that nothing else covers, written only when there are any), and a content
+    digest per declared data input (so the externally selected noise-scale
+    file that ROME's corruption function read is part of the protocol, not
+    beside it). ``source_sha256`` keeps its meaning — the defining module's
+    bytes alone — and the closure never contains the module itself. A module
+    inside the ``causalab`` package declares no closure: the package's bytes
+    are runtime identity, the ``tree_digest`` ``--resume`` compares (§7).
+
+    ``env_inputs`` is sorted here and its **values are not read**: the digest
+    names the variables a function is allowed to consult, which is a property
+    of the document, while their values are a property of the machine and
+    belong in a run's execution record instead.
+    """
+    out = dict(entry)
+    locator = out.get("locator")
+    if isinstance(locator, str):
+        resolved = resolve_locator_or_refuse(locator, path=f"code.{name}.locator")
+        out["source_module"] = resolved.module
+        out["source_sha256"] = source_sha256(resolved.path)
+        # a locator into an installed third-party package or the stdlib names
+        # a file the document hashes — but that module's imports are runtime
+        # identity, never document identity (§2.8.1), so it declares no closure;
+        # the identity walk (`repository=False`) likewise skips the package's
+        # own modules, so a repository locator carries the keys only when its
+        # module imports a sibling outside the package
+        closure = (
+            import_closure(resolved.path, root=source_root(resolved), repository=False)
+            if not is_installed_module(resolved.path)
+            else {}
+        )
+        if closure:
+            out["closure"] = closure
+            out["closure_sha256"] = closure_sha256(closure)
+    env_inputs = out.get("env_inputs")
+    if isinstance(env_inputs, list):
+        out["env_inputs"] = sorted(env_inputs)
+    data_inputs = out.get("data_inputs")
+    if isinstance(data_inputs, Mapping) and data_inputs:
+        out["data_input_digests"] = {
+            name: env.artifacts.file_digest(path)
+            for name, path in sorted(data_inputs.items())
+            if isinstance(path, str)
+        }
     return out
 
 
@@ -298,18 +439,52 @@ def _canon_site(
         # opposite of what an alias is for.
         component = DEPRECATED_COMPONENTS[component]
         entry["component"] = component
-    layer = entry.get("layer")
+    layers = entry.get("layers")
+    if isinstance(layers, int) and not isinstance(layers, bool):
+        # A bare index is the one-layer band `[n]` (§2.4): an axis over
+        # `layers` and a workflow `emit` hand a point the index, and the
+        # canonical form writes the list either way, so both spellings carry
+        # one digest — the same fold the parser makes (`schema._band`).
+        layers = [layers]
+        entry["layers"] = layers
+    band = (
+        tuple(layers)
+        if isinstance(layers, list)
+        and layers
+        and all(isinstance(v, int) and not isinstance(v, bool) for v in layers)
+        else ()
+    )
     if (
         info is not None
         and isinstance(component, str)
         and component not in LAYERLESS_COMPONENTS
     ):
-        if isinstance(layer, int) and not 0 <= layer < info.num_layers:
+        # V4 per member: every layer of a band is inside the tower, and every
+        # one carries the stream the site declares (a hybrid tower's band may
+        # straddle both mixers, and the address must exist at each)
+        for layer in band:
+            if not 0 <= layer < info.num_layers:
+                raise ValidationError(
+                    4,
+                    f"site {name!r}: layer {layer} out of range for the "
+                    f"{info.num_layers}-layer model {info.key!r}",
+                    path=f"sites.{name}.layers",
+                )
+        if info.layer_types is not None:
+            for layer in band:
+                _check_site_stream(name, component, layer, entry.get("stream"), info)
+        # The row's predicates the entry can decide (registry.CAPABILITIES):
+        # a dense model has no router, so a document naming `routed_output`
+        # on it is refused here rather than by the run's module-tree probe.
+        # The MoE components with a model-dependent width already refused
+        # through component_shape; this covers the hidden-wide ones too.
+        unavailable = unavailable_at_load(info, component)
+        if unavailable is not None:
             raise ValidationError(
                 4,
-                f"site {name!r}: layer {layer} out of range for the "
-                f"{info.num_layers}-layer model {info.key!r}",
-                path=f"sites.{name}.layer",
+                f"site {name!r}: {unavailable}",
+                path=f"sites.{name}.component",
+                reason="component_unavailable",
             )
     head = entry.get("head")
     if info is not None and isinstance(head, int) and isinstance(component, str):
@@ -342,6 +517,45 @@ def _canon_site(
     return dict(entry)
 
 
+def _check_site_stream(
+    name: str, component: str, layer: int, declared: Any, info: ModelInfo
+) -> None:
+    """Refuse a site whose mixer stream the layer does not carry — at load.
+
+    The engines' shared site resolver makes the same two refusals against the
+    layer's actual module before hooking; this is the half the pure verbs can
+    make, from the registry's ``layer_types``, so a document that names
+    ``attention_premix`` at a Gated DeltaNet layer of a hybrid tower is refused
+    by ``validate`` instead of by the run. Both halves read one table — the
+    ``stream`` cell of the capability rows (``registry.COMPONENT_STREAMS`` is
+    their view) — so they cannot disagree about which components are
+    stream-bound.
+    """
+    assert info.layer_types is not None  # the caller checked
+    actual = info.layer_types[layer]
+    if isinstance(declared, str) and declared != actual:
+        raise ValidationError(
+            4,
+            f"site {name!r}: stream {declared!r} is declared at layer {layer}, "
+            f"but that layer of {info.key!r} carries {actual!r} — on a hybrid "
+            "tower the stream is a per-layer fact, not a model-wide one",
+            path=f"sites.{name}.stream",
+            reason="component_unavailable",
+        )
+    required = COMPONENT_STREAMS.get(component)
+    if required is not None and required != actual:
+        raise ValidationError(
+            4,
+            f"site {name!r}: component {component!r} exists only on a "
+            f"{required!r} mixer, but layer {layer} of {info.key!r} carries "
+            f"{actual!r} — there is no such tensor at this layer. Layers "
+            f"carrying {required!r}: "
+            f"{[i for i, kind in enumerate(info.layer_types) if kind == required]}",
+            path=f"sites.{name}.component",
+            reason="component_unavailable",
+        )
+
+
 def _canon_read_or_edit(entry: Mapping[str, Any]) -> dict[str, Any]:
     out = dict(entry)
     if "pos" in out:
@@ -370,6 +584,70 @@ def _featurizer_chains_raw(
                 if pair not in used:
                     used.append(pair)
     return used
+
+
+def _featurizer_entries_raw(
+    name: str, normalized: Mapping[str, Any]
+) -> list[Mapping[str, Any]]:
+    """Every read/write entry whose chain names the featurizer."""
+    used: list[Mapping[str, Any]] = []
+    for section in ("reads", "writes"):
+        for entry in normalized.get(section, {}).values():
+            ref = entry.get("featurizer")
+            chain = [ref] if isinstance(ref, str) else list(ref or [])
+            if name in chain:
+                used.append(entry)
+    return used
+
+
+def _window_length_raw(pos: Any, normalized: Mapping[str, Any]) -> int | None:
+    """``schema.span_length`` over the canonical (raw-mapping) form: the number
+    of positions a fixed prompt-frame ``span`` of two or more addresses on
+    every row, or ``None`` — a named position is looked up, a sweep, an
+    ``index``, ``all``, a variable/column, a span set, a ``generated`` or a
+    ``scope``d / ``relative_to`` span all answer ``None``. The twin must move
+    with ``span_length``: both answers are ``int``, so a change to what counts
+    as a window that reaches one file and not the other is caught by no type
+    checker, only by the offline and online widths disagreeing."""
+    spec = normalized.get("positions", {}).get(pos) if isinstance(pos, str) else pos
+    if not isinstance(spec, Mapping) or _is_sweep(spec):
+        return None
+    if spec.get("generated") is not None:
+        return None
+    if spec.get("scope") is not None or spec.get("relative_to") is not None:
+        return None
+    span = spec.get("span")
+    if not isinstance(span, (list, tuple)) or len(span) != 2:
+        return None
+    a, b = span
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in (a, b)):
+        return None
+    # `b - a` is the length because an unscoped span is non-negative (the
+    # parser's rule); a right-anchored span, if §2.3 ever admits one, would
+    # need the straddling case refused here as in `span_length`
+    return b - a if b - a >= 2 else None
+
+
+def _derived_window(name: str, normalized: Mapping[str, Any]) -> int | None:
+    """A position gate's θ length (§2.5 ``axis``): the fixed window every
+    entry using it — at every site it is named from — addresses. ``None``
+    when any window is not derivable here (a swept or non-fixed ``pos``: rule
+    4's ``_check_position_gates`` is the refusal for those); two lengths is
+    the offline twin of that rule's "one gate, one window"."""
+    lengths: set[int] = set()
+    for entry in _featurizer_entries_raw(name, normalized):
+        length = _window_length_raw(entry.get("pos"), normalized)
+        if length is None:
+            return None
+        lengths.add(length)
+    if len(lengths) > 1:
+        raise ValidationError(
+            4,
+            f"position gate {name!r} is used over windows of lengths "
+            f"{sorted(lengths)} — one gate, one window (§2.5 axis)",
+            path=f"featurizers.{name}.axis",
+        )
+    return lengths.pop() if lengths else None
 
 
 #: Featurizer kinds whose parameters are a **basis** over the feature axis, and
@@ -402,16 +680,82 @@ def _canon_featurizer(
     out.setdefault("dtype", "fp32")
     if not isinstance(kind, str):
         return out  # swept kind: nothing derivable
+    positional = kind == "gate" and out.get("axis") == "position"
+    # §5.23 (group legality) is decided HERE, above the ``file_path`` return:
+    # none of its clauses needs the width, and a loaded grouped gate — the
+    # whole apply/replay surface — would otherwise reach the run unchecked.
+    group = out.get("group")
+    group_map: tuple[int, int] | None = None
+    if kind == "gate" and isinstance(group, str) and info is not None:
+        group_map = _derived_group_map(name, group, normalized, info)
     if isinstance(out.get("file_path"), str):
-        # a loaded bundle: its params are its bytes — hash them (§7)
+        # a loaded bundle: its params are its bytes — hash them (§7). No width
+        # is recorded, but rule 4's one-width check over every site the name
+        # is used at (§2.5, one name at several sites) runs for it as for a
+        # fitted one — here, with no weights read, not at the build after
+        # they are. D3 stays the fitted path's refusal: a loaded basis applies
+        # one it did not fit on the ranking axis. A position gate's one width
+        # is one window (§2.5 `axis`), at every site it is named from.
+        if info is not None and positional:
+            _derived_window(name, normalized)
+        elif info is not None:
+            _derived_width(name, normalized, info, basis_check=False)
         out["content_digest"] = env.artifacts.file_digest(out["file_path"])
         return out
+    init = out.get("init")
+    if isinstance(init, Mapping) and isinstance(init.get("file_path"), str):
+        # the basis a fit starts from is part of what the fit *is*: two runs
+        # from two bases are two experiments, so its bytes enter the digest
+        # exactly as a loaded featurizer's do (§7)
+        out["init"] = {
+            **init,
+            "content_digest": env.artifacts.file_digest(init["file_path"]),
+        }
+    scores = init.get("from_scores") if isinstance(init, Mapping) else None
+    if isinstance(scores, Mapping) and isinstance(scores.get("file_path"), str):
+        # the same reasoning for a start read off a score table (§2.5
+        # `init.from_scores`): a different table is a different start
+        # the two column names are materialized to their defaults here, as
+        # the parser does, so an authored default and an omitted one digest
+        # identically (the METRIC_FIELD_DEFAULTS treatment)
+        out["init"] = {
+            **init,
+            "from_scores": {
+                **SCORES_INIT_DEFAULTS,
+                **scores,
+                "content_digest": env.artifacts.file_digest(scores["file_path"]),
+            },
+        }
     if info is None:
         return out
-    width = _derived_width(name, normalized, info)
+    if positional:
+        # §2.5 `axis`: a position gate's θ is one entry per addressed position,
+        # so its width is the window, not the site's feature width — which
+        # may differ across the sites it is used at without contradiction
+        width = _derived_window(name, normalized)
+    else:
+        width = _derived_width(name, normalized, info)
     if width is None:
         return out
     out["width"] = width
+    if isinstance(scores, Mapping) and kind == "gate":
+        # rule 32, the half decidable before any file is read: `keep` is a
+        # count of this gate's units, which the width and the group map fix
+        units = (
+            math.prod(gate_param_shape(group, group_map, width))
+            if isinstance(group, str) and group_map is not None
+            else width
+            if group is None
+            else None
+        )
+        keep = scores.get("keep")
+        if units is not None and isinstance(keep, int) and keep > units:
+            raise ValidationError(
+                32,
+                f"featurizer {name!r}: init.from_scores.keep={keep} exceeds the "
+                f"gate's {units} units",
+                path=f"featurizers.{name}.init.from_scores.keep",
+            )
     k = out.get("k")
     shapes: dict[str, list[int]] = {}
     if kind == "subspace" and isinstance(k, int):
@@ -431,7 +775,14 @@ def _canon_featurizer(
             )
         shapes["weight"] = [width, k]
     elif kind == "gate":
-        shapes["theta"] = [width]
+        if isinstance(group, str):
+            # a grouped gate has one θ per unit, not per coordinate (§2.5): the
+            # map is derived above; ``None`` there means a swept site, and
+            # then — as for the width — nothing is materialized
+            if group_map is not None:
+                shapes["theta"] = list(gate_param_shape(group, group_map, width))
+        elif group is None:
+            shapes["theta"] = [width]
     elif kind == "standardize":
         shapes["mu"] = [width]
         shapes["sigma"] = [width]
@@ -441,11 +792,18 @@ def _canon_featurizer(
 
 
 def _derived_width(
-    name: str, normalized: Mapping[str, Any], info: ModelInfo
+    name: str,
+    normalized: Mapping[str, Any],
+    info: ModelInfo,
+    *,
+    basis_check: bool = True,
 ) -> int | None:
     """The feature width of one featurizer, from the sites its reads/writes
     use (§2.5). Unmaterializable (None) when a needed field is swept;
-    ambiguous multi-width use is an error."""
+    ambiguous multi-width use is an error — rule 4's "one name, one width",
+    which a name used at several sites (one parameter set) is held to. Also
+    D3's refusal (a basis *fitted* on a ranking component), unless
+    ``basis_check`` is off: a loaded basis applies one it did not fit here."""
     widths: set[int] = set()
     for site_name, chain in _featurizer_chains_raw(name, normalized):
         if not isinstance(site_name, str):
@@ -460,7 +818,7 @@ def _derived_width(
         if not isinstance(component, str):
             return None
         shape = component_shape(info, component)
-        if shape.ranking:
+        if shape.ranking and basis_check:
             # D3: dimensionally the axis has a width, so every featurizer used
             # to be accepted here — but column *k* is the *k*-th ranked expert,
             # a different expert for different tokens. A basis fitted across
@@ -508,10 +866,158 @@ def _derived_width(
     return widths.pop()
 
 
+def _derived_group_map(
+    name: str, group: str, normalized: Mapping[str, Any], info: ModelInfo
+) -> tuple[int, int] | None:
+    """The group map of a grouped gate (§2.5) — ``(heads, head_dim)`` under
+    ``head``, ``(num_experts, d_expert)`` under ``expert_neuron`` — from the
+    sites its reads/writes use: the offline twin of the map the executor
+    builds from the resolved site, and where rule 23 (group legality) is
+    decided. ``None`` when nothing is derivable — a swept component, head or
+    stage kind somewhere in the way, exactly as :func:`_derived_width` treats a
+    sweep.
+
+    Refuses (§5.23) when the group *is* authored and a site it is used at
+    cannot honour it: the gate is not the first stage of its chain (a grouped
+    gate acts on the component's own coordinates — after any other stage, a
+    rotation and a standardize alike, a coordinate no longer names a unit of
+    the component), the site already selects a single member of what the group groups
+    over, the component has no such axis, or two sites would give it different
+    maps. The whole resolution reads the registry's declared axes, so it
+    happens here, in the torch-free layer, with no model loaded.
+    """
+    derived: tuple[int, int] | None = None
+    for site_name, chain in _featurizer_chains_raw(name, normalized):
+        if chain[0] != name:
+            raise ValidationError(
+                23,
+                f"featurizer {name!r} is grouped by {group!r} but follows "
+                f"{chain[0]!r} in the chain {list(chain)} at site {site_name!r} — "
+                "a grouped gate acts on the component's own coordinates, so it "
+                "must be the first stage of its chain",
+                path=f"featurizers.{name}.group",
+            )
+        if not isinstance(site_name, str):
+            return None
+        site = normalized.get("sites", {}).get(site_name)
+        if site is None:
+            return None
+        component, head, expert = (
+            site.get("component"),
+            site.get("head"),
+            site.get("expert"),
+        )
+        if _is_sweep(component) or _is_sweep(head) or _is_sweep(expert):
+            return None
+        if not isinstance(component, str):
+            return None
+        try:
+            group_map = site_group_map(
+                info,
+                group,
+                component,
+                head=head if isinstance(head, int) else None,
+                expert=expert if isinstance(expert, int) else None,
+            )
+        except ValidationError as err:
+            raise ValidationError(
+                23, err.message, path=f"featurizers.{name}.group"
+            ) from err
+        if derived is not None and group_map != derived:
+            raise ValidationError(
+                23,
+                f"featurizer {name!r} is grouped by {group!r} at sites whose units "
+                f"are laid out differently {sorted((derived, group_map))} — one "
+                "featurizer, one parameter set, so one group map",
+                path=f"featurizers.{name}.group",
+            )
+        derived = group_map
+    return derived
+
+
+def _canon_regularizer_names(names: Any) -> Any:
+    """A regularizer's featurizer list is a set: sorted, and a one-name list
+    is the name itself — so a list that names one featurizer canonicalizes to
+    the form every earlier document wrote, and no digest moves (§7)."""
+    if isinstance(names, list):
+        ordered = sorted(names)
+        return ordered[0] if len(ordered) == 1 else ordered
+    return names
+
+
+def _canon_objective(objective: Any) -> Any:
+    """Both spellings of ``train.objective`` (§2.11) with their regularizer
+    lists canonicalized; weights (possibly swept) pass through untouched."""
+    if isinstance(objective, list):
+        return [
+            [
+                term[0],
+                {
+                    key: (
+                        _canon_regularizer_names(value)
+                        if key in REGULARIZER_KINDS
+                        else value  # `reduce` / `costs`: as authored
+                    )
+                    for key, value in term[1].items()
+                },
+            ]
+            if isinstance(term[1], Mapping)
+            else term
+            for term in objective
+        ]
+    # the named form is the one a `constraint` reaches (the positional form
+    # refuses it at parse): its nested block — `target`, `dual` — passes
+    # through as authored, like `reduce` / `costs`, so an unauthored `dual.init`
+    # materializes nothing and only a document that authors the block moves
+    return {
+        name: {
+            key: (
+                _canon_regularizer_names(value) if key in REGULARIZER_KINDS else value
+            )
+            for key, value in term.items()
+        }
+        for name, term in objective.items()
+    }
+
+
+def _canon_anneal(entry: Any) -> Any:
+    if not isinstance(entry, Mapping):
+        return entry
+    shape = entry.get("shape", "linear")
+    if shape == "linear" and set(entry) <= {"from", "to", "frac", "shape"}:
+        return [entry["from"], entry["to"], entry["frac"]]
+    return {
+        "from": entry["from"],
+        "to": entry["to"],
+        "frac": entry["frac"],
+        "shape": shape,
+    }
+
+
+def _canon_control(entry: Any) -> Any:
+    if not isinstance(entry, Mapping):
+        return entry
+    out = dict(entry)
+    if isinstance(out.get("signal"), Mapping):
+        # one gate or several: the list is the canonical spelling, so `"g"` and
+        # `["g"]` are one controller — the `layers` fold (§2.4), for a signal
+        out["signal"] = {
+            name: [target] if isinstance(target, str) else list(target)
+            for name, target in out["signal"].items()
+        }
+    gains = dict(out.get("gains", {}))
+    gains.setdefault("kd", CONTROL_DEFAULTS["kd"])
+    out["gains"] = gains
+    for field in ("space", "bounds", "d_clip"):
+        out.setdefault(field, CONTROL_DEFAULTS[field])
+    return out
+
+
 def _canon_train(
     train: Mapping[str, Any], info: ModelInfo | None, env: ResolutionEnv
 ) -> dict[str, Any]:
     out = dict(train)
+    out["objective"] = _canon_objective(out["objective"])
     optimizer = dict(out["optimizer"])
     name = optimizer.get("name")
     if isinstance(name, str):
@@ -522,6 +1028,42 @@ def _canon_train(
     precision.setdefault("feature", "fp32")
     precision.setdefault("loss", "fp32")
     out["precision"] = precision
+    if isinstance(out.get("anneal"), Mapping):
+        # a linear schedule has two spellings (§2.11); the list is the canonical
+        # one, so `{"from", "to", "frac"}` (shape unauthored or `linear`) digests
+        # as `[from, to, frac]` and no document authored before the mapping
+        # form existed moves. A geometric schedule keeps the mapping, `shape`
+        # spelled, since the list has no place for it.
+        out["anneal"] = {
+            target: _canon_anneal(entry) for target, entry in out["anneal"].items()
+        }
+    if isinstance(out.get("phases"), list):
+        # only when authored (a one-phase fit has no `phases`, so no digest
+        # moves); a phase's anneal gets the top-level treatment above
+        out["phases"] = [
+            {
+                **phase,
+                **(
+                    {
+                        "anneal": {
+                            target: _canon_anneal(entry)
+                            for target, entry in phase["anneal"].items()
+                        }
+                    }
+                    if isinstance(phase.get("anneal"), Mapping)
+                    else {}
+                ),
+            }
+            if isinstance(phase, Mapping)
+            else phase
+            for phase in out["phases"]
+        ]
+    if isinstance(out.get("control"), Mapping):
+        # a controller's optional fields materialize like an optimizer's:
+        # two spellings of one controller are one canonical form (§2.11)
+        out["control"] = {
+            target: _canon_control(entry) for target, entry in out["control"].items()
+        }
     out.setdefault("seed", 0)
     if "eval" in out and isinstance(out["eval"], Mapping):
         eval_spec = dict(out["eval"])

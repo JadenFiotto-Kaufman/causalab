@@ -61,9 +61,12 @@ This is the only position analyses need: graph-walk experiments measure activati
 
 ## Running
 
+The task runs from an intervention document that names its table
+(`graph_walk/data/<variant>`) — see `docs/running_experiments.md` and the shipped
+documents under `causalab/configs/protocols/`:
+
 ```bash
-./scripts/run_exp.sh grid_5x5_8b           # 5×5 grid on Llama-3.1 8B
-./scripts/run_exp.sh cylinder_9x9_8b       # 9×9 cylinder
+uv run causalab run <document.json>
 ```
 
 Outputs land under `artifacts/graph_walk/<model>/<analysis>/...` per `docs/CODEBASE.md` invariant 7.
@@ -81,4 +84,5 @@ A standalone script for sliding-window concept-centroid emergence analysis (repl
 | `causal_models.py` | `create_causal_model` plus the `GET_*` accessors used by `tasks/loader.py` |
 | `counterfactuals.py` | `generate_dataset` (alias for `generate_graph_walk_dataset`), `make_walk_steering_examples` |
 | `token_positions.py` | `create_token_positions` (just `last`) |
+| `data/` | none yet — the answer is a set of neighbours (`raw_output`), which the v1 row vocabulary cannot carry; see `causalab/tasks/README.md` §2 |
 | `demo.ipynb` | Runnable walkthrough of the causal model, tokenization, and counterfactuals |

@@ -1,0 +1,2050 @@
+[
+ {
+  "base_answer": " August",
+  "base_answer_forms": [
+   " August",
+   "August"
+  ],
+  "cf_answer": " June",
+  "cf_answer_forms": [
+   " June",
+   "June"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after November?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "November",
+    "number": "seven",
+    "result": "June"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is one months after July?\nA:",
+  "label": " June",
+  "label_forms": [
+   " June",
+   "June"
+  ],
+  "number": "one",
+  "result": "August",
+  "split": "train"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "six",
+    "result": "March"
+   }
+  ],
+  "entity": "May",
+  "input": "Q: What month is five months after May?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "five",
+  "result": "October",
+  "split": "train"
+ },
+ {
+  "base_answer": " December",
+  "base_answer_forms": [
+   " December",
+   "December"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after April?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "April",
+    "number": "five",
+    "result": "September"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is four months after August?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "four",
+  "result": "December",
+  "split": "train"
+ },
+ {
+  "base_answer": " September",
+  "base_answer_forms": [
+   " September",
+   "September"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after April?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "April",
+    "number": "seven",
+    "result": "November"
+   }
+  ],
+  "entity": "April",
+  "input": "Q: What month is five months after April?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "five",
+  "result": "September",
+  "split": "train"
+ },
+ {
+  "base_answer": " July",
+  "base_answer_forms": [
+   " July",
+   "July"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "five",
+    "result": "February"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is five months after February?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "five",
+  "result": "July",
+  "split": "train"
+ },
+ {
+  "base_answer": " July",
+  "base_answer_forms": [
+   " July",
+   "July"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after December?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "December",
+    "number": "two",
+    "result": "February"
+   }
+  ],
+  "entity": "December",
+  "input": "Q: What month is seven months after December?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "seven",
+  "result": "July",
+  "split": "train"
+ },
+ {
+  "base_answer": " December",
+  "base_answer_forms": [
+   " December",
+   "December"
+  ],
+  "cf_answer": " May",
+  "cf_answer_forms": [
+   " May",
+   "May"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after March?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "March",
+    "number": "two",
+    "result": "May"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is two months after October?\nA:",
+  "label": " May",
+  "label_forms": [
+   " May",
+   "May"
+  ],
+  "number": "two",
+  "result": "December",
+  "split": "train"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "seven",
+    "result": "January"
+   }
+  ],
+  "entity": "May",
+  "input": "Q: What month is one months after May?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "one",
+  "result": "June",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " July",
+  "cf_answer_forms": [
+   " July",
+   "July"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "six",
+    "result": "July"
+   }
+  ],
+  "entity": "December",
+  "input": "Q: What month is one months after December?\nA:",
+  "label": " July",
+  "label_forms": [
+   " July",
+   "July"
+  ],
+  "number": "one",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " May",
+  "cf_answer_forms": [
+   " May",
+   "May"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "seven",
+    "result": "May"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is five months after August?\nA:",
+  "label": " May",
+  "label_forms": [
+   " May",
+   "May"
+  ],
+  "number": "five",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " October",
+  "cf_answer_forms": [
+   " October",
+   "October"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is four months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "four",
+    "result": "October"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is three months after February?\nA:",
+  "label": " October",
+  "label_forms": [
+   " October",
+   "October"
+  ],
+  "number": "three",
+  "result": "May",
+  "split": "train"
+ },
+ {
+  "base_answer": " April",
+  "base_answer_forms": [
+   " April",
+   "April"
+  ],
+  "cf_answer": " May",
+  "cf_answer_forms": [
+   " May",
+   "May"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after November?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "November",
+    "number": "six",
+    "result": "May"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is six months after October?\nA:",
+  "label": " May",
+  "label_forms": [
+   " May",
+   "May"
+  ],
+  "number": "six",
+  "result": "April",
+  "split": "train"
+ },
+ {
+  "base_answer": " December",
+  "base_answer_forms": [
+   " December",
+   "December"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "five",
+    "result": "February"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is three months after September?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "three",
+  "result": "December",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after December?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "December",
+    "number": "one",
+    "result": "January"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is six months after July?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "six",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after May?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "May",
+    "number": "six",
+    "result": "November"
+   }
+  ],
+  "entity": "November",
+  "input": "Q: What month is six months after November?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "six",
+  "result": "May",
+  "split": "train"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after December?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "December",
+    "number": "one",
+    "result": "January"
+   }
+  ],
+  "entity": "January",
+  "input": "Q: What month is five months after January?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "five",
+  "result": "June",
+  "split": "train"
+ },
+ {
+  "base_answer": " March",
+  "base_answer_forms": [
+   " March",
+   "March"
+  ],
+  "cf_answer": " December",
+  "cf_answer_forms": [
+   " December",
+   "December"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "two",
+    "result": "December"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is seven months after August?\nA:",
+  "label": " December",
+  "label_forms": [
+   " December",
+   "December"
+  ],
+  "number": "seven",
+  "result": "March",
+  "split": "train"
+ },
+ {
+  "base_answer": " November",
+  "base_answer_forms": [
+   " November",
+   "November"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "seven",
+    "result": "March"
+   }
+  ],
+  "entity": "April",
+  "input": "Q: What month is seven months after April?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "seven",
+  "result": "November",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after November?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "November",
+    "number": "two",
+    "result": "January"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is four months after September?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "four",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " November",
+  "base_answer_forms": [
+   " November",
+   "November"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "five",
+    "result": "January"
+   }
+  ],
+  "entity": "May",
+  "input": "Q: What month is six months after May?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "six",
+  "result": "November",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after May?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "May",
+    "number": "six",
+    "result": "November"
+   }
+  ],
+  "entity": "June",
+  "input": "Q: What month is seven months after June?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "seven",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " November",
+  "base_answer_forms": [
+   " November",
+   "November"
+  ],
+  "cf_answer": " December",
+  "cf_answer_forms": [
+   " December",
+   "December"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "two",
+    "result": "December"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is two months after September?\nA:",
+  "label": " December",
+  "label_forms": [
+   " December",
+   "December"
+  ],
+  "number": "two",
+  "result": "November",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " July",
+  "cf_answer_forms": [
+   " July",
+   "July"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after February?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "February",
+    "number": "five",
+    "result": "July"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is three months after October?\nA:",
+  "label": " July",
+  "label_forms": [
+   " July",
+   "July"
+  ],
+  "number": "three",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "two",
+    "result": "November"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is seven months after October?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "seven",
+  "result": "May",
+  "split": "train"
+ },
+ {
+  "base_answer": " July",
+  "base_answer_forms": [
+   " July",
+   "July"
+  ],
+  "cf_answer": " July",
+  "cf_answer_forms": [
+   " July",
+   "July"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "six",
+    "result": "July"
+   }
+  ],
+  "entity": "May",
+  "input": "Q: What month is two months after May?\nA:",
+  "label": " July",
+  "label_forms": [
+   " July",
+   "July"
+  ],
+  "number": "two",
+  "result": "July",
+  "split": "train"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " October",
+  "cf_answer_forms": [
+   " October",
+   "October"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "two",
+    "result": "October"
+   }
+  ],
+  "entity": "November",
+  "input": "Q: What month is seven months after November?\nA:",
+  "label": " October",
+  "label_forms": [
+   " October",
+   "October"
+  ],
+  "number": "seven",
+  "result": "June",
+  "split": "train"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " December",
+  "cf_answer_forms": [
+   " December",
+   "December"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "two",
+    "result": "December"
+   }
+  ],
+  "entity": "March",
+  "input": "Q: What month is two months after March?\nA:",
+  "label": " December",
+  "label_forms": [
+   " December",
+   "December"
+  ],
+  "number": "two",
+  "result": "May",
+  "split": "train"
+ },
+ {
+  "base_answer": " March",
+  "base_answer_forms": [
+   " March",
+   "March"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is three months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "three",
+    "result": "January"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is six months after September?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "six",
+  "result": "March",
+  "split": "train"
+ },
+ {
+  "base_answer": " December",
+  "base_answer_forms": [
+   " December",
+   "December"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "six",
+    "result": "March"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is five months after July?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "five",
+  "result": "December",
+  "split": "train"
+ },
+ {
+  "base_answer": " July",
+  "base_answer_forms": [
+   " July",
+   "July"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "seven",
+    "result": "January"
+   }
+  ],
+  "entity": "June",
+  "input": "Q: What month is one months after June?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "one",
+  "result": "July",
+  "split": "train"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "six",
+    "result": "January"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is four months after February?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "four",
+  "result": "June",
+  "split": "train"
+ },
+ {
+  "base_answer": " July",
+  "base_answer_forms": [
+   " July",
+   "July"
+  ],
+  "cf_answer": " October",
+  "cf_answer_forms": [
+   " October",
+   "October"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "two",
+    "result": "October"
+   }
+  ],
+  "entity": "January",
+  "input": "Q: What month is six months after January?\nA:",
+  "label": " October",
+  "label_forms": [
+   " October",
+   "October"
+  ],
+  "number": "six",
+  "result": "July",
+  "split": "train"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " June",
+  "cf_answer_forms": [
+   " June",
+   "June"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is four months after February?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "February",
+    "number": "four",
+    "result": "June"
+   }
+  ],
+  "entity": "December",
+  "input": "Q: What month is two months after December?\nA:",
+  "label": " June",
+  "label_forms": [
+   " June",
+   "June"
+  ],
+  "number": "two",
+  "result": "February",
+  "split": "train"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " December",
+  "cf_answer_forms": [
+   " December",
+   "December"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "five",
+    "result": "December"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is five months after September?\nA:",
+  "label": " December",
+  "label_forms": [
+   " December",
+   "December"
+  ],
+  "number": "five",
+  "result": "February",
+  "split": "train"
+ },
+ {
+  "base_answer": " December",
+  "base_answer_forms": [
+   " December",
+   "December"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after September?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "September",
+    "number": "five",
+    "result": "February"
+   }
+  ],
+  "entity": "November",
+  "input": "Q: What month is one months after November?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "one",
+  "result": "December",
+  "split": "train"
+ },
+ {
+  "base_answer": " January",
+  "base_answer_forms": [
+   " January",
+   "January"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "seven",
+    "result": "March"
+   }
+  ],
+  "entity": "November",
+  "input": "Q: What month is two months after November?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "two",
+  "result": "January",
+  "split": "train"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after April?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "April",
+    "number": "five",
+    "result": "September"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is two months after August?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "two",
+  "result": "October",
+  "split": "train"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " January",
+  "cf_answer_forms": [
+   " January",
+   "January"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after November?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "November",
+    "number": "two",
+    "result": "January"
+   }
+  ],
+  "entity": "April",
+  "input": "Q: What month is one months after April?\nA:",
+  "label": " January",
+  "label_forms": [
+   " January",
+   "January"
+  ],
+  "number": "one",
+  "result": "May",
+  "split": "train"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "one",
+    "result": "August"
+   }
+  ],
+  "entity": "June",
+  "input": "Q: What month is four months after June?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "four",
+  "result": "October",
+  "split": "train"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " June",
+  "cf_answer_forms": [
+   " June",
+   "June"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is three months after March?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "March",
+    "number": "three",
+    "result": "June"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is seven months after July?\nA:",
+  "label": " June",
+  "label_forms": [
+   " June",
+   "June"
+  ],
+  "number": "seven",
+  "result": "February",
+  "split": "test"
+ },
+ {
+  "base_answer": " September",
+  "base_answer_forms": [
+   " September",
+   "September"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "two",
+    "result": "September"
+   }
+  ],
+  "entity": "May",
+  "input": "Q: What month is four months after May?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "four",
+  "result": "September",
+  "split": "test"
+ },
+ {
+  "base_answer": " November",
+  "base_answer_forms": [
+   " November",
+   "November"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after February?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "February",
+    "number": "one",
+    "result": "March"
+   }
+  ],
+  "entity": "June",
+  "input": "Q: What month is five months after June?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "five",
+  "result": "November",
+  "split": "test"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after February?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "February",
+    "number": "seven",
+    "result": "September"
+   }
+  ],
+  "entity": "March",
+  "input": "Q: What month is three months after March?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "three",
+  "result": "June",
+  "split": "test"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after October?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "October",
+    "number": "one",
+    "result": "November"
+   }
+  ],
+  "entity": "March",
+  "input": "Q: What month is seven months after March?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "seven",
+  "result": "October",
+  "split": "test"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "one",
+    "result": "February"
+   }
+  ],
+  "entity": "November",
+  "input": "Q: What month is three months after November?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "three",
+  "result": "February",
+  "split": "test"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "seven",
+    "result": "February"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is three months after July?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "three",
+  "result": "October",
+  "split": "test"
+ },
+ {
+  "base_answer": " August",
+  "base_answer_forms": [
+   " August",
+   "August"
+  ],
+  "cf_answer": " June",
+  "cf_answer_forms": [
+   " June",
+   "June"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after April?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "April",
+    "number": "two",
+    "result": "June"
+   }
+  ],
+  "entity": "January",
+  "input": "Q: What month is seven months after January?\nA:",
+  "label": " June",
+  "label_forms": [
+   " June",
+   "June"
+  ],
+  "number": "seven",
+  "result": "August",
+  "split": "test"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " April",
+  "cf_answer_forms": [
+   " April",
+   "April"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after March?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "March",
+    "number": "one",
+    "result": "April"
+   }
+  ],
+  "entity": "September",
+  "input": "Q: What month is one months after September?\nA:",
+  "label": " April",
+  "label_forms": [
+   " April",
+   "April"
+  ],
+  "number": "one",
+  "result": "October",
+  "split": "test"
+ },
+ {
+  "base_answer": " August",
+  "base_answer_forms": [
+   " August",
+   "August"
+  ],
+  "cf_answer": " March",
+  "cf_answer_forms": [
+   " March",
+   "March"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is three months after December?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "December",
+    "number": "three",
+    "result": "March"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is six months after February?\nA:",
+  "label": " March",
+  "label_forms": [
+   " March",
+   "March"
+  ],
+  "number": "six",
+  "result": "August",
+  "split": "test"
+ },
+ {
+  "base_answer": " August",
+  "base_answer_forms": [
+   " August",
+   "August"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "seven",
+    "result": "August"
+   }
+  ],
+  "entity": "June",
+  "input": "Q: What month is two months after June?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "two",
+  "result": "August",
+  "split": "test"
+ },
+ {
+  "base_answer": " March",
+  "base_answer_forms": [
+   " March",
+   "March"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "two",
+    "result": "September"
+   }
+  ],
+  "entity": "December",
+  "input": "Q: What month is three months after December?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "three",
+  "result": "March",
+  "split": "test"
+ },
+ {
+  "base_answer": " April",
+  "base_answer_forms": [
+   " April",
+   "April"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "two",
+    "result": "August"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is two months after February?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "two",
+  "result": "April",
+  "split": "test"
+ },
+ {
+  "base_answer": " March",
+  "base_answer_forms": [
+   " March",
+   "March"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after February?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "February",
+    "number": "seven",
+    "result": "September"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is one months after February?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "one",
+  "result": "March",
+  "split": "test"
+ },
+ {
+  "base_answer": " September",
+  "base_answer_forms": [
+   " September",
+   "September"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "five",
+    "result": "November"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is one months after August?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "one",
+  "result": "September",
+  "split": "test"
+ },
+ {
+  "base_answer": " March",
+  "base_answer_forms": [
+   " March",
+   "March"
+  ],
+  "cf_answer": " October",
+  "cf_answer_forms": [
+   " October",
+   "October"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is three months after July?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "July",
+    "number": "three",
+    "result": "October"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is five months after October?\nA:",
+  "label": " October",
+  "label_forms": [
+   " October",
+   "October"
+  ],
+  "number": "five",
+  "result": "March",
+  "split": "test"
+ },
+ {
+  "base_answer": " April",
+  "base_answer_forms": [
+   " April",
+   "April"
+  ],
+  "cf_answer": " February",
+  "cf_answer_forms": [
+   " February",
+   "February"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is six months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "six",
+    "result": "February"
+   }
+  ],
+  "entity": "March",
+  "input": "Q: What month is one months after March?\nA:",
+  "label": " February",
+  "label_forms": [
+   " February",
+   "February"
+  ],
+  "number": "one",
+  "result": "April",
+  "split": "test"
+ },
+ {
+  "base_answer": " May",
+  "base_answer_forms": [
+   " May",
+   "May"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "seven",
+    "result": "August"
+   }
+  ],
+  "entity": "December",
+  "input": "Q: What month is five months after December?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "five",
+  "result": "May",
+  "split": "test"
+ },
+ {
+  "base_answer": " October",
+  "base_answer_forms": [
+   " October",
+   "October"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after January?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "January",
+    "number": "seven",
+    "result": "August"
+   }
+  ],
+  "entity": "April",
+  "input": "Q: What month is six months after April?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "six",
+  "result": "October",
+  "split": "test"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " October",
+  "cf_answer_forms": [
+   " October",
+   "October"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is seven months after March?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "March",
+    "number": "seven",
+    "result": "October"
+   }
+  ],
+  "entity": "August",
+  "input": "Q: What month is six months after August?\nA:",
+  "label": " October",
+  "label_forms": [
+   " October",
+   "October"
+  ],
+  "number": "six",
+  "result": "February",
+  "split": "test"
+ },
+ {
+  "base_answer": " June",
+  "base_answer_forms": [
+   " June",
+   "June"
+  ],
+  "cf_answer": " May",
+  "cf_answer_forms": [
+   " May",
+   "May"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after December?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "December",
+    "number": "five",
+    "result": "May"
+   }
+  ],
+  "entity": "April",
+  "input": "Q: What month is two months after April?\nA:",
+  "label": " May",
+  "label_forms": [
+   " May",
+   "May"
+  ],
+  "number": "two",
+  "result": "June",
+  "split": "test"
+ },
+ {
+  "base_answer": " February",
+  "base_answer_forms": [
+   " February",
+   "February"
+  ],
+  "cf_answer": " September",
+  "cf_answer_forms": [
+   " September",
+   "September"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is one months after August?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "August",
+    "number": "one",
+    "result": "September"
+   }
+  ],
+  "entity": "January",
+  "input": "Q: What month is one months after January?\nA:",
+  "label": " September",
+  "label_forms": [
+   " September",
+   "September"
+  ],
+  "number": "one",
+  "result": "February",
+  "split": "test"
+ },
+ {
+  "base_answer": " November",
+  "base_answer_forms": [
+   " November",
+   "November"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "five",
+    "result": "November"
+   }
+  ],
+  "entity": "October",
+  "input": "Q: What month is one months after October?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "one",
+  "result": "November",
+  "split": "test"
+ },
+ {
+  "base_answer": " September",
+  "base_answer_forms": [
+   " September",
+   "September"
+  ],
+  "cf_answer": " November",
+  "cf_answer_forms": [
+   " November",
+   "November"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is five months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "five",
+    "result": "November"
+   }
+  ],
+  "entity": "February",
+  "input": "Q: What month is seven months after February?\nA:",
+  "label": " November",
+  "label_forms": [
+   " November",
+   "November"
+  ],
+  "number": "seven",
+  "result": "September",
+  "split": "test"
+ },
+ {
+  "base_answer": " September",
+  "base_answer_forms": [
+   " September",
+   "September"
+  ],
+  "cf_answer": " August",
+  "cf_answer_forms": [
+   " August",
+   "August"
+  ],
+  "counterfactual_inputs": [
+   "Q: What month is two months after June?\nA:"
+  ],
+  "counterfactual_inputs_variables": [
+   {
+    "entity": "June",
+    "number": "two",
+    "result": "August"
+   }
+  ],
+  "entity": "July",
+  "input": "Q: What month is two months after July?\nA:",
+  "label": " August",
+  "label_forms": [
+   " August",
+   "August"
+  ],
+  "number": "two",
+  "result": "September",
+  "split": "test"
+ }
+]

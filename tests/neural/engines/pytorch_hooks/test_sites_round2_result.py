@@ -31,11 +31,10 @@ import torch
 
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle, load_model
 from causalab.neural.shared.sites import (
-    READ_ONLY_COMPONENTS,
     resolve_site,
 )
 from causalab.protocol.errors import ProtocolError
-from causalab.protocol.registry import component_shape, component_width
+from causalab.protocol.registry import CAPABILITIES, component_shape, component_width
 from causalab.protocol.schema import SiteSpec
 
 from ._drive import base_data_section, executor_for
@@ -51,25 +50,27 @@ OTHER_LAYER = 1
 
 
 def _read_doc(component: str, layer: int, *, head: int | None = None) -> dict:
-    site: dict = {"component": component, "layer": layer}
+    site: dict = {"component": component, "layers": [layer]}
     if head is not None:
         site["head"] = head
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=False),
-        "sites": {"tap": site},
-        "reads": {
-            "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+        "method": {
+            "sites": {"tap": site},
+            "reads": {
+                "r": {"site": "tap", "pos": "all", "model": "original", "input": "base"}
+            },
+            "save": [
+                {
+                    "value": "r",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "a.safetensors",
+                }
+            ],
         },
-        "save": [
-            {
-                "value": "r",
-                "model": "original",
-                "input": "base",
-                "file_path": "a.safetensors",
-            }
-        ],
     }
 
 
@@ -135,7 +136,7 @@ def test_a_head_with_no_premix_contributes_nothing(qwen35moe_bundle):
 
     site = resolve_site(
         qwen35moe_bundle,
-        SiteSpec(component="attention_result", layer=QWEN_LAYER, head=1),
+        SiteSpec(component="attention_result", layers=(QWEN_LAYER,), head=1),
     )
     info = qwen35moe_bundle.info
     premix = torch.randn(1, 4, info.num_heads * info.head_dim)
@@ -160,7 +161,7 @@ def test_the_bias_belongs_to_no_head(qwen35moe_bundle):
     from causalab.neural.shared.executor_base import _attention_result
 
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component="attention_result", layer=QWEN_LAYER)
+        qwen35moe_bundle, SiteSpec(component="attention_result", layers=(QWEN_LAYER,))
     )
     o_proj = site.module
     assert o_proj.bias is None, "fixture assumption"
@@ -200,7 +201,7 @@ def test_the_tap_captures_the_premix_not_the_result(qwen35moe_bundle):
     shape differ, and the site declares it rather than leaving it to be
     inferred."""
     site = resolve_site(
-        qwen35moe_bundle, SiteSpec(component="attention_result", layer=QWEN_LAYER)
+        qwen35moe_bundle, SiteSpec(component="attention_result", layers=(QWEN_LAYER,))
     )
     info = qwen35moe_bundle.info
     assert site.derivation == "attention_result"
@@ -221,10 +222,10 @@ def test_the_result_and_the_premix_share_one_capture(qwen35moe_bundle):
     from causalab.neural.shared.executor_base import tap_key as _tap_key
 
     premix = resolve_site(
-        qwen35moe_bundle, SiteSpec(component="attention_premix", layer=QWEN_LAYER)
+        qwen35moe_bundle, SiteSpec(component="attention_premix", layers=(QWEN_LAYER,))
     )
     result = resolve_site(
-        qwen35moe_bundle, SiteSpec(component="attention_result", layer=QWEN_LAYER)
+        qwen35moe_bundle, SiteSpec(component="attention_result", layers=(QWEN_LAYER,))
     )
     assert _tap_key(premix) == _tap_key(result)
 
@@ -238,7 +239,7 @@ def test_the_derivation_runs_after_the_position_gather(qwen35moe_bundle):
     same numbers and differs only in what it allocates.
     """
     doc = _read_doc("attention_result", QWEN_LAYER, head=0)
-    doc["reads"]["r"]["pos"] = {"index": -1}
+    doc["method"]["reads"]["r"]["pos"] = {"index": -1}
     value = executor_for(doc, qwen35moe_bundle, base_texts=[TEXT]).read_value("r")
     assert tuple(value.shape) == (1, 1, qwen35moe_bundle.info.hidden_size)
 
@@ -249,45 +250,51 @@ def test_the_derivation_runs_after_the_position_gather(qwen35moe_bundle):
 
 
 def test_a_write_is_refused_and_the_refusal_names_its_lowering(qwen35moe_bundle):
-    """F7 policy: a refusal that can name what to do instead, does.
+    """The refusal policy: a refusal that can name what to do instead, does.
 
     ``attention_result`` is a linear function of ``attention_premix``, so a
     write to the premix at the same head moves it by exactly the projection of
     what was written — the user does not lose the capability, only the spelling.
     """
-    assert "attention_result" in READ_ONLY_COMPONENTS
+    assert CAPABILITIES["attention_result"].writes is None
     doc = {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": "test", "revision": "main"},
         "data": base_data_section(with_counterfactual=True),
-        "sites": {
-            "tap": {"component": "attention_result", "layer": QWEN_LAYER, "head": 0},
-            "lm_head": {"component": "lm_head"},
-        },
-        "reads": {
-            "v_cf": {
-                "site": "tap",
-                "pos": "all",
-                "model": "original",
-                "input": "counterfactual",
+        "method": {
+            "sites": {
+                "tap": {
+                    "component": "attention_result",
+                    "layers": [QWEN_LAYER],
+                    "head": 0,
+                },
+                "lm_head": {"component": "lm_head"},
             },
-            "after": {
-                "site": "lm_head",
-                "pos": {"index": -1},
-                "model": "patched",
-                "input": "base",
+            "reads": {
+                "v_cf": {
+                    "site": "tap",
+                    "pos": "all",
+                    "model": "original",
+                    "input": "counterfactual",
+                },
+                "after": {
+                    "site": "lm_head",
+                    "pos": {"index": -1},
+                    "model": "patched",
+                    "input": "base",
+                },
             },
+            "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
+            "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
+            "save": [
+                {
+                    "value": "after",
+                    "model": "patched",
+                    "input": "base",
+                    "file_path": "p.safetensors",
+                }
+            ],
         },
-        "writes": {"patch": {"site": "tap", "pos": "all", "do": {"swap": "v_cf"}}},
-        "intervened_models": {"patched": {"input": "base", "writes": ["patch"]}},
-        "save": [
-            {
-                "value": "after",
-                "model": "patched",
-                "input": "base",
-                "file_path": "p.safetensors",
-            }
-        ],
     }
     with pytest.raises(ProtocolError) as excinfo:
         executor_for(
@@ -305,7 +312,7 @@ def test_a_deltanet_layer_refuses_with_the_architectural_reason(qwen35moe_bundle
     with pytest.raises(ProtocolError, match="full-attention mixer"):
         resolve_site(
             qwen35moe_bundle,
-            SiteSpec(component="attention_result", layer=DELTANET_LAYER),
+            SiteSpec(component="attention_result", layers=(DELTANET_LAYER,)),
         )
 
 
@@ -316,14 +323,14 @@ def test_the_head_bound_is_the_query_head_space(qwen35moe_bundle):
     resolve_site(
         qwen35moe_bundle,
         SiteSpec(
-            component="attention_result", layer=QWEN_LAYER, head=info.num_heads - 1
+            component="attention_result", layers=(QWEN_LAYER,), head=info.num_heads - 1
         ),
     )
     with pytest.raises(ProtocolError, match="which has 8 heads"):
         resolve_site(
             qwen35moe_bundle,
             SiteSpec(
-                component="attention_result", layer=QWEN_LAYER, head=info.num_heads
+                component="attention_result", layers=(QWEN_LAYER,), head=info.num_heads
             ),
         )
 
@@ -345,8 +352,10 @@ def test_the_derivation_works_in_the_generated_frame_too():
 
     def generated(component: str, head: int | None = None) -> torch.Tensor:
         doc = _read_doc(component, OTHER_LAYER, head=head)
-        doc["positions"] = {"w": {"generated": {"max_new_tokens": 3}, "all": True}}
-        doc["reads"]["r"]["pos"] = "w"
+        doc["method"]["positions"] = {
+            "w": {"generated": {"max_new_tokens": 3}, "all": True}
+        }
+        doc["method"]["reads"]["r"]["pos"] = "w"
         return executor_for(doc, bundle, base_texts=[TEXT]).read_value("r")
 
     whole = generated("attention_result")

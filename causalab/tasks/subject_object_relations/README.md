@@ -6,7 +6,8 @@ the pair-disjoint DAS bundle at
 maps a **subject** to an **object** (its answer) — e.g. `France → Paris`
 (`country_capital_city`), `Lisa → woman` (`name_gender`), `STUDY → S`
 (`word_first_letter`). Select a relation with `task.relation=<name>` (default
-`word_first_letter`, a curation-green relation); see `data/manifest.json` for the
+`word_first_letter`, a relation the curation table below marks green); see
+`sources/manifest.json` for the
 35 valid names.
 
 The DAG mirrors [`identity_naming/`](../identity_naming/) with a subject→object
@@ -25,10 +26,10 @@ variation by overriding `raw_input` per example.
 
 ## Data provenance (bundled, model-agnostic)
 
-`data/build_relations.py` ingests each relation's **`dataset/filtered.jsonl`**
+`sources/build_relations.py` ingests each relation's **`dataset/filtered.jsonl`**
 (the authoritative source — every row has `subject` / `object` / `template` /
-`template_idx`) and writes a compact JSON per relation under `data/relations/`
-plus `data/manifest.json` (~0.3 MB total, committed). It keeps only the relation
+`template_idx`) and writes a compact JSON per relation under `sources/relations/`
+plus `sources/manifest.json` (~0.3 MB total, committed). It keeps only the relation
 content — distinct subjects, the deterministic subject→object map, distinct
 objects, deduped templates — and **drops every Llama-3.1-8B-specific token /
 position field** (`prompt`, `prompt_token_ids`, `gold_first_id`, `subj_last*`,
@@ -49,11 +50,11 @@ requires.
 Regenerate with:
 
 ```bash
-uv run python causalab/tasks/subject_object_relations/data/build_relations.py
+uv run python causalab/tasks/subject_object_relations/sources/build_relations.py
 ```
 
 The source has exactly 35 relation subdirs with a `dataset/filtered.jsonl` — the
-in-scope set. (The epic's out-of-scope names — `addition` / `hours` / `months` /
+in-scope set. (The out-of-scope names — `addition` / `hours` / `months` /
 `weekdays` / `entity_tracking` / `text_length` — do not live under
 `lre_relations/`, so no exclusion is needed here.) One relation,
 `person_plays_instrument`, has a single non-deterministic subject→object row in
@@ -62,10 +63,10 @@ conflict count in the relation's `provenance`.
 
 ## Answer scoring (first-token / prefix-aware)
 
-Objects may be multi-token ("Washington D.C."). The model declares
-`output_tokens = build_output_tokens(distinct_objects)` with
-`match_modes = {"object": "prefix"}`, and the loader derives a prefix checker
-from that declaration (no `checker.py`). At `max_new_tokens=1` this credits a
+Objects may be multi-token ("Washington D.C."). The model's `ScoringSpec`
+declares `forms={"object": build_output_tokens(distinct_objects)}` with
+`string_mode="prefix"`, and the task's grader is the spec's (no bespoke
+checker). At `max_new_tokens=1` this credits a
 single-token object exactly and a longer generation by prefix. **Consequence:**
 relations whose objects are *not* single-token / first-token-distinct are graded
 strictly (the model emits only the answer's first token) and score low — this is
@@ -86,15 +87,17 @@ difficulty (e.g. `person_plays_*`) and/or the first-token grading of multi-token
 objects (e.g. `country_capital_city`).
 
 **Recomputing the sweep.** Its producer was deleted with the runner/methods
-stack in the protocol refactor (PR #20) while these numbers stayed
+stack in the protocol refactor while these numbers stayed
 load-bearing — they select the tiers below and `config.py`'s default relation.
 It is now expressible as a protocol-document campaign, and what that campaign
 looks like is pinned on CPU by
 `tests/tasks/subject_object_relations/test_curation_documents.py`: one table
 per relation from `scripts/build_task_dataset.py`, one baseline document
 sweeping `data.base.dataset` over them, `match` with `"mode": "first_token"`
-(this task declares `match_modes={"object": "prefix"}`, and the builder records
-that beside each table as `declared_match_mode`). What is *not* here is the
+(this task's spec declares `string_mode="prefix"`, which the builder writes
+into every row of the table as `string_mode` beside the spec's
+`scoring_digest`, so a document declaring `"exact"` over it is refused). What
+is *not* here is the
 run: the numbers above came from a coherent model on a GPU, so re-measuring
 them belongs with that tier — and a re-measurement on a different pipeline
 gives different numbers, which is why these stay labelled with the pipeline
@@ -177,8 +180,9 @@ independent-resample noise-floor reference. Both snapshot/restore the global RNG
 | `causal_models.py` | `create_causal_model` + the `GET_*` accessors used by `tasks/loader.py` |
 | `counterfactuals.py` | object-flip `generate_dataset`, `generate_resample_dataset`, `COUNTERFACTUAL_GENERATORS` |
 | `token_positions.py` | `create_token_positions` |
-| `data/build_relations.py` | ingest the bundle → committed model-agnostic JSON |
-| `data/relations/*.json`, `data/manifest.json` | committed relation content |
+| `data/word_first_letter.json` | the shipped table: `subject_object_relations/data/word_first_letter` (256 pairs, `split all`; a `match` over it wants `"mode": "first_token"`); built with `uv run python scripts/build_task_dataset.py --task subject_object_relations --set relation=word_first_letter --n 256 --seed 0 --split all --target-variable object --out causalab/tasks/subject_object_relations/data/word_first_letter.json` |
+| `sources/build_relations.py` | ingest the bundle → committed model-agnostic JSON |
+| `sources/relations/*.json`, `sources/manifest.json` | committed relation content |
 | `summary.ipynb` | CPU-only task walkthrough (no model) |
 
 ## Known gaps

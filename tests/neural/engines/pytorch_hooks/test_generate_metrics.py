@@ -23,6 +23,7 @@ import torch
 
 from causalab.neural.shared.metrics import compute_windowed_metric
 from causalab.neural.shared.outputs import MetricTable
+from causalab.protocol.estimand import metric_record_identity
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import parse_document
 
@@ -37,30 +38,32 @@ BUDGET = 6
 
 def _doc(metric: dict[str, Any], *, anchor: dict[str, Any]) -> dict[str, Any]:
     return {
-        "version": "1",
+        "header": {"protocol_version": "3"},
         "model": {"key": TINY_LLAMA, "revision": "main"},
         "data": {"base": {"dataset": "probe", "field": "input"}},
-        "positions": {
-            "window": {"generated": {"max_new_tokens": BUDGET}, **anchor},
+        "method": {
+            "positions": {
+                "window": {"generated": {"max_new_tokens": BUDGET}, **anchor},
+            },
+            "sites": {"lm_head": {"component": "lm_head"}},
+            "reads": {
+                "cont": {
+                    "site": "lm_head",
+                    "pos": "window",
+                    "model": "original",
+                    "input": "base",
+                }
+            },
+            "metrics": {"scored": metric},
+            "save": [
+                {
+                    "value": "scored",
+                    "model": "original",
+                    "input": "base",
+                    "file_path": "scored.json",
+                }
+            ],
         },
-        "sites": {"lm_head": {"component": "lm_head"}},
-        "reads": {
-            "cont": {
-                "site": "lm_head",
-                "pos": "window",
-                "model": "original",
-                "input": "base",
-            }
-        },
-        "metrics": {"scored": metric},
-        "save": [
-            {
-                "value": "scored",
-                "model": "original",
-                "input": "base",
-                "file_path": "scored.json",
-            }
-        ],
     }
 
 
@@ -167,6 +170,7 @@ def test_a_variable_the_model_never_said_is_null_and_unmatched(llama_bundle):
         values,
         {},
         "digest",
+        identity=metric_record_identity("match"),
         steps=None,
         matched=[bool(steps) for steps in executor.addressed_steps("cont")],
     )
@@ -190,6 +194,7 @@ def test_rows_name_the_step_they_scored(llama_bundle):
         _score(executor),
         {},
         "digest",
+        identity=metric_record_identity("match"),
         steps=steps,
         matched=[bool(row) for row in steps],
     )
@@ -204,12 +209,14 @@ def test_a_prompt_frame_read_keeps_its_single_row_shape(llama_bundle):
     raw = _doc(
         {"kind": "top_k", "of": "cont", "k": 1, "by": "prob"}, anchor={"all": True}
     )
-    raw["positions"] = {"window": {"index": -1}}
-    raw["reads"]["cont"]["pos"] = "window"
+    raw["method"]["positions"] = {"window": {"index": -1}}
+    raw["method"]["reads"]["cont"]["pos"] = "window"
     executor = _run(llama_bundle, raw)
     assert executor.is_generated("cont") is False
     table = MetricTable()
-    table.add("scored", [1.0, 2.0], {}, "digest")
+    table.add(
+        "scored", [1.0, 2.0], {}, "digest", identity=metric_record_identity("top_k")
+    )
     assert all("step" not in row for row in table.rows)
 
 
@@ -224,33 +231,35 @@ def test_kl_across_different_widths_refuses(llama_bundle):
     )
     metric = parse_document(
         {
-            "version": "1",
+            "header": {"protocol_version": "3"},
             "model": {"key": TINY_LLAMA},
             "data": {"base": {"dataset": "probe", "field": "input"}},
-            "sites": {"lm_head": {"component": "lm_head"}},
-            "reads": {
-                "a": {
-                    "site": "lm_head",
-                    "pos": -1,
-                    "model": "original",
-                    "input": "base",
+            "method": {
+                "sites": {"lm_head": {"component": "lm_head"}},
+                "reads": {
+                    "a": {
+                        "site": "lm_head",
+                        "pos": -1,
+                        "model": "original",
+                        "input": "base",
+                    },
+                    "b": {
+                        "site": "lm_head",
+                        "pos": -1,
+                        "model": "original",
+                        "input": "base",
+                    },
                 },
-                "b": {
-                    "site": "lm_head",
-                    "pos": -1,
-                    "model": "original",
-                    "input": "base",
-                },
+                "metrics": {"d": {"kind": "kl", "of": "a", "target": "b"}},
+                "save": [
+                    {
+                        "value": "d",
+                        "model": "original",
+                        "input": "base",
+                        "file_path": "d.json",
+                    }
+                ],
             },
-            "metrics": {"d": {"kind": "kl", "of": "a", "target": "b"}},
-            "save": [
-                {
-                    "value": "d",
-                    "model": "original",
-                    "input": "base",
-                    "file_path": "d.json",
-                }
-            ],
         }
     ).metrics["d"]
     windows = executor.windowed_value("cont")

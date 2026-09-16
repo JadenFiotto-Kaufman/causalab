@@ -2,7 +2,7 @@
 
 A run writes **one file per ``save`` entry**, across every point of a swept
 document: the engine suffixes each tensor key with the point's coordinate
-label (``weight[k=8,seed=0]``, ``v_mean[target.layer=12]`` —
+label (``weight[k=8,seed=0]``, ``v_mean[target.layers=12]`` —
 :func:`causalab.protocol.sweep.coordinate_label`). Consumers, on the other
 side, name a *slot* (``weight`` for a subspace/pca bundle, ``value`` for a
 ``params`` constant). Without a selector the two vocabularies only coincide
@@ -165,12 +165,14 @@ def select_entry(
             f"{what}: the bundle holds {len(candidates)} {slot!r} entries "
             f"({available}) and the document selects none — add an 'entry' "
             "selector, or sweep the consumer on the producer's axis (§2.5)",
+            reason="empty_selector",
         )
     shown = ", ".join(f"{name}={value}" for name, value in sorted(requested.items()))
     if not matched:
         raise ValidationError(
             15,
             f"{what}: no {slot!r} entry matches {{{shown}}} (has {available})",
+            reason="empty_selector",
         )
     missing = sorted(
         {name for key, coords in candidates if key in matched for name in coords}

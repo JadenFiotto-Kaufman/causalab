@@ -5,7 +5,7 @@ exposing the same surface the shared site map and executor base consume
 (``model`` / ``tokenizer`` / ``info`` / ``blocks`` / ``stream_at`` /
 ``mixer_at``), so :func:`causalab.neural.shared.sites.resolve_site` addresses
 the envoy tree exactly as it addresses the reference engine's module tree —
-one component→module map, never forked (plan §2.3). The ``module`` a resolved
+one component→module map, never forked. The ``module`` a resolved
 site carries is then an *envoy*, whose ``.input``/``.output`` the trace
 executor reads and assigns.
 
@@ -13,7 +13,7 @@ Attention runs under the **model default** implementation (sdpa on the
 target families): a document that never touches the scores or the pattern
 pays nothing for them. A group whose interior addresses require eager
 switches it on around its own trace and restores the default after —
-:meth:`TracePointExecutor._switched_implementations` (D5, decided: on
+:meth:`TracePointExecutor._switched_implementations` (switched on
 demand). Callers that must compare like against like — the cross-engine
 parity suite, whose reference engine loads eager — pin it explicitly with
 ``attn_implementation="eager"``.
@@ -27,14 +27,19 @@ from typing import Any
 
 import torch
 
+from causalab.neural.shared.compile_cache import configure as configure_compile_cache
+from causalab.neural.shared.kernels import bind_kernel_path
+from causalab.neural.shared.normalized_cache import normalized_cache
 from causalab.neural.shared import streams
 from causalab.protocol.registry import (
+    FamilyAdapter,
     ModelInfo,
+    family_for,
     model_info_from_hf_config,
     register_model,
 )
 
-__all__ = ["NnsightBundle", "load_model"]
+__all__ = ["NnsightBundle", "load_model", "torch_module"]
 
 _DTYPES = {"fp32": torch.float32, "bf16": torch.bfloat16, "fp16": torch.float16}
 
@@ -61,27 +66,35 @@ class NnsightBundle:
     dtype: str
     quantization: dict[str, Any] | None = None
 
+    @functools.cached_property
+    def adapter(self) -> FamilyAdapter:
+        """The registered family whose predicate recognizes this model's
+        module tree (``registry.family_for``) — detected once per
+        bundle, structurally, never off the config. Everything below that
+        used to be a ``hasattr`` on the tree routes through it."""
+        return family_for(self.model)
+
     @property
     def is_gpt2_family(self) -> bool:
-        return hasattr(self.model, "transformer") and hasattr(
-            self.model.transformer, "h"
-        )
+        return self.adapter.family == "gpt2_tree"
 
     @property
     def blocks(self) -> Any:
         """The decoder-layer list (envoys), whichever tree this family uses."""
-        return (
-            self.model.transformer.h if self.is_gpt2_family else self.model.model.layers
-        )
+        return self.adapter.blocks_of(self.model)
 
     def stream_at(self, layer: int) -> str:
         """Which mixer stream ``layer`` carries — the shared table's answer
         (:mod:`causalab.neural.shared.streams`), read off the envoy tree."""
-        return streams.stream_at(self.blocks, layer, key=self.key)
+        return streams.stream_at(
+            self.blocks, layer, key=self.key, mixers=self.adapter.mixers
+        )
 
     def mixer_at(self, layer: int) -> Any:
         """The attention/mixer envoy at ``layer``, whichever stream it is."""
-        return streams.mixer_at(self.blocks, layer, key=self.key)
+        return streams.mixer_at(
+            self.blocks, layer, key=self.key, mixers=self.adapter.mixers
+        )
 
     @property
     def streams(self) -> tuple[str, ...]:
@@ -89,7 +102,17 @@ class NnsightBundle:
         return tuple(self.stream_at(i) for i in range(len(self.blocks)))
 
 
-@functools.lru_cache(maxsize=4)
+def torch_module(envoy: Any) -> torch.nn.Module:
+    """The torch module an nnsight envoy wraps (``Envoy._module``) — what the
+    kernel-path binding inspects, and what a caller needing the plain module
+    behind a bundle reads."""
+    module = getattr(envoy, "_module", None)
+    if not isinstance(module, torch.nn.Module):
+        raise AssertionError("an nnsight model envoy wraps a torch module")
+    return module
+
+
+@normalized_cache(maxsize=4)
 def load_model(
     key: str,
     revision: str = "main",
@@ -105,12 +128,22 @@ def load_model(
     same contract the reference bundle loads under, so both engines encode
     identical batches.
 
-    ``attn_implementation=None`` keeps the checkpoint's own default (D5); the
+    Four bundles stay resident, keyed on the *bound* arguments
+    (:func:`~causalab.neural.shared.normalized_cache.normalized_cache`), so
+    two spellings of one realization are one entry; ``load_model.cache_clear()``
+    and ``cache_info()`` manage the cache.
+
+    ``attn_implementation=None`` keeps the checkpoint's own default; the
     executor switches on demand for the traces that need another one. Passing
     one pins it — what the parity suite does to compare like against like.
     """
     from nnsight.modeling.transformers import TransformersModel
 
+    # the compilers a CUDA model will use are pointed at the shared cache
+    # root, when one is set, before the first kernel is built (the reference
+    # loader does the same; shared/compile_cache.py says why the loader is
+    # the seam)
+    configure_compile_cache(device)
     model = TransformersModel(
         key,
         task="text-generation",
@@ -128,6 +161,10 @@ def load_model(
         tokenizer.pad_token = tokenizer.eos_token
     info = model_info_from_hf_config(key, model.config)
     register_model(info)
+    # a DeltaNet family's kernel globals follow the device this bundle was
+    # asked for — the torch path off CUDA, the installed kernels on it — so a
+    # bare trace works wherever the weights land at dispatch (shared/kernels.py)
+    bind_kernel_path(torch_module(model), on_cuda=device.startswith("cuda"))
     return NnsightBundle(
         key=key,
         revision=revision,

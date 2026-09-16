@@ -2,7 +2,7 @@
 
 Catches a class of tokenization gotchas *before* any model is loaded or run —
 the kind that otherwise stays invisible until a baseline run returns ~0%
-accuracy. The motivating case (GitHub issue #169): a task whose
+accuracy. The motivating case: a task whose
 ``prompt_suffix`` ends in a space (e.g. ``"\\nAnswer: "``). BPE/sentencepiece
 tokenizers encode that trailing space as its own *orphan* whitespace token, so
 the model's next-token target becomes the *bare* answer form (``"Kate"``)
@@ -11,7 +11,7 @@ declared answer tokens expect. Every checker comparison then fails, and the
 prompt also confuses the model's continuation entirely.
 
 The accepted answer forms come from the task's ``CausalModel.output_tokens``
-declaration — the single source of each value's surface forms after the #291
+declaration — the single source of each value's surface forms since the
 scoring overhaul (see :func:`task_forms_resolver`).
 
 The checks here are deliberately model-free: they need only a *tokenizer*
@@ -98,7 +98,7 @@ def check_prompt_tokenization(
 
     ``forms_for(raw_output)`` returns the accepted surface forms of an answer
     value (e.g. ``[" Kate", "Kate"]``) — the task's declared answer-token
-    contract, sourced from ``CausalModel.output_tokens`` (#291); see
+    contract, sourced from ``CausalModel.output_tokens``; see
     :func:`run_task_preflight`. Keeping the check over a plain forms-resolver
     keeps it decoupled from how the task declares those forms.
 
@@ -173,7 +173,7 @@ def task_forms_resolver(task: Any) -> Callable[[str], Sequence[str]]:
     """Return ``forms_for(raw_output) -> [surface form, ...]`` for ``task``.
 
     Answer forms come from ``CausalModel.output_tokens`` — the single declaration
-    of each value's accepted surface forms (#291). For a value it does not
+    of each value's accepted surface forms. For a value it does not
     declare (e.g. a sentinel like ``"UNKNOWN"``), assume the conventional BPE
     leading-space + bare forms, so the orphan-whitespace check still covers every
     sample (it is a prompt-level property, not a per-value one).

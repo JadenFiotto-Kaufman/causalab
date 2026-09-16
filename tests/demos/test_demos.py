@@ -106,6 +106,31 @@ def _carriers(document: Path) -> list[Path]:
     ]
 
 
+def _run_tree_load(document: Path) -> str | None:
+    """The first ``file_path`` this document LOADS whose leading segment looks
+    like a step name rather than a repo path — i.e. one that resolves only in a
+    run tree. Featurizers and ``params`` are the IM spec's two load sites."""
+    raw = json.loads(document.read_text())
+    method = raw.get("method") or {}  # the two load sites live in the method group
+    for section in ("featurizers", "params"):
+        for entry in (method.get(section) or {}).values():
+            path = entry.get("file_path") if isinstance(entry, dict) else None
+            if isinstance(path, str) and not (REPO / path).exists():
+                return path
+    return None
+
+
+def _workflows_naming(document: Path) -> list[Path]:
+    """Workflows in the same demo that run ``document`` as a step."""
+    want = document.name
+    found = []
+    for workflow in sorted((document.parents[1] / "workflows").glob("*.json")):
+        steps = json.loads(workflow.read_text()).get("steps", {})
+        if any(str(s.get("document", "")).endswith(want) for s in steps.values()):
+            found.append(workflow)
+    return found
+
+
 def _ids(paths: list[Path]) -> list[str]:
     return [str(p.relative_to(REPO)) for p in paths]
 
@@ -118,7 +143,20 @@ class TestDocuments:
         ``--data`` is the half that catches the drift a demo is most likely to
         acquire: a metric naming a column the table stopped emitting reads as
         valid structurally and produces nothing at run time.
+
+        One document shape cannot be loaded on its own, and the exception is
+        narrow on purpose. An **apply** document — the second half of every
+        fit→apply pair — names its fitted artifact by a *run-tree* path
+        (``"fit/rot.safetensors"``), where the first segment is a step name
+        that only means something inside the workflow that declares it. Loaded
+        standalone it raises ``[V15] artifact file not found``, which is the
+        loader being right rather than the demo being wrong. Such a document is
+        covered by its workflow's own entry in this same parametrization, and
+        covered *better*: that load applies the step's ``set`` block and checks
+        the producing step really writes the file. So the exception is allowed
+        only when the workflow exists and names this document.
         """
+        from causalab.protocol.errors import ValidationError
         from causalab.protocol.loader import check_data_columns, load
 
         raw = json.loads(document.read_text())
@@ -131,8 +169,20 @@ class TestDocuments:
                 inner = loaded.inner.get(name)
                 if inner is not None:
                     check_data_columns(inner, env)
-        else:
+            return
+        try:
             check_data_columns(load(document, env), env)
+        except ValidationError as error:
+            if error.rule != 15 or not _run_tree_load(document):
+                raise
+            carriers = _workflows_naming(document)
+            assert carriers, (
+                f"{document.name} loads from a run tree "
+                f"({_run_tree_load(document)}) but no workflow in "
+                f"{document.parents[1].name}/ names it as a step — an apply "
+                "document is only loadable inside the workflow that supplies "
+                "its artifact"
+            )
 
     @pytest.mark.parametrize("document", _documents(), ids=_ids(_documents()))
     def test_has_a_description(self, document: Path) -> None:
@@ -140,7 +190,8 @@ class TestDocuments:
         (spec §7). A demo document without one is a document whose reason to
         exist lives only in the markdown beside it."""
         raw = json.loads(document.read_text())
-        assert raw.get("description"), f"{document.name} declares no description"
+        header = raw.get("header", raw)  # a workflow keeps its description at the top
+        assert header.get("description"), f"{document.name} declares no description"
 
 
 class TestFormat:
@@ -201,6 +252,7 @@ class TestPastedOutput:
 
     @pytest.mark.parametrize("demo_dir", _demo_dirs(), ids=_ids(_demo_dirs()))
     def test_quoted_digests_are_current(self, demo_dir: Path) -> None:
+        from causalab.protocol.errors import ValidationError
         from causalab.protocol.loader import load
         from causalab.workflow.document import load_workflow
 
@@ -211,13 +263,22 @@ class TestPastedOutput:
             env = _env(document)
             if "steps" in json.loads(document.read_text()):
                 workflow = load_workflow(document, env)
-                real.add(workflow.digest)
-                # a step's digest is its document's *with `set` applied*, so it
-                # differs from the same document loaded standalone
+                # no whole-workflow digest is quotable (§7): the identities are
+                # per step. A step's digest is its document's *with `set`
+                # applied*, so it differs from the same document loaded standalone
                 real.update(workflow.inner_digests.values())
                 real.update(workflow.step_digests.values())
             else:
-                loaded = load(document, env)
+                try:
+                    loaded = load(document, env)
+                except ValidationError as error:
+                    # an apply document does not load on its own — its artifact
+                    # lives in a run tree. Its digests are already in `real`
+                    # via the workflow that runs it (inner_digests /
+                    # step_digests above), so nothing is lost by skipping it.
+                    if error.rule != 15 or not _run_tree_load(document):
+                        raise
+                    continue
                 real.add(loaded.document_digest)
                 real.update(loaded.point_digests)
         # a demo also quotes the content digest a table was built at — the
@@ -226,7 +287,6 @@ class TestPastedOutput:
         real.update(
             hashlib.sha256(table.read_bytes()).hexdigest()
             for table in demo_dir.glob("data/*/*.json")
-            if not table.name.endswith(".manifest.json")
         )
 
         quoted = {

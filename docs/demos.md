@@ -115,8 +115,8 @@ Then two things, in this order:
    that`) beats three paragraphs. The third column is the one that earns its
    place: the reader can see *what* the field says.
 
-A demo that touches no network — a task-design demo — has no protocol
-document. It puts the **dataset build** in this section instead and says so in
+A demo that touches no network — a task-design demo — has no intervention
+specification. It puts the **dataset build** in this section instead and says so in
 its first line, because the artifact that fully determines the experiment is
 what this section is for.
 
@@ -218,7 +218,7 @@ demos/
     ├── <demo>.md              # the demo, or 01_x.md, 02_y.md for a series
     ├── protocols/*.json       # every document the demo runs
     ├── workflows/*.json       # a workflow demo's chain
-    ├── data/<ref>/*.json      # the serialized tables, with their manifests
+    ├── data/<ref>/*.json      # the serialized tables — nothing beside them
     └── figures/*.png
 ```
 
@@ -227,15 +227,50 @@ document is free to be pinned, small, and pedagogically shaped; the shipped
 presets are none of those things, and a demo that edits one to make a point
 breaks the preset.
 
-**Tables are committed** with their `<ref>.manifest.json` sidecar. The table is
-a build product, the manifest is the recipe, and a reader who wants to know
-where 64 rows came from reads the sidecar rather than guessing.
+**Tables are committed** alone — nothing sits beside them (spec §2.2). The
+table is a build product, and the command that built it is in the demo's
+markdown, so a reader who wants to know where 64 rows came from reads the
+command rather than guessing. What holds a demo to its tables is the demo's
+**workflow**, through its `pins` section (workflow spec §7) — the digests of
+every document, script and table the workflow touches, stamped by
+`causalab pin` or by the first `run`, and refused on a later load if any of
+them moved. A demo workflow shipped unpinned is stamped by whoever runs it
+first; one shipped pinned inlines its `pins` like any other section, and a
+demo edit that moves a pinned file re-stamps with `causalab pin`.
 
 **`.png` is the figure format.** `.pdf` only when a vector figure is genuinely
 needed, `.html` only for a figure that must be interactive
 (`causalab.io.plots.figure_format`). A figure carries no record, so a demo
 whose figure matters declares the numbers beside it — the shipped
 `workflow_figures` script writes a `plotted` table for exactly this.
+
+## 4.1 A learned method is two documents
+
+Any featurizer the document *trains* — a `subspace` rotation, a `gate` mask —
+makes the run's own metric tables **train scores**: they are the fit re-scored
+on the split that chose it. A demo may not quote them as a result.
+
+The second document is an **apply**: no `train` section, a `file_path` naming
+the fitted artifact, and any split you like. Its `ArtifactIdentity` — model,
+site, k, parametrization, dtype — is checked on load, so an apply pointed at the
+wrong cell is refused rather than scored.
+
+```json
+"fit":   {"type": "intervention_protocol", "document": "../protocols/das_fit.json"},
+"apply": {"type": "intervention_protocol", "document": "../protocols/das_apply.json"}
+```
+
+The gap is not academic. `demos/onboarding_tutorial/04_subspace.md` measures
+**0.945 train against 0.531 held-out** at k = 16 — the fit's own number is
+nearly twice the real one, and it is worst exactly where a reader is most
+likely to stop reading.
+
+**An apply document does not `validate` on its own**, and that is correct: its
+`file_path` is a *run-tree* path (`"fit/rot.safetensors"`) whose leading segment
+is a step name, which only means something inside the workflow that declares it.
+Standalone it is `[V15] artifact file not found`; validate the workflow.
+`tests/demos/test_demos.py` allows exactly this exception, and only when a
+workflow in the same demo names the document as a step.
 
 ## 5. Voice
 
@@ -283,7 +318,8 @@ not nowhere.
 
 Before opening the PR:
 
-- [ ] every JSON in the demo passes `causalab validate … --data --data-root <root>`
+- [ ] every JSON in the demo passes `causalab validate … --data --data-root <root>`,
+      or, for the second half of a fit→apply pair, its **workflow** does (below)
 - [ ] every `explain` block is pasted output, not typed by hand
 - [ ] every document is inlined verbatim, beside a link to the file it copies
 - [ ] `Results` has one subsection per `Experimental design` question, same order
@@ -291,7 +327,21 @@ Before opening the PR:
 - [ ] every figure caption says what produced it
 - [ ] the header's `Reproduced` field is true
 - [ ] `Limits` is not empty
+- [ ] **if the method learns anything, the demo ships a fit *and* an apply**,
+      and quotes the apply's number
 
 `tests/demos/test_demos.py` checks the mechanical half of this list — the
 documents, the links, the inlined copies, the quoted digests and the section
 skeleton. The rest is review.
+
+When a change moves a digest — an edited demo document, or a change to what
+the canonical form hashes — the two mechanical checks that break are the
+quoted digests and the inlined copies, and both are repaired mechanically:
+re-pin each quotation to the digest the document has now (`causalab digest
+<document>` prints it), keeping the number of hexits the demo quoted, and
+re-inline any document whose bytes moved. Work out *which* digest a stale
+quotation meant by computing every digest twice, once for the working tree and
+once for the baseline commit — the baseline's files read by the baseline's
+code — so a change that moves every digest without touching a demo file is
+re-pinned as readily as an edited document. A quotation that cannot be placed
+that way is re-pasted from the current `explain` output rather than guessed at.

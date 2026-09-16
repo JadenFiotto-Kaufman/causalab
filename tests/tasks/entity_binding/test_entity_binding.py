@@ -590,14 +590,21 @@ class TestEntityBindingConstantsProperty:
 
 
 class TestEntityBindingOutputTokens:
-    """``output_tokens`` contract — entity answer forms, dedup-ordered union (#296)."""
+    """``ScoringSpec`` contract — entity answer forms, dedup-ordered union."""
 
     pytestmark = pytest.mark.property
 
-    def test_declares_single_positional_answer_key(self) -> None:
-        """``output_tokens`` declares the single ``positional_answer`` key."""
-        ot = _DEFAULT_MODEL.output_tokens
-        assert ot is not None and list(ot.keys()) == ["positional_answer"]
+    def test_declares_forms_on_the_variable_that_holds_the_answer(self) -> None:
+        """The forms are declared on ``raw_output`` — the variable whose value
+        *is* the answer entity — not on the interchange target
+        ``positional_answer``, whose values are group indices. Declared there,
+        the serializer's row lookup (keyed by the variable's value) refused
+        every row while the string grader still credited it."""
+        spec = _DEFAULT_MODEL.scoring
+        assert spec is not None and list(spec.forms) == ["raw_output"]
+        assert spec.answer_variable == "raw_output"
+        assert _DEFAULT_MODEL.output_tokens is not None
+        assert list(_DEFAULT_MODEL.output_tokens) == ["raw_output"]
 
     def test_keys_are_dedup_insertion_ordered_union_of_pools(self) -> None:
         """Pin the contract: keys are the dedup union of pools, each as its forms."""
@@ -606,10 +613,15 @@ class TestEntityBindingOutputTokens:
         for pool in cfg.entity_pools.values():
             expected.extend(pool)
         expected = list(dict.fromkeys(expected))
-        ot = _DEFAULT_MODEL.output_tokens["positional_answer"]
+        ot = _DEFAULT_MODEL.output_tokens["raw_output"]
         assert list(ot.keys()) == expected
         assert all(ot[e] == [f" {e}", e] for e in expected)
 
-    def test_match_mode_is_prefix(self) -> None:
-        """The answer may carry continuation tokens → ``prefix`` match."""
-        assert _DEFAULT_MODEL.match_modes["positional_answer"] == "prefix"
+    def test_string_mode_is_prefix(self) -> None:
+        """The answer may carry continuation tokens → ``prefix`` string mode,
+        which a ``match`` metric over this task's table declares as
+        ``first_token`` (§2.10)."""
+        spec = _DEFAULT_MODEL.scoring
+        assert spec is not None
+        assert spec.string_mode == "prefix" and spec.protocol_mode == "first_token"
+        assert _DEFAULT_MODEL.match_modes == {"raw_output": "prefix"}  # derived view

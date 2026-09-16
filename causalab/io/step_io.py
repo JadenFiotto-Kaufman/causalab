@@ -39,13 +39,19 @@ from causalab.protocol.errors import ProtocolError
 from causalab.protocol.resolve import (
     ARTIFACT_IDENTITY_KEYS,
     build_artifact_identity,
+    entry_identity,
+    entry_table,
     read_safetensors_metadata,
 )
 from causalab.protocol.tables import read_table, write_table
 
 __all__ = [
     "StepError",
+    # re-exported from ``causalab.protocol.resolve`` (the identity schema's
+    # owner, where both now live): scripts that learned the header helpers
+    # from here keep importing them from here
     "entry_identity",
+    "entry_table",
     "frame",
     "inherited_identity",
     "read_table",
@@ -125,41 +131,6 @@ def write_values(path: Path, values: Mapping[str, Any]) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _entry_table(metadata: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
-    if not metadata:
-        return {}
-    raw = metadata.get("entries")
-    if not isinstance(raw, str):
-        return {}
-    try:
-        table = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    return table if isinstance(table, dict) else {}
-
-
-def entry_identity(metadata: Mapping[str, Any] | None, key: str) -> dict[str, Any]:
-    """The identity of one bundle entry: the file-level stamp, overridden by
-    whatever the ``entries`` table records for that key (the per-entry fields a
-    swept producer could not stamp file-wide)."""
-    if not metadata:
-        return {}
-    identity = {
-        field: value
-        for field, value in metadata.items()
-        if field in ARTIFACT_IDENTITY_KEYS
-    }
-    entry = _entry_table(metadata).get(key, {})
-    identity.update(
-        {
-            field: value
-            for field, value in entry.items()
-            if field in ARTIFACT_IDENTITY_KEYS
-        }
-    )
-    return identity
-
-
 def read_tensor(
     path: Path,
     *,
@@ -187,7 +158,7 @@ def read_tensor_with_identity(
 ) -> tuple[Any, dict[str, Any]]:
     """:func:`read_tensor`, plus the entry's identity — what the runner needs
     in order to inherit provenance."""
-    from safetensors.torch import load_file
+    from causalab.io.tensor_files import load_file
 
     target = Path(path)
     label = what or str(target)
@@ -195,7 +166,7 @@ def read_tensor_with_identity(
         raise StepError(f"{label}: input tensor {str(target)!r} does not exist")
     metadata = read_safetensors_metadata(target)
     tensors = load_file(str(target))
-    entries = _entry_table(metadata)
+    entries = entry_table(metadata)
     key = select_entry(
         tensors.keys(),
         slot if slot is not None else _sole_slot(tensors.keys(), entries, label),
@@ -248,7 +219,7 @@ def write_tensor(
     script that produces a loadable artifact has to declare them. Inherited
     fields win on conflict: what the inputs prove beats what a script claims."""
     import torch
-    from safetensors.torch import save_file
+    from causalab.io.tensor_files import save_file
 
     if not isinstance(tensor, torch.Tensor):
         raise StepError(f"expected a tensor, got {type(tensor).__name__}")
@@ -285,8 +256,7 @@ def stamp_tensor(path: Path, identity: Mapping[str, Any], *, what: str) -> None:
     Rewrites the file with its tensors unchanged and the metadata filled in —
     safetensors headers are not editable in place, and a bundle is small enough
     that a round-trip is cheaper than teaching every script to stamp."""
-    import torch
-    from safetensors.torch import load_file, save_file
+    from causalab.io.tensor_files import load_file, save_file
 
     from causalab.protocol.bundles import RAGGED_SUFFIX, parse_entry_key
 
@@ -297,7 +267,13 @@ def stamp_tensor(path: Path, identity: Mapping[str, Any], *, what: str) -> None:
         raise StepError(f"{what}: not a readable .safetensors bundle: {err}") from err
     existing = read_safetensors_metadata(target) or {}
     # what the script declared about fields only it knows (a basis's rank),
-    # overlaid by what the inputs *prove* — inherited beats claimed
+    # overlaid by what the inputs *prove* — inherited beats claimed.
+    #
+    # Keyed on ARTIFACT_IDENTITY_KEYS, so adding a key there widens what a
+    # re-stamped bundle carries forward. `implementations` was added for the
+    # nnsight engine's applied requirements and inherits deliberately: the
+    # tensors a script re-stamps really did come through that kernel path, so
+    # dropping it would lose provenance the header is the only record of.
     declared = {
         field: value
         for field, value in existing.items()
@@ -307,13 +283,13 @@ def stamp_tensor(path: Path, identity: Mapping[str, Any], *, what: str) -> None:
     dtypes = {
         str(value.dtype)
         for key, value in tensors.items()
-        if isinstance(value, torch.Tensor) and not key.endswith(RAGGED_SUFFIX)
+        if not key.endswith(RAGGED_SUFFIX)
     }
     if len(dtypes) == 1:
         sole = dtypes.pop()
         stamped.setdefault("dtype", _DTYPE_NAMES.get(sole, sole))
     metadata = build_artifact_identity(**stamped)
-    entries = _entry_table(existing)
+    entries = entry_table(existing)
     if not entries:
         entries = {
             key: {"slot": parse_entry_key(str(key))[0], "coords": {}}
