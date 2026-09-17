@@ -50,7 +50,7 @@ LLAMA_READS = [
     ("attention_premix", 1, None),
     ("attention_premix", 1, 1),  # per-head slice of the o-projection input
     ("attention_result", 1, None),
-    ("attention_result", 1, 2),  # derived after the trace, on the o_proj envoy
+    ("attention_result", 1, 2),  # derived in the block, through the o_proj envoy
     ("attention_output", 1, None),
     ("block_mid", 1, None),
     ("mlp_input_norm", 1, None),

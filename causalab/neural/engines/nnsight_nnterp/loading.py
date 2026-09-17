@@ -34,7 +34,10 @@ Everything downstream is structural and works on the meta tree:
 ``ModelInfo`` comes from the config, the adapter from the module tree,
 ``resolve_site`` from attribute walks, and the encoding from the tokenizer.
 The bundle records ``device="cpu"`` — where the client finishes the slices
-the server gathered.
+the server gathered. A weight-free bundle's ``dtype`` is structure, not
+numerics (the server's model decides those), and a routed-experts checkpoint
+builds weight-free in ``bf16`` only: nnterp's load-time shape check runs the
+meta forward, and torch's meta ``grouped_mm`` has no other kernel.
 """
 
 from __future__ import annotations
@@ -153,11 +156,9 @@ def load_model(
         key,
         revision=revision,
         dtype=TORCH_DTYPES[dtype],
-        # nnterp passes attn_implementation="eager" itself when it enables the
-        # accessor, and a second spelling of it is a duplicate keyword
         **(
             {}
-            if attn_implementation is None or eager
+            if attn_implementation is None
             else {"attn_implementation": attn_implementation}
         ),
         enable_attention_probs=eager,

@@ -26,9 +26,14 @@ The NDIF rules the structure enforces:
   another process; a gradient-enabled program keeps device tensors and
   their graph.
 * **the eager switch happens in the block**, on the module the model's
-  envoy resolves to where the block runs, as its first statement, and is
-  reversed once the forward has finished: a config mutated on the client is
-  not in the payload.
+  envoy resolves to where the block runs, before any operation, and is
+  reversed in a ``finally`` once the forward has finished or been stopped:
+  a config mutated on the client is not in the payload. That module must be
+  the served model itself, so a block handed a ``meta`` copy (a sandboxed
+  NDIF deployment) refuses by name first.
+* **the forward runs no further than it is read.** A plain forward is
+  stopped after its group's last operation (``tracer.stop()``); a generate
+  consumes its whole run, and a gradient-enabled forward runs whole.
 * **operands stay on the server.** Inside a session, a read a later group
   consumes is finished into ``flow`` (its feature tail applied from the
   shipped stack) and the later group's write looks it up there.
@@ -196,10 +201,12 @@ def execute(
     out: dict[str, Any],
 ) -> None:
     """The body of one trace: the eager switch, every operation in forward
-    order, the decode walk, and the switch put back once the forward is
-    over."""
+    order, the decode walk or the early stop, and the switch put back once
+    the forward is over. This is the last statement of its block: a plain
+    forward is stopped after its last operation, which ends the block."""
     out.update(reads={}, routing={}, fired=[], mismatch={}, steps={})
     module = model._module
+    _refuse_meta(module, program)
     previous = switch_to_eager(module) if program.needs_eager else None
     try:
         if previous is not None:
@@ -219,17 +226,52 @@ def execute(
                 _land_writeback(op.site, pending.pop(op.key))
         if program.depth:
             _decode(model, tracer, program, out)
-        elif previous is not None:
-            # parks until the forward is over: the implementation must
-            # outlive every attention layer still to run
-            _ = model.output
         out["mismatch"] = {
             key: (_offload(missing, program), per_example)
             for key, (missing, per_example) in out["mismatch"].items()
         }
+        if program.depth:
+            pass  # ``tracer.result`` consumed the whole run
+        elif not program.grad:
+            # nothing past the last operation is read, so the forward ends
+            # here: a read at layer 5 of 80 runs 6 layers. The stop unwinds
+            # this function — the ``finally`` below puts the attention back
+            # while the forward is parked — and ends the trace's block, whose
+            # saved container is already filled
+            tracer.stop()
+        elif previous is not None:
+            # a gradient-enabled forward runs whole: a stop makes whatever the
+            # block still holds after this function unreachable. Park until
+            # the forward is over — the eager implementation must outlive
+            # every attention layer still to run
+            _ = model.output
     finally:
         if previous is not None:
             restore_attention(module, previous)
+
+
+def _refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
+    """Refuse a block that was handed a weight-free model.
+
+    The block works on the model its envoy resolves to where it runs: it
+    flips that model's attention implementation, calls its head and its
+    mixer projections, and reads its generation config. A sandboxed
+    (untrusted) NDIF deployment runs the block in a runner process against a
+    ``meta`` copy while the forward runs on the host, so the switch would
+    flip the wrong model and a projection would call meta weights."""
+    parameter = next(module.parameters(), None)
+    if parameter is not None and parameter.is_meta:
+        raise ProtocolError(
+            "P4",
+            f"group {program.label!r} of {program.model_key!r} was handed a "
+            "model whose parameters are on 'meta' where its block runs. The "
+            "nnsight_nnterp engine needs a trusted, in-process NDIF "
+            "deployment, where the block runs against the served model "
+            "itself: a sandboxed (untrusted) deployment runs it in a runner "
+            "process against a weight-free copy, where the eager-attention switch "
+            "would flip the wrong model and a head or mixer projection would "
+            "call meta weights.",
+        )
 
 
 def _offload(value: torch.Tensor, program: GroupProgram) -> torch.Tensor:
@@ -366,9 +408,8 @@ def _derive_as(site: ResolvedSite, rname: str, value: torch.Tensor) -> torch.Ten
 def _fire_positions(plan: FirePlan, n_fires: int, n_rows: int) -> list[list[int]]:
     """Positions on a fire axis, against the count the forward produced:
     ``all``, or one integer index (negative counts from the last fire)."""
-    if plan.whole:
+    if plan.index is None:
         return [list(range(n_fires))] * n_rows
-    assert plan.index is not None
     if not -n_fires <= plan.index < n_fires:
         raise ProtocolError(
             "P2",

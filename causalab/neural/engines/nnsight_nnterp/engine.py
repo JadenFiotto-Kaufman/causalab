@@ -81,13 +81,15 @@ class NnterpEngine(Engine):
         *,
         device: str = "cpu",
         bundle: NnterpBundle | None = None,
-        remote: bool | str = False,
+        remote: bool | str | None = None,
     ) -> None:
         self.device = device
         self.bundle = bundle
         #: Where the forwards run: ``False`` here, ``True`` (or a host URL) on
         #: NDIF against a weight-free bundle, ``"local"`` through nnsight's
         #: in-process dry run of the remote path against a loaded one.
+        #: ``None`` inherits the bundle's own — here for a bundle this engine
+        #: loads, on NDIF for a weight-free bundle the caller hands in.
         self.remote = remote
 
     @property

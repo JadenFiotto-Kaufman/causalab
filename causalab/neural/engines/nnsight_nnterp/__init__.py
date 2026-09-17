@@ -53,14 +53,23 @@ client-side config change. The structure follows from those rules:
 * one saved container per block, bound at block level; reads are gathered at
   their positions inside the forward and detached there, fires and mismatch
   counts come back as data;
-* the eager-attention switch is the block's own first statement;
+* the eager-attention switch is the block's own, before any operation;
 * with ``remote`` set, a whole point runs as one ``model.session`` — the
   groups in dependency order, operands flowing between the traces on the
-  server — against a weight-free bundle (:mod:`.loading`).
+  server — against a weight-free bundle (:mod:`.loading`), whose ``remote``
+  the executor and the engine inherit.
 
-``tests/neural/engines/nnsight_nnterp/test_ndif_shape.py`` pins these
-without a server: nnsight's ``remote="local"`` dry run executes against the
-caller's own frame and so hides all three failure classes.
+Remote mode needs a **trusted, in-process NDIF deployment with the same
+``causalab`` installed server-side**: the block is ``causalab``'s functions
+working on the served model itself, and it refuses a ``meta`` copy by name.
+:mod:`.executor` states the rest — the eager switch a hard kill can strand,
+featurizer stages shipping by value, where bit-identity holds.
+
+``tests/neural/engines/nnsight_nnterp/test_ndif_shape.py`` pins the
+structure, and ``test_faithful_server.py`` runs the deserialized program
+against a separately loaded model, results through a ``torch.save`` round
+trip — nnsight's ``remote="local"`` dry run executes against the caller's
+own frame and so hides all three failure classes.
 
 Requires the ``nnsight`` extra (``pip install 'causalab[nnsight]'``), which
 carries both packages.

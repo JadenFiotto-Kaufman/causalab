@@ -99,11 +99,11 @@ class ReadPlan:
 @dataclasses.dataclass(frozen=True)
 class FirePlan:
     """One per-fire read: its position axis is the kernel's fire index,
-    whose length only the forward knows — ``whole`` (``pos: all``) or one
-    integer ``index``, resolved against the count in the block."""
+    whose length only the forward knows — one integer ``index``, resolved
+    against the count in the block, or ``None`` for every fire
+    (``pos: all``)."""
 
     rname: str
-    whole: bool
     index: int | None
 
 

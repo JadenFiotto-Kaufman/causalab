@@ -19,8 +19,8 @@ The trace itself is :func:`~causalab.neural.engines.nnsight_nnterp.landers.run_p
 module-level functions over the program. **No trace body in this package
 reads ``self``**: nnsight ships every name a block reads, whole, so an
 executor inside a block would travel to NDIF with the document, the bundle,
-every earlier read and every cache (measured: a 50 MB payload against
-11 KB). The same program runs the same functions locally, so there is one
+every earlier read and every cache (measured: a 50 MB payload against the
+program's ~13.5 KB). The same program runs the same functions locally, so there is one
 code path — ``_run_group`` reads top to bottom as plan → program → run →
 finalize whatever ``remote`` is.
 
@@ -56,21 +56,52 @@ different kernels than prefill and a prefill address is no evidence the
 tensor exists per step.
 
 **Remote mode** (``remote=True``, a host URL, or ``"local"`` — nnsight's
-in-process dry run of the serialize → deserialize → execute path) runs the
-forwards on NDIF against a weight-free bundle. :meth:`NnterpExecutor.run_all`
-then runs the whole point as **one session**: every group is planned on the
-client, the groups run in dependency order inside one
-``model.session(remote=…)``, and a read a later group writes with flows
-between the traces on the server (its feature tail applied there from the
-shipped stack) instead of round-tripping through the client. A point with an
-operand that cannot be finished on the server — a ragged read, the ragged
+in-process dry run of the serialize → deserialize path, over a loaded
+bundle) runs the forwards on NDIF against a weight-free bundle.
+:meth:`NnterpExecutor.run_all` plans every group on the client, once, before
+any job is spent, and runs the point as **one session**: the groups in
+dependency order inside one ``model.session(remote=…)``, a read a later
+group writes with flowing between the traces on the server (its feature tail
+applied there from the shipped stack) instead of round-tripping through the
+client. An operand the server cannot finish — a ragged read, the ragged
 ``expert:`` face, a routed-interior read (its routing table travels with
-it), a state or per-fire read, a continuation read — falls back to one job
-per group with the operand shipped by value; so does a lazy
-:meth:`~causalab.neural.shared.executor_base.ExecutorBase.read_value`
-before ``run_all``. Remote mode refuses what cannot cross: a
-gradient-enabled executor (saved values come back detached) and a
-``pytorch_fn`` write (its code is the caller's, not the server's).
+it), a state or per-fire read, a continuation read — comes home first: the
+session is cut in front of the group that consumes it, which ships the
+operand by value, and the operands around it still flow. A lazy
+:meth:`~causalab.neural.shared.executor_base.ExecutorBase.read_value` before
+``run_all`` runs one job per group. A plain forward stops after its group's
+last operation, so a shallow read does not pay for the layers above it.
+Remote mode refuses what cannot cross: a gradient-enabled executor (saved
+values come back detached), a ``pytorch_fn`` write (its code is the
+caller's, not the server's), and a weight-free bundle asked to run in this
+process.
+
+What remote mode requires of the server, and what it does not promise:
+
+* **a trusted, in-process NDIF deployment with the same ``causalab``
+  installed.** The block is ``causalab``'s own functions, imported where it
+  runs, and it works on the served model itself — it flips that model's
+  attention implementation and calls its head and mixer projections. A
+  sandboxed (untrusted) deployment runs the block against a ``meta`` copy;
+  the block refuses there by name
+  (:func:`~causalab.neural.engines.nnsight_nnterp.landers.execute`). A
+  version skew between the two ``causalab`` installs is a skew between the
+  plan and the code that reads it.
+* **a hard kill mid-block can leave a shared deployment on eager
+  attention.** The switch is reversed in a ``finally``, which covers an
+  exception and an early stop; a worker killed between the switch and the
+  restore (a walltime, an OOM kill) runs no ``finally``, and the next
+  request on that replica runs eager until something switches it back.
+* **featurizer stages ship by value, per session.** A write's stack (and a
+  flowing read's) is pickled into the payload: a full-rank rotation at
+  hidden 8192 is 8192² fp32 entries, ~268 MB, in every session that uses
+  it. The program without stages is ~13.5 KB, beside the ~85 KB of nnterp
+  that a remote ``StandardizedTransformer`` registers for by-value pickling.
+* **bit-identity with the local path holds for CPU fp32.** A deployment
+  that runs requests under bf16 autocast computes the block's own
+  arithmetic (the featurizer tail, the write math, the projections) in
+  bf16, and agrees with a local fp32 run to bf16's tolerance, not to the
+  bit.
 """
 
 from __future__ import annotations
@@ -149,9 +180,7 @@ class _Read:
 @dataclasses.dataclass(frozen=True)
 class GroupPlan:
     """One planned group: the program that ships, and what stays on the
-    client to finish it — the fire declarations, the reads, the batch.
-    ``unflowable`` names the reads a later group consumes that cannot be
-    finished on the server."""
+    client to finish it — the fire declarations, the reads, the batch."""
 
     group: Group
     program: GroupProgram
@@ -159,7 +188,6 @@ class GroupPlan:
     tally: FireTally
     reads: tuple[_Read, ...]
     steps: tuple[_Read, ...]
-    unflowable: tuple[str, ...]
 
 
 def _anchored(spec: PositionSpec) -> bool:
@@ -179,17 +207,34 @@ class NnterpExecutor(ExecutorBase):
 
     ``remote`` is where the forwards run: ``False`` in this process,
     ``True`` (or a host URL) on NDIF, ``"local"`` through nnsight's
-    in-process dry run of the remote path. It defaults to the bundle's own
-    (a weight-free bundle can only run remotely).
+    in-process dry run of the remote path. ``None`` inherits the bundle's
+    own. The two combinations with a bundle:
+
+    * a **weight-free** bundle runs on NDIF only. ``False`` and ``"local"``
+      are refused: both run the forward in this process, where nnsight
+      would dispatch the whole checkpoint to serve it.
+    * a **loaded** bundle runs anywhere. Under ``True`` or a host URL its
+      weights sit idle — the block names the model by key and NDIF runs its
+      own copy — which is what lets one bundle serve a local reference and a
+      remote run side by side.
     """
 
     def __init__(
         self, *args: Any, remote: bool | str | None = None, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.remote: bool | str = (
-            getattr(self.bundle, "remote", False) if remote is None else remote
-        )
+        weight_free = bool(getattr(self.bundle, "remote", False))
+        self.remote: bool | str = weight_free if remote is None else remote
+        if weight_free and (not self.remote or self.remote == "local"):
+            raise ProtocolError(
+                "P4",
+                f"the bundle for {self.bundle.key!r} is weight-free (loaded "
+                f"with remote=True) and cannot run with remote={self.remote!r}: "
+                "that forward runs in this process, where nnsight would "
+                "dispatch the whole checkpoint to serve it. Run it on NDIF "
+                "(remote=True or a host URL, or leave remote unset to inherit "
+                "the bundle's), or load the bundle with its weights.",
+            )
         if self.remote and self.grad_enabled:
             raise ProtocolError(
                 "P4",
@@ -218,44 +263,117 @@ class NnterpExecutor(ExecutorBase):
             self.read_value(operand)
         plan = self._plan(model, input_role)
         with self._kernel_path():
-            out = run_program(self.bundle.model, plan.program, {}, remote=self.remote)
+            out = run_program(
+                self.bundle.model, self._bound(plan.program), {}, remote=self.remote
+            )
         self._finalize(plan, out)
 
     def run_all(self) -> None:
         """Run every group the document implies. Locally that is the lazy
-        per-group run; remotely the whole point is one session
-        (:func:`~causalab.neural.engines.nnsight_nnterp.landers.run_session`):
-        every group planned here, run in dependency order there, operands
-        flowing between the traces on the server, reads finalized here
-        afterwards. A point with an operand the server cannot finish runs
-        one job per group instead."""
+        per-group run. Remotely every group is planned here, once, before
+        any job is spent, and the groups run in dependency order as sessions
+        (:func:`~causalab.neural.engines.nnsight_nnterp.landers.run_session`)
+        — one where every operand can flow between the traces on the server,
+        which is the usual point. An operand the server cannot finish
+        (:meth:`_flowable`) has to come home first, so the session is cut in
+        front of the group that consumes it and that group's program is
+        bound to the finished value; the operands around it still flow."""
         if not self.remote:
             super().run_all()
             return
-        self.check_write_widths()
-        self.check_answer_forms()
-        self.check_scoring()
-        self.check_edit_groups()
-        order = self._group_order()
-        flowing = frozenset(
-            operand
-            for model, _ in order
-            for operand in self._operand_reads(model)
-            if operand not in self._read_values
-        )
-        plans = [self._plan(*group, flowing=flowing) for group in order]
-        if any(plan.unflowable for plan in plans):
-            for group in order:
-                self._run_group(*group)
-            return
-        with self._kernel_path():
-            results = run_session(
-                self.bundle.model,
-                tuple(plan.program for plan in plans),
-                remote=self.remote,
+        self._preflight()
+        segments = self._segments(self._group_order())
+        plans = [
+            [self._plan(*group, flowing=flowing) for group in groups]
+            for groups, flowing in segments
+        ]
+        for segment in plans:
+            programs = tuple(self._bound(plan.program) for plan in segment)
+            with self._kernel_path():
+                results = run_session(self.bundle.model, programs, remote=self.remote)
+            for plan in segment:
+                self._finalize(plan, results[plan.program.label])
+
+    def _segments(self, order: list[Group]) -> list[tuple[list[Group], frozenset[str]]]:
+        """``order`` cut into sessions, each with the reads that flow inside
+        it: a group that consumes an unflowable read of the running session
+        opens the next one."""
+        segments: list[tuple[list[Group], set[str]]] = [([], set())]
+        produced: set[str] = set()
+        for group in order:
+            local = [name for name in self._operand_reads(group[0]) if name in produced]
+            if any(not self._flowable(name) for name in local):
+                segments.append(([], set()))
+                produced, local = set(), []
+            segments[-1][0].append(group)
+            segments[-1][1].update(local)
+            produced |= {
+                rname
+                for rname, read in self.doc.reads.items()
+                if (str(read.model), str(read.input)) == group
+            }
+        return [(groups, frozenset(flowing)) for groups, flowing in segments]
+
+    def _flowable(self, rname: str) -> bool:
+        """Whether the server can finish read ``rname`` into a session's
+        flow: a dense, positioned prompt-frame read off no routing table.
+        A ragged read, the ragged ``expert:`` face, a routed-interior read
+        (its routing table travels with it), a state or per-fire read, a
+        whole-native read and a continuation read are finished here."""
+        read = self.doc.reads[rname]
+        if generated_budget(self.doc, read.pos):
+            return False
+        model, input_role = str(read.model), str(read.input)
+        tap = self._read_taps(model, input_role, [(rname, read)])[rname]
+        site = tap.site
+        address = self._address(f"read {rname!r}", tap.capture)
+        if (
+            not site.shape.has_contract_form
+            or site.expert is not None
+            or site.shape.state_axes
+            or (
+                address is not None and (address.expert_rows or address.fires != "once")
             )
-        for plan in plans:
-            self._finalize(plan, results[plan.program.label])
+        ):
+            return False
+        per_row = self._positions(
+            read.pos, self._batch(input_role), input_role, cell=rname
+        )
+        return len({len(row) for row in per_row}) == 1
+
+    def _bound(self, program: GroupProgram) -> GroupProgram:
+        """``program`` with every read operand this client holds shipped by
+        value — what an earlier job brought home. A read operand left out is
+        one the running session's flow supplies."""
+
+        def bound(op: Any) -> Any:
+            write = op.write
+            if write is None:
+                return op
+            held = [
+                name
+                for name in sorted(write.read_operands)
+                if name in self._read_values
+            ]
+            if not held:
+                return op
+            return dataclasses.replace(
+                op,
+                write=dataclasses.replace(
+                    write,
+                    operands={
+                        **write.operands,
+                        **{name: self._read_values[name] for name in held},
+                    },
+                    operand_routing={
+                        name: self._read_routing[name]
+                        for name in held
+                        if name in self._read_routing
+                    },
+                ),
+            )
+
+        return dataclasses.replace(program, ops=tuple(bound(op) for op in program.ops))
 
     def _kernel_path(self) -> Any:
         """The torch path for the DeltaNet kernel globals around a forward
@@ -310,9 +428,10 @@ class NnterpExecutor(ExecutorBase):
     def _plan(
         self, model: str, input_role: str, *, flowing: frozenset[str] = frozenset()
     ) -> GroupPlan:
-        """Everything one group's forward needs, resolved and frozen.
-        ``flowing`` names the reads a later group of the same session
-        consumes; each gets the plan that finishes it on the server."""
+        """Everything one group's forward needs but the values of its read
+        operands (:meth:`_bound`), resolved and frozen. ``flowing`` names the
+        reads a later group of the same session consumes; each gets the plan
+        that finishes it on the server."""
         prompt: list[tuple[str, ReadSpec]] = []
         decode: list[tuple[str, ReadSpec]] = []
         for rname, read in self.doc.reads.items():
@@ -326,20 +445,14 @@ class NnterpExecutor(ExecutorBase):
 
         reads: list[_Read] = []
         captures = []
-        unflowable: list[str] = []
         for rname, tap in self._read_taps(model, input_role, prompt).items():
             read = self.doc.reads[rname]
             address = self._address(f"read {rname!r}", tap.capture)
             plan, per_row = self._read_plan(
                 rname, read, tap, address, batch, input_role, flows=rname in flowing
             )
-            if rname in flowing and (
-                not isinstance(plan, ReadPlan) or plan.flow is None
-            ):
-                unflowable.append(rname)
             reads.append(_Read(rname, read, tap.site, per_row))
             captures.append((tap.capture, address, (plan,)))
-        unflowable += [rname for rname, _ in decode if rname in flowing]
 
         tally = FireTally()
         writes = []
@@ -351,8 +464,11 @@ class NnterpExecutor(ExecutorBase):
         steps, step_plans, step_captures = self._step_plans(decode)
         ops = schedule(captures, writes)
         step_ops = schedule(step_captures, [])
-        # instrument every anchor before its forward runs (the first .source
-        # on a module rewrites the forward); a bare access outside the trace
+        # build every anchor's `.source` before the trace opens: the block
+        # navigates ops by name, and the first access parses the forward. On
+        # a loaded tree that access also rewrites the forward, which must
+        # precede the run; on a weight-free tree only the parse happens here
+        # — the server instruments its own module when the block drills
         anchors = {
             id(op.site.module): op.site.module
             for op in ops + step_ops
@@ -392,7 +508,6 @@ class NnterpExecutor(ExecutorBase):
             tally=tally,
             reads=tuple(reads),
             steps=steps,
-            unflowable=tuple(unflowable),
         )
 
     def _address(self, what: str, site: ResolvedSite) -> SourceAddress | None:
@@ -442,21 +557,20 @@ class NnterpExecutor(ExecutorBase):
         flows: bool,
     ) -> tuple[ReadPlan | FirePlan, list[list[int]] | None]:
         """How the block reduces one prompt-frame read, and the positions it
-        gathers at. A read a later group consumes (``flows``) also gets the
-        plan that finishes it on the server — when it can be: a dense,
-        positioned read off no routing table."""
+        gathers at. A read a later group of the session consumes (``flows``,
+        which :meth:`_flowable` admitted) also gets the plan that finishes
+        it on the server."""
         site = tap.site
         if address is not None and address.fires == "per_chunk":
             return self._fire_plan(rname, read.pos), None
         if not site.shape.has_contract_form:
+            # the tap's own refusals (positions, featurizer, dims) before the
+            # forward, as a write's are: remotely the whole (rows, heads,
+            # query, key) tensor would otherwise be a job and a download
+            # spent on a read ``_finalize_read`` then refuses
+            whole_native_tensor(rname, read, None, site)
             return ReadPlan(rname, None), None
         per_row = self._positions(read.pos, batch, input_role, cell=rname)
-        flowable = (
-            site.expert is None
-            and not site.shape.state_axes
-            and not (address is not None and address.expert_rows)
-            and len({len(row) for row in per_row}) == 1
-        )
         plan = ReadPlan(
             rname,
             per_row,
@@ -464,7 +578,7 @@ class NnterpExecutor(ExecutorBase):
             derive=site if site.derivation is not None else None,
             flow=(
                 FlowPlan(site, self._read_stack(read, site), read.dims)
-                if flows and flowable
+                if flows
                 else None
             ),
         )
@@ -477,7 +591,7 @@ class NnterpExecutor(ExecutorBase):
         spec = self._spec(pos)
         anchored = _anchored(spec)
         if not anchored and getattr(spec, "all", None) is True:
-            return FirePlan(rname, True, None)
+            return FirePlan(rname, None)
         index = spec.index if isinstance(spec.index, int) else None
         if anchored or index is None:
             raise ProtocolError(
@@ -487,7 +601,7 @@ class NnterpExecutor(ExecutorBase):
                 '"all" or a plain integer index resolves there — text '
                 "anchors and spans have nothing to resolve against.",
             )
-        return FirePlan(rname, False, index)
+        return FirePlan(rname, index)
 
     def _write_groups(
         self, write_names: tuple[str, ...]
@@ -524,15 +638,16 @@ class NnterpExecutor(ExecutorBase):
         batch: EncodedBatch,
         input_role: str,
     ) -> WritePlan:
-        """Every write at one address with its positions, operands and
-        stacks looked up — the write math's services as tables
+        """Every write at one address with its positions, artifact operands
+        and stacks looked up — the write math's services as tables
         (``ExecutorBase._write_services`` is the same services as bound
-        methods). A read operand not yet run is left to the session's flow."""
+        methods). A read operand's value is not planned: :meth:`_bound`
+        ships the ones the client holds when the program runs, and the
+        session's flow supplies the rest."""
         per_fire = address is not None and address.fires == "per_chunk"
         positions: dict[str, list[list[int]]] = {}
         operands: dict[str, Any] = {}
         read_operands: set[str] = set()
-        routing: dict[str, torch.Tensor] = {}
         code = None
         for ename, write, entry_site in entries:
             if str(write.do.mechanism) == "pytorch_fn":
@@ -554,12 +669,12 @@ class NnterpExecutor(ExecutorBase):
             for name in operand_names(write.do.payload):
                 if name in self.doc.reads:
                     read_operands.add(name)
-                    if name in self._read_values:
-                        operands[name] = self._read_values[name]
-                    if name in self._read_routing:
-                        routing[name] = self._read_routing[name]
                 elif name not in operands:
-                    resolved = self._client_operand(name)
+                    # a featurizer slot or a params entry, resolved here where
+                    # the artifacts are. A payload string that names neither is
+                    # a mechanism option (``gaussian``'s ``axis``): the block
+                    # refuses it as unresolved if a mechanism ever asks
+                    resolved = self._artifact_operand(name)
                     if resolved is not None:
                         operands[name] = resolved
         return WritePlan(
@@ -572,22 +687,10 @@ class NnterpExecutor(ExecutorBase):
             operands=operands,
             read_operands=frozenset(read_operands),
             positioned={name: self._positioned(name) for name in read_operands},
-            operand_routing=routing,
+            operand_routing={},
             code=code,
             fire_index=self._write_fire_indices(site, entries) if per_fire else {},
         )
-
-    def _client_operand(self, name: str) -> "torch.Tensor | float | None":
-        """A featurizer slot or a params entry, resolved here where the
-        artifacts are; ``None`` for a payload string that names no operand
-        (a mechanism option such as ``gaussian``'s ``axis``) — the block
-        refuses it as unresolved if a mechanism ever asks."""
-        try:
-            return self._operand_lookup(name)
-        except ProtocolError as error:
-            if "did not resolve at run time" in str(error):
-                return None
-            raise
 
     def _write_fire_indices(
         self, site: ResolvedSite, entries: list[tuple[str, WriteSpec, ResolvedSite]]

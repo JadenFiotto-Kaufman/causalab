@@ -1,21 +1,25 @@
-"""The NDIF shape of the engine, pinned without a server.
+"""The NDIF shape of the engine: its structure, and its remote surface.
 
-nnsight's ``remote="local"`` runs the serialize → deserialize → execute path
-in this process, but it runs the deserialized block **against the caller's
-own frame**, so it cannot show the three ways a block that passes it still
-fails on a real server:
+nnsight ships a traced block as source plus every name the block reads, each
+pickled whole, and a server returns only the saved block-level variables. So
+three properties of every trace body are pinned here, statically over the
+package's AST and dynamically over what nnsight's own block reduction
+captures:
 
-1. a block that reads ``self`` ships the whole executor (measured: 50 MB
-   against 11 KB) — the dry run pickles it happily;
-2. a value saved into a dict slot, or a client object mutated in the block,
-   never comes back — in one process the client's object *is* the block's;
-3. a config mutated on the client (the eager switch) never reaches the
-   server's model — in one process it is the same model.
+1. no body reads ``self`` — a block that does ships the whole executor
+   (measured: 50 MB against the program's 13.5 KB);
+2. every save is a container bound at block level — a value saved into a
+   dict slot never comes back;
+3. a body reads only its function's own data — parameters, block variables,
+   imports, module-level functions.
 
-So the properties are pinned directly: the structure of every trace body
-(an AST tripwire), the size of the payload and its independence from the
-executor, the parity of the session path with the local path, and the
-weight-free bundle the remote tier loads.
+What a server does with the payload — the deserialized program on a
+separate model, results through a ``torch.save`` round trip — is
+``test_faithful_server.py``'s, over ``tests/_helpers/faithful_server.py``.
+nnsight's ``remote="local"`` is not that: it deserializes the block and then
+runs the original tracer **against the caller's own frame**, so it checks
+pickling and imports only. It stays a mode a caller can ask for, and one test
+here runs it.
 
 ``causalab`` is installed where a real block runs, so the dry run is told
 it is a server module (the simulator otherwise hides it and the block's
@@ -187,6 +191,50 @@ def test_every_save_is_a_container_bound_at_block_level():
     assert seen  # or the check is vacuous
 
 
+def test_nnsight_captures_only_the_program_for_each_body_kind(
+    remote_llama, ndif_llama, monkeypatch
+):
+    """The tripwire's dynamic complement: what nnsight's own block reduction
+    ships for each kind of body the engine opens — a session, a trace, a
+    generate — is the model, the program(s), and the function that runs them.
+    """
+    from nnsight.schema import request
+
+    from tests.neural.engines.nnsight_nnterp.test_generate_frame import _gen_doc
+
+    captured: dict[str, set[str]] = {}
+    reduce_block = request.reduce_block
+
+    def spy(node, glbls, lcls):
+        source, used_globals, used_locals = reduce_block(node, glbls, lcls)
+        kind = node.items[0].context_expr.func.attr
+        captured.setdefault(kind, set()).update(used_globals, used_locals)
+        return source, used_globals, used_locals
+
+    monkeypatch.setattr(request, "reduce_block", spy)
+    swap = sweep.interchange_doc("block_output", 1)
+    sweep.make_executor(
+        NnterpExecutor, swap, remote_llama, rows=ROWS, with_cf=True
+    ).run_all()  # one session
+    sweep.make_executor(
+        NnterpExecutor, swap, remote_llama, rows=ROWS, with_cf=True
+    ).read_value("logits")  # a trace per group
+    sweep.make_executor(
+        NnterpExecutor,
+        _gen_doc("block_output", 1),
+        remote_llama,
+        rows=ROWS,
+        with_cf=False,
+    ).read_value("r")  # a generate
+
+    body = {"model", "tracer", "program", "flow", "nnsight", "execute"}
+    assert captured == {
+        "session": {"model", "programs", "nnsight", "run_program"},
+        "trace": body,
+        "generate": body,
+    }
+
+
 # ---------------------------------------------------------------------- #
 # the dry run
 # ---------------------------------------------------------------------- #
@@ -229,103 +277,19 @@ def _assert_identical(local: dict, remote: dict) -> None:
         assert torch.equal(value, remote[name]), f"read {name!r} differs"
 
 
-# (ii) ------------------------------------------------------------------ #
-
-
-def test_the_payload_is_the_program_not_the_executor(nnterp_llama, payloads):
-    """One job per point, kilobytes, and none of it the executor's: a 50 MB
-    attribute hung on the executor does not reach the payload."""
+def test_the_dry_run_mode_runs_a_session_point(nnterp_llama, payloads):
+    """``remote="local"`` is a mode a caller can ask for — nnsight's own dry
+    run over a loaded bundle, which checks that the program pickles and that
+    everything it names imports with the caller's modules hidden. A two-group
+    patching point runs through it as one session and agrees with the local
+    path. (What a server does with the payload is
+    ``test_faithful_server.py``'s.)"""
     doc = sweep.interchange_doc("block_output", 1)
-    plain = _executor(doc, nnterp_llama, remote="local")
-    plain.run_all()
-    laden = _executor(doc, nnterp_llama, remote="local")
-    laden.ballast = torch.zeros(50_000_000 // 4)
-    laden.run_all()
-    assert len(payloads) == 2, payloads  # one session each: two groups, one job
-    # not byte-equal: a program's tap keys carry `id(module)` integers, whose
-    # pickled length varies by a byte or two between executors
-    assert abs(payloads[0] - payloads[1]) < 1024, payloads
-    assert payloads[0] < 256 * 1024, payloads
-
-
-# (iii) ----------------------------------------------------------------- #
-
-
-@pytest.mark.parametrize(
-    "component, layer",
-    [("block_output", 1), ("mlp_output", 0), ("attention_query", 1)],
-)
-def test_a_session_point_matches_the_local_path_to_the_bit(
-    nnterp_llama, payloads, component, layer
-):
-    """A two-group patching point — read the site on the counterfactual,
-    swap it into the base forward, read the patched logits — through the
-    session (the operand flows between the traces, never through the
-    client) and through the local path: identical values, identical fires."""
-    doc = sweep.interchange_doc(component, layer)
     local = _executor(doc, nnterp_llama, remote=False)
     session = _executor(doc, nnterp_llama, remote="local")
     _assert_identical(_values(local), _values(session))
     assert local.fires == session.fires and session.fires
     assert len(payloads) == 1, payloads
-    # anti-vacuity: the patch changed the logits the session read
-    clean = _executor(sweep.read_doc("lm_head", None), nnterp_llama, remote=False)
-    assert not torch.equal(clean.read_value("r"), session.read_value("logits"))
-
-
-def test_a_flowing_operand_is_finished_on_the_server(nnterp_llama, payloads):
-    """The operand's ``dims`` are applied where it flows: a read that slices
-    its features feeds a write of the same slice, and the session agrees
-    with the local path, where the client finished the read."""
-    doc = sweep.interchange_doc("block_output", 1)
-    doc["method"]["reads"]["v_cf"]["dims"] = [0, 3, 5]
-    doc["method"]["writes"]["patch"]["dims"] = [0, 3, 5]
-    local = _executor(doc, nnterp_llama, remote=False)
-    session = _executor(doc, nnterp_llama, remote="local")
-    _assert_identical(_values(local), _values(session))
-    assert tuple(session.read_value("v_cf").shape)[-1] == 3
-    assert len(payloads) == 1, payloads
-
-
-def test_a_lazy_read_runs_a_job_per_group(nnterp_llama, payloads):
-    """``read_value`` before ``run_all`` still works remotely: each group is
-    its own job and the operand ships by value."""
-    doc = sweep.interchange_doc("block_output", 1)
-    local = _executor(doc, nnterp_llama, remote=False)
-    lazy = _executor(doc, nnterp_llama, remote="local")
-    assert torch.equal(local.read_value("logits"), lazy.read_value("logits"))
-    assert len(payloads) == 2, payloads
-    assert max(payloads) < 256 * 1024, payloads
-
-
-def test_an_operand_the_server_cannot_finish_falls_back(nnterp_qwen, payloads):
-    """A routed-interior operand travels with its routing table, which the
-    write joins by expert: the point runs one job per group, the operand
-    shipped by value, and agrees with the local path."""
-    doc = sweep.interchange_doc("expert_output", sweep.stream_layers(nnterp_qwen)[0])
-    local = _executor(doc, nnterp_qwen, remote=False)
-    remote = _executor(doc, nnterp_qwen, remote="local")
-    _assert_identical(_values(local), _values(remote))
-    assert len(payloads) == 2, payloads
-
-
-def test_the_eager_switch_happens_in_the_block(nnterp_llama_default_impl, payloads):
-    """A group whose address needs eager attention switches the model in its
-    own block — on a server, the only model there is — restores it after the
-    forward, and the client stamps what the block reports."""
-    bundle = nnterp_llama_default_impl
-    default = bundle.model.config._attn_implementation
-    assert default != "eager"  # or this test is vacuous
-    doc = sweep.read_doc("attention_scores", 1, pos="all")
-    local = sweep.make_executor(
-        NnterpExecutor, doc, bundle, rows=ROWS, with_cf=False, remote=False
-    )
-    remote = sweep.make_executor(
-        NnterpExecutor, doc, bundle, rows=ROWS, with_cf=False, remote="local"
-    )
-    _assert_identical(_values(local), _values(remote))
-    assert remote.applied_requirements == {"attn_eager"}
-    assert bundle.model.config._attn_implementation == default
 
 
 # ---------------------------------------------------------------------- #
@@ -349,8 +313,10 @@ def test_a_remote_bundle_holds_no_weights_and_still_plans():
     assert executor.remote is True  # the bundle's own
     order = executor._group_order()
     assert order == [("original", "counterfactual"), ("patched", "base")]
-    plans = [executor._plan(*group, flowing=frozenset({"v_cf"})) for group in order]
-    assert not any(plan.unflowable for plan in plans)
+    assert executor._flowable("v_cf")
+    ((groups, flowing),) = executor._segments(order)  # one session
+    assert groups == order and flowing == {"v_cf"}
+    plans = [executor._plan(*group, flowing=flowing) for group in order]
     assert all(plan.program.offload for plan in plans)
     source, target = (plan.program for plan in plans)
     assert [op.reads[0].flow is not None for op in source.ops] == [True]
@@ -375,47 +341,3 @@ def test_remote_mode_refuses_what_cannot_cross(nnterp_llama):
             remote="local",
             grad_enabled=True,
         )
-
-
-def test_the_engine_runs_a_point_as_one_job_through_the_front_door(
-    nnterp_llama, payloads, tmp_path
-):
-    """``run_protocol`` with ``NnterpEngine(remote="local")``: the corpus
-    interchange document runs as one session and writes the files and the
-    receipt the local engine writes."""
-    import json
-    import shutil
-
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
-    from causalab.protocol import RUN_RECORD_NAME, run_protocol
-    from causalab.protocol.loader import load
-    from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
-
-    from tests.protocol._env import CORPUS_DIR, FIXTURES
-
-    artifacts = tmp_path / "artifacts"
-    shutil.copytree(FIXTURES / "artifacts", artifacts)
-    env = ResolutionEnv(
-        datasets=FileDatasets(root=FIXTURES / "data"),
-        artifacts=FileArtifacts(root=artifacts),
-    )
-    loaded = load(
-        CORPUS_DIR / "02_interchange_im.json",
-        env,
-        overrides={"model.key": TINY_LLAMA, "sites.target.layers": 1},
-    )
-    here, there = tmp_path / "local", tmp_path / "remote"
-    run_protocol(loaded, env, [NnterpEngine(bundle=nnterp_llama)], here)
-    assert not payloads
-    run_protocol(
-        loaded, env, [NnterpEngine(bundle=nnterp_llama, remote="local")], there
-    )
-    assert len(payloads) == 1, payloads
-    assert json.loads((here / RUN_RECORD_NAME).read_text()) == json.loads(
-        (there / RUN_RECORD_NAME).read_text()
-    )
-    names = sorted(p.name for p in here.iterdir())
-    assert names == sorted(p.name for p in there.iterdir())
-    for name in names:
-        if name.endswith(".safetensors"):
-            assert (here / name).read_bytes() == (there / name).read_bytes(), name
