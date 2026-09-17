@@ -44,6 +44,7 @@ from causalab.protocol.schema import parse_document  # noqa: E402
 from causalab.protocol.validate import validate_document  # noqa: E402
 
 from tests._helpers import a3b_sweep as sweep  # noqa: E402
+from tests._helpers.faithful_server import FaithfulServer  # noqa: E402
 from tests.protocol._docs import in_order  # noqa: E402
 
 TINY_LLAMA = "hf-internal-testing/tiny-random-LlamaForCausalLM"
@@ -116,6 +117,22 @@ def nnterp_llama_default_impl() -> NnterpBundle:
     loader gives a real document, and what the on-demand eager switch is
     tested against."""
     return load_nnterp_model(TINY_LLAMA)
+
+
+@pytest.fixture(scope="session")
+def remote_llama() -> NnterpBundle:
+    """The production client: the weight-free bundle, parameters on meta."""
+    return load_nnterp_model(TINY_LLAMA, remote=True)
+
+
+@pytest.fixture
+def ndif_llama(
+    nnterp_llama_default_impl: NnterpBundle, monkeypatch: pytest.MonkeyPatch
+) -> FaithfulServer:
+    """An in-process NDIF serving the tiny Llama under the checkpoint's own
+    attention (sdpa) — a model the client bundle shares nothing with
+    (``tests/_helpers/faithful_server.py``)."""
+    return FaithfulServer(nnterp_llama_default_impl.model, monkeypatch)
 
 
 #: Each fixture family: its two bundles' fixture names and the rows whose
