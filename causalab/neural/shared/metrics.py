@@ -58,6 +58,7 @@ saying so.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import Any, Mapping, Sequence
 
@@ -71,6 +72,7 @@ from causalab.protocol.schema import (
     VOCAB_TOP_K_RANKING,
     WHOLE_WINDOW_METRIC_KINDS,
     MetricSpec,
+    concrete_str,
 )
 
 __all__ = [
@@ -84,7 +86,10 @@ __all__ = [
     "excluded_rows",
     "GATHERED_KINDS",
     "gathered_metric",
+    "metric_in_ids",
     "metric_token_ids",
+    "RECORD_KINDS",
+    "VocabularySize",
 ]
 
 
@@ -684,6 +689,133 @@ def metric_token_ids(
             tokenizer, values, token_form=token_form, where=f"metric {kind}.{field}"
         )
     return out
+
+
+#: The kinds whose per-example value is a record, not a number (``top_k``'s
+#: indices and tokens, a class table, a logit table): they have no mean, so a
+#: fit's eval score of one is ``0.0`` by construction.
+RECORD_KINDS = frozenset({"top_k", "class_probs", "token_logits"})
+
+#: Per kind, the answer columns that resolve to one token id per row.
+_ID_COLUMNS: Mapping[str, tuple[str, ...]] = {
+    **_GATHERED_FIELDS,
+    "cross_entropy": ("target",),
+}
+
+
+class VocabularySize:
+    """What a metric under ``token_form: id`` asks of a tokenizer — its
+    length, the bound every id is checked against — and nothing else. It
+    stands where the tokenizer would for a metric :func:`metric_in_ids`
+    resolved, so a reduction over resolved answers carries no tokenizer."""
+
+    def __init__(self, size: int) -> None:
+        self.size = int(size)
+
+    def __len__(self) -> int:
+        return self.size
+
+
+def metric_in_ids(
+    metric: MetricSpec,
+    rows: Sequence[Mapping[str, Any]],
+    tokenizer: Any,
+    *,
+    eligible_only: bool = True,
+) -> tuple[MetricSpec, list[dict[str, Any]]]:
+    """``metric`` and ``rows`` with every answer **resolved to token ids**:
+    the metric under ``token_form: id`` and, per row, only the columns the
+    metric names, holding the ids its strings resolve to under the authored
+    form — exactly as :func:`compute_metric` resolves them, refusals included
+    (an ambiguous ``auto``, a multi-token answer, two ``restrict`` strings on
+    one id, ``first_token`` answers that are not first-token distinct). The
+    pair is plain data: :func:`compute_metric`, :func:`gathered_metric` and
+    the objective's ``metric_tensor`` reduce it to the numbers the authored
+    pair gives, with a :class:`VocabularySize` where the tokenizer stood.
+
+    ``eligible_only`` leaves a row the table carries no answer for
+    (:func:`excluded_rows`) as it is — an excluded measurement stays one —
+    and resolves the rest, which is what a saved metric does. The training
+    objective scores every row of a minibatch, so it resolves every row.
+
+    A kind that reads no answer column (``kl``), a record kind
+    (:data:`RECORD_KINDS`, which needs the tokenizer to decode) and a metric
+    already in ids come back unchanged but for the row projection."""
+    kind = str(metric.kind)
+    token_form = str(metric.token_form)
+    columns = metric_column_fields(metric)
+    projected = [
+        {column: row.get(column) for column in columns.values()} for row in rows
+    ]
+    if kind in RECORD_KINDS:
+        return metric, projected
+    skipped = excluded_rows(metric, rows, kind) if eligible_only else {}
+    keep = [i for i in range(len(rows)) if i not in skipped]
+    kept = [rows[i] for i in keep]
+    if token_form == "id":
+        # already ids: held to the vocabulary here, as every reduction holds
+        # them, so what leaves is checked whichever form came in
+        for field in _ID_COLUMNS.get(kind, ()):
+            column = concrete_str(metric.fields[field], f"metric field {field}")
+            column_token_ids(
+                tokenizer,
+                [row[column] for row in kept],
+                token_form=token_form,
+                where=f"metric {kind}.{field}",
+            )
+        return metric, projected
+    fields = dict(metric.fields)
+    if kind in _ID_COLUMNS:
+        for field in _ID_COLUMNS[kind]:
+            column = concrete_str(metric.fields[field], f"metric field {field}")
+            ids = column_token_ids(
+                tokenizer,
+                [str(row[column]) for row in kept],
+                token_form=token_form,
+                where=f"metric {kind}.{field}",
+            )
+            for i, token in zip(keep, ids):
+                projected[i][column] = token
+    elif kind == "match":
+        column = concrete_str(metric.fields["expected"], "metric field expected")
+        groups = [
+            [str(v) for v in row[column]]
+            if isinstance(row[column], list)
+            else [str(row[column])]
+            for row in kept
+        ]
+        mode = str(metric.fields.get("mode", "exact"))
+        resolve = column_first_token_id if mode == "first_token" else column_token_id
+        if token_form == "auto":
+            refuse_ambiguous_auto(
+                tokenizer,
+                [form for forms in groups for form in forms],
+                where=f"metric {kind}.expected",
+            )
+        resolved = [
+            {resolve(tokenizer, form, token_form=token_form) for form in forms}
+            for forms in groups
+        ]
+        if mode == "first_token":
+            _refuse_indistinct_first_tokens(groups, resolved, where=f"metric {kind}")
+        for i, ids_of_row in zip(keep, resolved):
+            projected[i][column] = sorted(ids_of_row)
+    elif kind == "js":
+        restrict = metric.fields.get("restrict")
+        if isinstance(restrict, str):
+            for i, ids_of_row in zip(
+                keep, restrict_token_ids(metric, kept, tokenizer) or ()
+            ):
+                projected[i][restrict] = ids_of_row
+        elif restrict is not None:
+            # a literal answer set is one list for the whole run
+            (shared,) = restrict_token_ids(metric, [{}], tokenizer) or ([],)
+            fields["restrict"] = shared
+        else:
+            return metric, projected
+    else:
+        return metric, projected
+    return dataclasses.replace(metric, token_form="id", fields=fields), projected
 
 
 def gathered_metric(
