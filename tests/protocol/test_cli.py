@@ -263,7 +263,7 @@ def test_batch_rows_refuses_a_non_positive_count(
     assert capturing_engine.last is None
 
 
-def test_batch_rows_refuses_an_explicit_nnsight_pin(
+def test_batch_rows_refuses_an_explicit_nnterp_pin(
     capturing_engine, artifacts_root, tmp_path, capsys
 ):
     """Fail closed: pinning the engine that has no bound while asking for one
@@ -276,14 +276,14 @@ def test_batch_rows_refuses_an_explicit_nnsight_pin(
                 artifacts_root,
                 tmp_path,
                 "--engine",
-                "nnsight",
+                "nnterp",
                 "--batch-rows",
                 "3",
             )
         )
     assert exit_info.value.code == 2
     err = capsys.readouterr().err
-    assert "--engine nnsight" in err and "--batch-rows" in err
+    assert "--engine nnterp" in err and "--batch-rows" in err
     assert capturing_engine.last is None
 
 
@@ -291,7 +291,7 @@ def test_batch_rows_refuses_an_explicit_nnsight_pin(
 def test_batch_rows_runs_under_the_reference_engine_and_auto(
     capturing_engine, artifacts_root, tmp_path, engine: str
 ):
-    """The refusal above fires on the explicit nnsight pin only: the bound
+    """The refusal above fires on the explicit nnterp pin only: the bound
     with the reference engine pinned, or under ``auto``, runs as before and
     reaches the engine and the receipt."""
     code = main(
@@ -318,7 +318,7 @@ def test_batch_rows_runs_under_the_reference_engine_and_auto(
 def test_engine_auto_tolerates_a_missing_optional_engine(
     capturing_engine, artifacts_root, tmp_path
 ):
-    """--engine auto is every *installed* engine: the nnsight extra being
+    """--engine auto is every *installed* engine: the nnterp extra being
     absent must not break runs that never needed it."""
     code = main(
         _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "auto")
@@ -340,46 +340,46 @@ class _AbsentModule:
         return None
 
 
-def test_engine_nnsight_refuses_by_name_when_not_installed(
+def test_engine_nnterp_refuses_by_name_when_not_installed(
     capturing_engine, artifacts_root, tmp_path, capsys, monkeypatch
 ):
     """Naming an engine that is not installed is an error that says which
     extra provides it — unlike auto, which quietly narrows to what exists."""
     import sys as _sys
 
-    target = "causalab.neural.engines.nnsight_tracing"
+    target = "causalab.neural.engines.nnterp_engine"
     for mod in [m for m in list(_sys.modules) if m.startswith(target)]:
         monkeypatch.delitem(_sys.modules, mod)
     monkeypatch.setattr(_sys, "meta_path", [_AbsentModule(target), *_sys.meta_path])
     code = main(
-        _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "nnsight")
+        _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "nnterp")
     )
     assert code == 1
     err = capsys.readouterr().err
-    assert "nnsight" in err and "extra" in err
+    assert "nnterp engine is not installed" in err and "extra" in err
 
 
-def test_engine_nnsight_selects_the_nnsight_engine(
+def test_engine_nnterp_selects_the_nnterp_engine(
     capturing_engine, artifacts_root, tmp_path, monkeypatch
 ):
-    """--engine nnsight builds the nnsight engine (stubbed here — the real
+    """--engine nnterp builds the nnterp engine (stubbed here — the real
     one's answers are pinned by its parity suite)."""
     import sys as _sys
     import types
 
-    class _CapturingNnsight(_CapturingEngine):
-        name = "nnsight"
+    class _CapturingNnterp(_CapturingEngine):
+        name = "nnterp"
 
-    stub = types.ModuleType("causalab.neural.engines.nnsight_tracing")
-    stub.NnsightEngine = _CapturingNnsight
-    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnsight_tracing", stub)
-    _CapturingNnsight.last = None
+    stub = types.ModuleType("causalab.neural.engines.nnterp_engine")
+    stub.NnterpEngine = _CapturingNnterp
+    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnterp_engine", stub)
+    _CapturingNnterp.last = None
     code = main(
-        _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "nnsight")
+        _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "nnterp")
     )
     assert code == 0
-    assert _CapturingNnsight.last is not None
-    assert _CapturingNnsight.last.name == "nnsight"
+    assert _CapturingNnterp.last is not None
+    assert _CapturingNnterp.last.name == "nnterp"
 
 
 def test_explain_engine_prints_the_engine_that_would_run(
@@ -387,7 +387,7 @@ def test_explain_engine_prints_the_engine_that_would_run(
 ):
     """`explain` printed `requires` and stopped, so routing could not be
     pre-flighted — which is exactly what is not obvious on a model where one
-    family of components is hooks-only and another is nnsight-only."""
+    family of components is hooks-only and another is nnterp-only."""
     code = main(
         _argv("explain", "02_interchange_im.json", artifacts_root, "--engine", "auto")
     )
@@ -405,7 +405,7 @@ def test_explain_engine_prints_the_refusal_rather_than_raising(
         "capabilities",
         frozenset(),  # serves nothing
     )
-    # `pytorch_hooks`, not `auto`: auto also builds the real nnsight engine,
+    # `pytorch_hooks`, not `auto`: auto also builds the real nnterp engine,
     # which would serve this document and route right past the stub
     code = main(
         _argv(
@@ -436,7 +436,7 @@ def test_the_engine_default_is_auto(capturing_engine, artifacts_root, tmp_path):
     `auto` is every installed engine with the reference **first**, and list
     order is preference — so anything the reference serves behaves exactly as
     the old `pytorch_hooks` default did. What changes is the other case: a
-    document only the nnsight engine can serve now runs instead of refusing by
+    document only the nnterp engine can serve now runs instead of refusing by
     name a document nothing in the list served.
     """
     assert main(_run_argv("01_harvest_im.json", artifacts_root, tmp_path)) == 0
@@ -451,19 +451,19 @@ def test_the_default_falls_through_to_the_engine_that_can_serve(
     import sys as _sys
     import types
 
-    class _Nnsight(_CapturingEngine):
-        name = "nnsight"
+    class _Nnterp(_CapturingEngine):
+        name = "nnterp"
         # its own set, so emptying the base class's below does not follow it
         capabilities = frozenset(_CapturingEngine.capabilities)
 
     monkeypatch.setattr(capturing_engine, "capabilities", frozenset())
-    stub = types.ModuleType("causalab.neural.engines.nnsight_tracing")
-    stub.NnsightEngine = _Nnsight
-    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnsight_tracing", stub)
-    _Nnsight.last = None
+    stub = types.ModuleType("causalab.neural.engines.nnterp_engine")
+    stub.NnterpEngine = _Nnterp
+    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnterp_engine", stub)
+    _Nnterp.last = None
 
     assert main(_run_argv("02_interchange_im.json", artifacts_root, tmp_path)) == 0
-    assert _Nnsight.last is not None and _Nnsight.last.name == "nnsight"
+    assert _Nnterp.last is not None and _Nnterp.last.name == "nnterp"
 
 
 def test_run_defaults_stay_cpu_fp32(capturing_engine, artifacts_root, tmp_path):

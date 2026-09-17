@@ -4,13 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from causalab.neural.engines.nnterp_engine import loading as nnterp_loading
 from causalab.neural.engines.pytorch_hooks import loading as hooks
-from causalab.neural.engines.nnsight_tracing import loading as tracing
 
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(params=[hooks, tracing], ids=["hooks", "tracing"])
+@pytest.fixture(params=[hooks, nnterp_loading], ids=["hooks", "nnterp"])
 def loader(request, monkeypatch):
     module = request.param
     calls = []
@@ -41,12 +41,11 @@ def loader(request, monkeypatch):
             lambda *args, **kwargs: SimpleNamespace(pad_token=None, eos_token="eos"),
         )
     else:
-        import nnsight.modeling.transformers
+        nnterp = pytest.importorskip("nnterp")
 
-        monkeypatch.setattr(
-            nnsight.modeling.transformers, "TransformersModel", construct
-        )
+        monkeypatch.setattr(nnterp, "StandardizedTransformer", construct)
         monkeypatch.setattr(module, "torch_module", lambda model: model)
+        monkeypatch.setattr(module, "standard_adapter", lambda raw: object())
     # an isolated cache: the session's fixtures hold bundles out of the real one
     monkeypatch.setattr(module, "load_model", module.load_model.renewed())
     yield module, calls

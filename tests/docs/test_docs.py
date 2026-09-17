@@ -668,8 +668,7 @@ GUARDED_PACKAGES = frozenset(
         "causalab/protocol",
         "causalab/neural/shared",
         "causalab/neural/engines/pytorch_hooks",
-        "causalab/neural/engines/nnsight_tracing",
-        "causalab/neural/engines/nnsight_nnterp",
+        "causalab/neural/engines/nnterp_engine",
     }
 )
 

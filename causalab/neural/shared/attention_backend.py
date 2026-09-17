@@ -1,7 +1,7 @@
 """The on-demand switch to eager attention — the one implementation whose
 mixer returns its weights and whose scores exist — for a model loaded under
-the checkpoint's default. The nnsight + nnterp engine's block
-(``engines/nnsight_nnterp/landers.py``) is its one caller; the reference
+the checkpoint's default. The nnterp engine's block
+(``engines/nnterp_engine/landers.py``) is its one caller; the reference
 engine wraps its forwards in its own context manager.
 
 The switch is two functions rather than a context manager around the

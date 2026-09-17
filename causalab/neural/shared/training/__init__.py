@@ -63,7 +63,7 @@ is not a forward. An engine supplies three things:
 * ``step_forward`` — this step's grad forwards and the backward of each
   member's :func:`~.loop.step_loss`. The reference engine packs a cohort's
   members into row-bounded windows, one forward each, or replays a CUDA
-  graph; the nnsight engine runs each member's own traces;
+  graph; the nnterp engine runs each member's own traces;
 * ``evaluate`` — the eval pass, ending in :func:`~.loop.record_eval`.
   :func:`~.loop.evaluate_fits` is the plain one.
 

@@ -35,7 +35,7 @@ library function unchanged.
 Containment mirrors :mod:`.experts_interface`: :func:`lean_experts_path`
 installs the function as the ``"grouped_mm"`` entry of ``ALL_EXPERTS_FUNCTIONS``
 for the duration of one engine forward and restores the previous entry on
-exit — so the nnsight engine, whose ``.source`` address table descends into
+exit — so the nnterp engine, whose ``.source`` address table descends into
 the library function's own body, never sees it. The executor enters it
 **before** the experts-interface taps, which capture whatever ``"grouped_mm"``
 dispatches to at their entry and wrap it: the tapped interior is then this
