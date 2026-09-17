@@ -123,20 +123,19 @@ def test_all_nine_joined_the_closed_vocabulary():
 
 
 def test_the_moe_interior_ranks_inside_the_block():
-    """These were 71 and 72 — *after* ``mlp_output`` (70) — which contradicted
-    the comment they carried. Unreachable only because ``router_logits`` refused
-    to resolve; it resolves now, so the order has to be right."""
+    """The MoE interior ranks in the order ``Qwen3_5MoeSparseMoeBlock.forward``
+    computes it: the shared expert before the router, its gate last."""
     order = [
         "mlp_input",
+        "shared_expert_gate_proj",
+        "shared_expert_up_proj",
+        "shared_expert_activation",
+        "shared_expert_output",
         "router_logits",
         "router_scores",
         "expert_idx",
         "expert_output",
         "routed_output",
-        "shared_expert_gate_proj",
-        "shared_expert_up_proj",
-        "shared_expert_activation",
-        "shared_expert_output",
         "shared_expert_gate",
         "mlp_output",
         "block_output",

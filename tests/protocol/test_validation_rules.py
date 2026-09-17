@@ -1630,6 +1630,47 @@ def test_rule_21_is_block_order_aware_within_one_layer():
     assert "mlp_output" in str(err) and "attention_output" in str(err)
 
 
+def test_rule_21_the_shared_expert_feeds_the_routed_output_of_its_layer():
+    """📐 The MoE block computes the shared expert before the router, so its
+    output is upstream of the routed output within one layer — the rank
+    table says so, and a write there fed from it validates."""
+    parse_and_validate(
+        _two_site_doc(
+            {"component": "shared_expert_output", "layers": [3]},
+            {"component": "routed_output", "layers": [3]},
+        )
+    )
+    err = expect_rule(
+        21,
+        _two_site_doc(
+            {"component": "routed_output", "layers": [3]},
+            {"component": "shared_expert_output", "layers": [3]},
+        ),
+    )
+    assert "'v_src'" in str(err)
+
+
+def test_rule_21_the_deltanet_kernel_arguments_rank_after_the_beta():
+    """📐 ``delta_query`` / ``delta_key`` are the chunked kernel's arguments,
+    consumed with ``delta_decay`` at the call — after the value split and
+    the beta the forward computes first — so a write at one of them fed
+    from ``delta_beta`` validates, and the reverse refuses."""
+    parse_and_validate(
+        _two_site_doc(
+            {"component": "delta_beta", "layers": [0]},
+            {"component": "delta_query", "layers": [0]},
+        )
+    )
+    err = expect_rule(
+        21,
+        _two_site_doc(
+            {"component": "delta_key", "layers": [0]},
+            {"component": "delta_beta", "layers": [0]},
+        ),
+    )
+    assert "'v_src'" in str(err)
+
+
 def test_rule_21_lm_head_sorts_after_every_block():
     """The two layer-less trunk components are deeper than any block, so an
     `lm_head`-derived operand can land nowhere but the trunk's own tail."""

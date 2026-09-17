@@ -83,10 +83,9 @@ COMPONENT_RANK: dict[str, int] = {
     "delta_qkv": 152,  # in_proj_qkv's fused [q|k|v] output, pre-conv
     "delta_gate": 154,  # in_proj_z's output — the output gate, produced early
     "delta_conv": 156,  # causal_conv1d_fn's return, channels-first
-    "delta_query": 158,  # kernel arg 0: post-conv, post-tiling, PRE-l2norm
-    # The two pre-tiling faces only the nnsight engine serves (the typed
-    # backend pairs), ranked where the forward computes them — the
-    # q/k splits of the conv output, before the value split — because the
+    # The two pre-tiling faces only the nnsight engines serve (the typed
+    # backend pairs), ranked where the forward computes them — the q/k
+    # splits of the conv output, before the value split — because the
     # `.source` interiors refuse out-of-order requests and the one-name
     # `delta_*` band is requested by the same engine in the same forward.
     "deltanet_query": 159,
@@ -96,10 +95,16 @@ COMPONENT_RANK: dict[str, int] = {
     # inside the attention function.
     "attention_query_pre_rope": 160,
     "deltanet_key": 161,
-    "delta_key": 162,  # kernel arg 1
     "delta_value": 164,  # kernel arg 2
     "delta_beta": 166,  # kernel kwarg beta — sigmoid(in_proj_b), per head
-    "delta_decay": 168,  # kernel kwarg g — the log-decay, negative reals
+    # 📐 The three remaining kernel inputs are one call's arguments, consumed
+    # together at the kernel call after the value split and the beta: the
+    # tiled q/k (post `repeat_interleave`, PRE-l2norm) and the log-decay. An
+    # engine that reads the call's arguments requests them as one, so they
+    # rank as one; the reference engine swaps all kernel inputs at once.
+    "delta_query": 167,  # kernel arg 0
+    "delta_key": 168,  # kernel arg 1
+    "delta_decay": 169,  # kernel kwarg g — the log-decay, negative reals
     "attention_key_pre_rope": 170,
     # the per-step interior, in loop order: readout, update, state
     "delta_kv_mem": 172,  # (S_{t-1}·exp(g_t) · k̂_t).sum — what the state recalls
@@ -141,8 +146,16 @@ COMPONENT_RANK: dict[str, int] = {
     "block_mid": 450,
     "mlp_input_norm": 470,
     "mlp_input": 500,
-    # The MoE interior, between the block's input and its output: the router
-    # fires first, then the experts, then the combine.
+    # The MoE interior, between the block's input and its output. 📐
+    # ``Qwen3_5MoeSparseMoeBlock.forward`` runs the shared expert *first*
+    # (``shared_expert`` → ``gate`` → ``experts`` → ``shared_expert_gate``), so
+    # its three boundaries and its output sit between the block's MLP input
+    # and the router; the router fires next, then the experts, then the
+    # combine.
+    "shared_expert_gate_proj": 502,
+    "shared_expert_up_proj": 504,
+    "shared_expert_activation": 506,
+    "shared_expert_output": 508,
     "router_logits": 510,
     "router_scores": 520,
     "expert_idx": 530,
@@ -163,12 +176,8 @@ COMPONENT_RANK: dict[str, int] = {
     "routed_output": 550,
     "mlp_activation": 600,
     "mlp_neuron_output": 605,
-    # the shared expert runs beside the routed ones; its gate is *consumed*
-    # last, at the multiply that produces the (derived) gated output
-    "shared_expert_gate_proj": 610,
-    "shared_expert_up_proj": 620,
-    "shared_expert_activation": 630,
-    "shared_expert_output": 640,
+    # the shared expert's gate is *consumed* last, at the multiply that
+    # produces the (derived) gated output, after the routed experts ran
     "shared_expert_gate": 650,
     "mlp_output": 700,
     "block_output": 800,
