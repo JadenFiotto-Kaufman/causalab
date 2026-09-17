@@ -215,6 +215,37 @@ def _redraw(drawn: Drawn, spec: FitSpec) -> tuple[GroupProgram, ...]:
     return planner.fit_programs(spec.objective_reads)
 
 
+def _load_attrs(label: str, name: str, target: Any, attrs: Mapping[str, Any]) -> None:
+    """The attributes the fit moved (``fit.moved_attrs``, a budget draw) onto
+    the client's own stage, its budget pool's under ``"pool"``.
+
+    An attribute the client's object does not already have is refused rather
+    than grafted on: both sides built their stages from the same spec, so a
+    name only one of them knows is a skew between the two installs' stage
+    classes — which is what the version guard is for and what a silent
+    ``setattr`` would hide."""
+    for attr, value in attrs.items():
+        if attr == "pool":
+            pool = getattr(target, "pool", None)
+            if pool is None:
+                raise ProtocolError(
+                    "P2",
+                    f"fit {label}: the fit's {name!r} is in a budget pool and "
+                    "this stage is not — the two installs build one spec into "
+                    "different stages",
+                )
+            _load_attrs(label, name, pool, value)
+        elif not hasattr(target, attr):
+            raise ProtocolError(
+                "P2",
+                f"fit {label}: it returned {attr!r} for {name!r}, which this "
+                f"{type(target).__name__} does not have — the two installs "
+                "build one spec into different stages",
+            )
+        else:
+            setattr(target, attr, value)
+
+
 def _load(planned: _Planned, result: Mapping[str, Any]) -> TrainOutcome:
     """The fit's result into the client: each stage's state and plain
     attributes onto the point executor's own stage object — identity kept, so
@@ -237,12 +268,7 @@ def _load(planned: _Planned, result: Mapping[str, Any]) -> TrainOutcome:
     for name, state in result["state"].items():
         stage = cache[name]
         stage.load_state_dict(dict(state))
-        for attr, value in result["attrs"][name].items():
-            if attr == "pool":
-                for pool_attr, pool_value in value.items():
-                    setattr(stage.pool, pool_attr, pool_value)
-            else:
-                setattr(stage, attr, value)
+        _load_attrs(planned.plan.label, name, stage, result["attrs"][name])
         stage.eval()
         if isinstance(stage, Gate):
             stage.frozen_mask = None

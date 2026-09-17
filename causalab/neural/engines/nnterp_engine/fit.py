@@ -33,8 +33,9 @@ PyTorch. The model is frozen where it is served, so the graph begins where a
 trained featurizer enters the forward.
 
 **What comes back** (:func:`fit_body`'s ``result``) is plain data: every
-stage's ``state_dict`` and the plain attributes beside it (a gate's annealed
-``temperature``), the digest of each stage as it was built, the loss per
+stage's ``state_dict`` and the attributes the fit moved beside it — what the
+document's schedules name (:func:`moved_attrs`: a gate's annealed
+``temperature``) and a budget draw — the digest of each stage as it was built, the loss per
 update, and the outcome's records — eval score, control and constraint
 traces, checkpoints, and ``fit_diagnostics``, which needs the live stages and
 is therefore computed here. The client loads the state into its own stage
@@ -64,11 +65,13 @@ from causalab.neural.shared.training.objective import score
 from causalab.neural.shared.training.spec import FitSpec
 from causalab.neural.shared.training.state import build_stages
 from causalab.protocol.errors import ProtocolError
+from causalab.protocol.schema import OBJECTIVE_WEIGHT_PREFIX
 
 __all__ = [
     "Artifacts",
     "TrainPlan",
     "fit_body",
+    "moved_attrs",
     "run_fit",
     "select_rows",
     "stage_digest",
@@ -290,6 +293,7 @@ def fit_body(
         load_table=plan.artifacts.load_table,
     )
     init_digest = {name: stage_digest(stage) for name, stage in stages.items()}
+    moved = moved_attrs(spec)
     state = build_fit_state(spec, stages=stages, device=device)
     train = [plan.train]
     losses: list[torch.Tensor] = []
@@ -346,7 +350,10 @@ def fit_body(
             }
             for name, stage in stages.items()
         },
-        attrs={name: _plain_attrs(stage) for name, stage in stages.items()},
+        attrs={
+            name: _plain_attrs(stage, moved.get(name, frozenset()))
+            for name, stage in stages.items()
+        },
         init_digest=init_digest,
         steps_run=state.step,
         loss_trace=torch.stack([loss.reshape(()) for loss in losses]).tolist(),
@@ -378,24 +385,39 @@ def _check_fired(program: GroupProgram, out: Mapping[str, Any]) -> None:
     check_fires(program.label, tally)
 
 
-#: What ``torch.nn.Module`` itself keeps on an instance.
-_MODULE_STATE = frozenset(vars(torch.nn.Module()))
+def moved_attrs(spec: FitSpec) -> dict[str, frozenset[str]]:
+    """The hyperparameter each stage's own schedules move, by featurizer
+    name: the tail of every ``train.anneal`` and ``train.control`` target
+    that names a stage rather than an objective term's live weight
+    (``schedules.set_anneal``, ``schedules.build_controls`` — a gate's
+    ``temperature``). The document says what moves, so the fit says what
+    comes back."""
+    moved: dict[str, set[str]] = {}
+    for dotted in (*(spec.anneal or {}), *(spec.control or {})):
+        if dotted.startswith(OBJECTIVE_WEIGHT_PREFIX):
+            continue  # a named term's live weight; it comes home in `controls`
+        fname, _, tail = dotted.partition(".")
+        if tail:
+            moved.setdefault(fname, set()).add(tail.rsplit(".", 1)[-1])
+    return {name: frozenset(attrs) for name, attrs in moved.items()}
 
 
-def _plain_attrs(stage: Stage) -> dict[str, Any]:
-    """The numbers a stage keeps beside its ``state_dict`` — what an anneal
-    or a controller sets (a gate's ``temperature``), a budget gate's drawn
-    ``k`` — and its budget pool's, under ``"pool"``."""
+def _plain_attrs(stage: Stage, moved: frozenset[str]) -> dict[str, Any]:
+    """What a fit moves on a stage beside its ``state_dict``: the
+    hyperparameters ``moved`` names (:func:`moved_attrs`) and the budget a
+    ``budget`` gate drew for its last step — its own, or its pool's under
+    ``"pool"``.
 
-    def numbers(obj: Any) -> dict[str, Any]:
-        return {
-            name: value
-            for name, value in vars(obj).items()
-            if name not in _MODULE_STATE and isinstance(value, (bool, int, float))
-        }
-
-    attrs = numbers(stage)
+    Declared rather than discovered. A sweep of every number on the stage
+    would also carry ``width``, ``hard_eval``, ``init_fill`` and the rest of
+    what it was *constructed* with, which the client built from the same spec
+    — and would overwrite its copy with the wire's instead of noticing that
+    the two disagree."""
+    attrs: dict[str, Any] = {name: getattr(stage, name) for name in sorted(moved)}
+    drawn = getattr(stage, "_k", None)
+    if drawn is not None:
+        attrs["_k"] = drawn
     pool = getattr(stage, "pool", None)
-    if pool is not None:
-        attrs["pool"] = numbers(pool)
+    if pool is not None and pool.k is not None:
+        attrs["pool"] = {"k": pool.k}
     return attrs
