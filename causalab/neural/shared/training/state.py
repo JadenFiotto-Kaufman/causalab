@@ -160,8 +160,9 @@ def build_stages(
     :func:`~causalab.neural.shared.featurizers.build_recipe` with the seed as
     its explicit init seed, and after each one every budget pool linked
     (:func:`~causalab.neural.shared.featurizers.link_budget_pools`), which
-    builds a pool's other members in name order. The returned map holds
-    every stage built, pool co-members included.
+    builds a pool's other members in name order, then every other recipe the
+    spec carries, in recipe order. The returned map holds every stage built,
+    pool co-members included.
 
     ``load_tensors`` / ``load_table`` open the bundles a featurizer's
     ``init`` or ``file_path`` names; a spec that names none needs neither,
@@ -204,6 +205,11 @@ def build_stages(
 
     for pname in spec.params:
         build(pname.partition(".")[0])
+    for recipe in spec.recipes:
+        # what the spec carries beyond the trained stages and their pools —
+        # an engine that builds every stage its forwards name from the spec
+        # lists them after those, and they are built in that order
+        build(recipe.name)
     return cache
 
 

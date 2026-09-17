@@ -18,6 +18,7 @@ import torch
 from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine import fit as fit_module
 from causalab.neural.engines.nnterp_engine import train as train_module
 from causalab.neural.engines.nnterp_engine.train import run_training
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
@@ -137,26 +138,29 @@ def _with_eval(doc_raw: dict[str, Any], every: dict[str, int]) -> dict[str, Any]
 
 
 def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
-    """A real pass: the eval executor is built once over the split's rows on
-    the point's stage cache, and every epoch's score is the document's metric
-    over it — the last one the outcome's."""
+    """A real pass: the eval split is planned once, up front, as programs
+    without gradients beside one ``ScoreSpec``; every epoch's score is the
+    document's metric over them — the last one the outcome's."""
     doc_raw = _with_eval(das_doc(seed=0, epochs=3), {"epochs": 1})
     executor = _executor(nnterp_llama, doc_raw)
-    built: list[NnterpExecutor] = []
-    real = train_module._score  # pyright: ignore[reportPrivateUsage]
+    request = train_request({EVAL_SPLIT: ROWS})
+    plan = train_module.plan_fit(executor.doc, executor, request).plan
+    assert plan.score is not None and plan.score.split == EVAL_SPLIT
+    assert plan.eval and not any(program.grad for program in plan.eval)
+    assert all(program.grad for program in plan.train)
 
-    def recording(doc, eval_executor):
-        built.append(eval_executor)
-        return real(doc, eval_executor)
+    executor = _executor(nnterp_llama, doc_raw)
+    scored: list[Any] = []
+    real = fit_module.score
+
+    def recording(score_spec, read):
+        scored.append(score_spec)
+        return real(score_spec, read)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(train_module, "_score", recording)
-        (outcome,) = run_training(
-            [executor.doc], [executor], train_request({EVAL_SPLIT: ROWS})
-        )
-    assert len(built) == 3 and len({id(e) for e in built}) == 1
-    assert built[0].stage_cache is executor.stage_cache
-    assert not built[0].grad_enabled
+        patch.setattr(fit_module, "score", recording)
+        (outcome,) = run_training([executor.doc], [executor], request)
+    assert len(scored) == 3 and len({id(spec) for spec in scored}) == 1
     assert outcome.eval_score is not None
     assert outcome.eval_score.passes == 3
     assert outcome.eval_score.selected == "last"
@@ -177,26 +181,22 @@ def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
 def test_early_stop_returns_the_best_fit_not_the_last(nnterp_llama, monkeypatch):
     """``early_stop`` selects a fit by its eval score, so the fit it selected
     is the one that comes back. The score is scripted — a deterministic peak
-    at the second eval — because what is under test is the selection."""
+    at the second eval — because what is under test is the selection: the
+    returned weights are the fit's after two epochs, which a two-epoch fit of
+    the same document reproduces to the bit."""
     doc_raw = _with_eval(das_doc(seed=0, epochs=5), {"epochs": 1})
     doc_raw["method"]["train"]["early_stop"] = {
         "metric": "ce",
         "patience": 10,
         "mode": "max",
     }
-    scores = [0.1, 0.9, 0.5, 0.4, 0.3]
-    seen: list[dict[str, torch.Tensor]] = []
-
-    def scripted(doc, eval_executor):
-        stage = eval_executor.stage_cache["rot"]
-        seen.append({k: v.detach().clone() for k, v in stage.state_dict().items()})
-        return {"ce": scores[len(seen) - 1]}
-
-    monkeypatch.setattr(train_module, "_score", scripted)
+    scores = iter([0.1, 0.9, 0.5, 0.4, 0.3])
+    monkeypatch.setattr(fit_module, "score", lambda *_: {"ce": next(scores)})
     outcome = _fit(nnterp_llama, doc_raw, splits={EVAL_SPLIT: ROWS})
 
-    assert len(seen) == len(scores)  # patience never fires: five evals ran
-    peak, final = seen[1], seen[-1]
+    assert next(scores, None) is None  # patience never fires: five evals ran
+    peak = _fit(nnterp_llama, das_doc(seed=0, epochs=2)).stages["rot"].state_dict()
+    final = _fit(nnterp_llama, das_doc(seed=0, epochs=5)).stages["rot"].state_dict()
     assert not torch.allclose(peak[ORIGINAL], final[ORIGINAL])  # the fit moved on
     returned = outcome.stages["rot"].state_dict()
     torch.testing.assert_close(returned[ORIGINAL], peak[ORIGINAL], atol=0.0, rtol=0.0)
@@ -269,6 +269,57 @@ def test_the_reference_runner_and_this_one_fit_the_same_weights(
         torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
 
 
+def _drawn(cls, bundle, *, remote: Any = None):
+    """A point executor over a drawn counterfactual role (§2.2 ``draw``): two
+    distinct members per row, as ``resolve_roles`` hands a fit."""
+    from causalab.protocol.validate import validate_document
+
+    doc = dbm_doc()
+    doc["data"]["counterfactual"] = {
+        **doc["data"]["counterfactual"],
+        "field": "counterfactual_inputs",
+        "draw": {"kind": "uniform"},
+    }
+    parsed = parse_document(in_order(doc))
+    validate_document(parsed, engine_is_local=True)
+    rows = [
+        {**row, "counterfactual_inputs": [cf, f"{cf} again"]}
+        for row in ROWS
+        for cf in row["counterfactual_inputs"]
+    ]
+    return cls(
+        parsed,
+        bundle,
+        role_rows={"base": rows, "counterfactual": rows},
+        role_fields={"base": "input", "counterfactual": "counterfactual_inputs[0]"},
+        load_tensors=lambda path: (_ for _ in ()).throw(KeyError(path)),
+        load_table=None,
+        **({} if remote is None else {"remote": remote}),
+    )
+
+
+def test_a_drawn_role_fits_the_same_through_both_engines(hooks_llama, nnterp_llama):
+    """§2.2 ``draw`` on the one path: each later epoch re-plans the step's
+    templates over a fresh draw (``run_fit(redraw=)``), and the fit is the
+    reference engine's — the same members drawn, the same weights."""
+    hooked_executor = _drawn(PointExecutor, hooks_llama)
+    hooked = run_hooks_training(hooked_executor.doc, hooked_executor, train_request())
+    executor = _drawn(NnterpExecutor, nnterp_llama)
+    (traced,) = run_training([executor.doc], [executor], train_request())
+    members = traced.draws["counterfactual"]["members"]
+    assert members == hooked.draws["counterfactual"]["members"]
+    assert len(members) == 3 and len({tuple(epoch) for epoch in members}) > 1
+    for name, value in _slots(hooked).items():
+        torch.testing.assert_close(_slots(traced)[name], value, atol=0.0, rtol=0.0)
+
+
+def test_a_remote_fit_refuses_a_drawn_role(nnterp_llama):
+    executor = _drawn(NnterpExecutor, nnterp_llama, remote="local")
+    with pytest.raises(ProtocolError, match="planning is the client's") as err:
+        run_training([executor.doc], [executor], train_request())
+    assert err.value.code == "P4"
+
+
 # --------------------------------------------------------------------------- #
 # routing
 # --------------------------------------------------------------------------- #
@@ -292,24 +343,34 @@ def test_a_train_document_routes_to_this_engine():
     }.isdisjoint(NnterpEngine.capabilities)
 
 
-def test_a_remote_engine_neither_claims_nor_runs_a_fit():
-    """Training needs the graph of a forward in this process: a remote engine
-    drops ``grad``, so routing passes it over, and refuses a ``train``
-    document handed to it anyway."""
-    engine = NnterpEngine(remote="local")
-    needed = requires(parse_document(in_order(das_doc())))
-    assert "grad" in needed - engine.effective_capabilities
-    with pytest.raises(ProtocolError, match="remote forward returns detached") as err:
-        engine._train([], [], train_request())  # pyright: ignore[reportPrivateUsage]
-    assert err.value.code == "P4"
+@pytest.mark.parametrize("remote", [True, "local"])
+def test_a_remote_engine_claims_a_fit(remote):
+    """A remote engine fits a ``train`` document as one job
+    (``test_remote_fit.py``), so it declares ``grad`` and routing sends the
+    document to it."""
+    from causalab.protocol.engine import choose_engine
+
+    engine = NnterpEngine(remote=remote)
+    doc = parse_document(in_order(das_doc()))
+    assert requires(doc) <= engine.effective_capabilities
+    assert choose_engine(doc, [engine]) is engine
 
 
-def test_a_weight_free_bundle_makes_the_engine_remote_for_training(remote_llama):
-    """``remote=None`` inherits the bundle's: an engine handed a weight-free
-    bundle runs on NDIF, so it drops ``grad`` and refuses a fit the same."""
-    engine = NnterpEngine(bundle=remote_llama)
-    needed = requires(parse_document(in_order(das_doc())))
-    assert "grad" in needed - engine.effective_capabilities
-    with pytest.raises(ProtocolError, match="remote forward returns detached") as err:
-        engine._train([], [], train_request())  # pyright: ignore[reportPrivateUsage]
-    assert err.value.code == "P4"
+def test_a_lone_gradient_forward_is_not_a_remote_job(nnterp_llama):
+    """A gradient-enabled executor plans for any tier — a remote fit's
+    programs are planned on one — but a forward of its own as a job would
+    bring its saves home detached, so running one refuses."""
+    executor = sweep.make_executor(
+        NnterpExecutor,
+        das_doc(),
+        nnterp_llama,
+        rows=ROWS,
+        with_cf=True,
+        remote="local",
+        grad_enabled=True,
+    )
+    assert executor.fit_programs(["logits"])  # planning is fine
+    for run in (lambda: executor.read_value("logits"), executor.run_all):
+        with pytest.raises(ProtocolError, match="remote job of its own") as err:
+            run()
+        assert err.value.code == "P4"

@@ -293,10 +293,13 @@ def seeded_stages(spec: FitSpec, executor: ExecutorBase) -> dict[str, Stage]:
     discipline ``state.build_stages`` repeats, so a stage built from the spec
     alone starts bit-identical to the one built here."""
     torch.manual_seed(spec.seed)
-    return {
+    trained = {
         fname: executor.stage(fname)
         for fname in dict.fromkeys(pname.partition(".")[0] for pname in spec.params)
     }
+    for recipe in spec.recipes:
+        executor.stage(recipe.name)  # `build_stages`' order: every other recipe
+    return trained
 
 
 def minibatch_executors(

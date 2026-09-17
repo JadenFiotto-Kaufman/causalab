@@ -43,6 +43,8 @@ __all__ = [
     "Op",
     "Order",
     "ReadPlan",
+    "SlotRef",
+    "StackRef",
     "StepPlan",
     "WritePlan",
     "needs_eager",
@@ -66,13 +68,35 @@ class Order(enum.IntEnum):
 
 
 @dataclasses.dataclass(frozen=True)
+class StackRef:
+    """A featurizer stack **by name**: the chain's featurizer names, resolved
+    where the program runs against the stage table that lives there. A fit's
+    programs carry these — its stages are built, stepped and kept in the
+    fit's own process, so a shipped copy would be a stage nobody trains.
+    ``()`` is the identity stack."""
+
+    names: tuple[str, ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class SlotRef:
+    """A featurizer slot operand (``"rot.weight"``) by name — the live
+    parameter of the stage table's stage, for the same reason."""
+
+    featurizer: str
+    slot: str
+
+
+@dataclasses.dataclass(frozen=True)
 class FlowPlan:
-    """How a read's gathered rows become the operand a later group of the
-    same session consumes, without leaving the server: the feature tail of
-    the read (``site``'s head slice, ``stack``, ``dims``)."""
+    """How a read's gathered rows become the value a later consumer of the
+    same session reads, without leaving the server — a later group's write
+    operand, a fit's objective, an eval metric: the feature tail of the read
+    (``site``'s head slice, ``stack``, ``dims``). ``stack`` is the stack
+    itself (an inference point ships it) or its names (a fit)."""
 
     site: ResolvedSite
-    stack: FeaturizerStack
+    stack: "FeaturizerStack | StackRef"
     dims: Any
 
 
@@ -111,9 +135,11 @@ class FirePlan:
 class WritePlan:
     """Every write at one address, with what the write math needs as data.
 
-    ``positions`` and ``stacks`` are keyed by write name. ``operands`` holds
-    every operand resolved on the client — a read's stored value, a
-    featurizer slot, a params tensor — by the name the payload spells;
+    ``positions`` and ``stacks`` are keyed by write name; a stack is the
+    stack itself or, in a fit, its names (:class:`StackRef`). ``operands``
+    holds every operand resolved on the client — a read's stored value, a
+    featurizer slot (in a fit a :class:`SlotRef`), a params tensor — by the
+    name the payload spells;
     ``read_operands`` is which of the payload's names are reads, and a read
     operand absent from ``operands`` is one an earlier group of the same
     session produced (it is looked up in the session's flow).
@@ -124,8 +150,8 @@ class WritePlan:
 
     entries: Entries
     positions: Mapping[str, list[list[int]]]
-    stacks: Mapping[str, FeaturizerStack]
-    operands: Mapping[str, "torch.Tensor | float | RaggedValue"]
+    stacks: Mapping[str, "FeaturizerStack | StackRef"]
+    operands: Mapping[str, "torch.Tensor | float | RaggedValue | SlotRef"]
     read_operands: frozenset[str]
     positioned: Mapping[str, bool]
     operand_routing: Mapping[str, torch.Tensor]
@@ -177,10 +203,10 @@ class GroupProgram:
     them; ``rows`` / ``field`` are the role's dataset rows, shipped only
     when a continuation position names a ``variable``. ``needs_eager`` asks
     the block to switch the model to eager attention around its forward.
-    ``grad`` runs the forward with gradients and keeps every saved value on
-    its device with its graph; otherwise values are detached, and moved to
-    the CPU in the block when ``offload`` (a forward in another process
-    downloads exactly what it saves)."""
+    ``grad`` runs the forward with gradients and keeps every value — saved or
+    flowing — on its device with its graph; otherwise values are detached,
+    and moved to the CPU in the block when ``offload`` (a forward in another
+    process downloads exactly what it saves)."""
 
     label: str
     model_key: str

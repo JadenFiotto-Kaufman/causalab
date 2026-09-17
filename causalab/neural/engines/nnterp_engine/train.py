@@ -1,66 +1,68 @@
-"""This engine's train runner (spec §2.11): the forwards of a fit as traces,
-under the shared loop.
+"""This engine's train runner (spec §2.11): **plan → run → load**.
 
 What a ``train`` section means, and the update loop itself, are
-:mod:`causalab.neural.shared.training`'s. What is here is how a step's
-forward runs on this engine:
+:mod:`causalab.neural.shared.training`'s; the fit's body — the stages, the
+optimizer, the forwards of a step as traces, the backward between them — is
+:mod:`.fit`'s, and runs where the model is. What is here is the client's two
+ends of it:
 
-* a minibatch is an :class:`~causalab.neural.engines.nnterp_engine.executor.
-  NnterpExecutor` over a row selection of the point's frame, built
-  ``grad_enabled`` and on the point's own stage cache — its programs run
-  under ``torch.enable_grad()`` and its reads come back as device tensors
-  with their graph (``landers._offload``);
-* a step asks the shared objective for its loss, whose reads run the
-  executor's groups lazily — the operand's source forward, then the trained
-  model's trace, where the write lands ``inverse(swap(featurize(·)))`` on the
-  block's output in place and the head's logits are captured past it;
-* ``backward()`` runs **after** the traces have exited, as plain PyTorch. The
-  model's weights are frozen at load, so the graph begins where a trained
-  featurizer enters the forward, and nothing a trace saves is detached —
-  the capture-inside, backward-outside form nnsight supports for reading
-  gradients, with no ordering rule between the tensors involved.
+* **plan** (:func:`plan_fit`): the fit as data
+  (:class:`~causalab.neural.engines.nnterp_engine.fit.TrainPlan`). The
+  ``FitSpec``, with a recipe for every stage the fit's forwards name; the
+  client's own stages, built on the point executor's cache in the spec's
+  order, their saved starts recorded for the plan; the step's template
+  programs, planned once on a gradient-enabled executor over the point's
+  whole frame; the eval split's programs and metrics, planned up front when
+  the fit will evaluate.
+* **run** (:func:`~causalab.neural.engines.nnterp_engine.fit.run_fit`): in
+  this process, or as one NDIF job — the same body either way.
+* **load** (:func:`_load`): the returned state into the client's **own**
+  stage objects — the point executor's ``stage_cache``, which the finish
+  phase evaluates — and the returned records into a ``TrainOutcome``. The
+  digest of each stage as the fit built it is compared with the client's; a
+  difference (another BLAS's last bit in a QR) warns, and the returned state
+  stands either way.
 
-Every fit is a cohort of one: a member's step is its own traces, whatever
-fits beside it. One :func:`~causalab.neural.shared.featurizers.
-featurizer_cache` scope spans a member's forwards, loss and backward — a
-rotation or a mask evaluated once per step, the gradient reaching the
-parameter through that one evaluation, closed before the optimizer moves it.
+Every fit is a cohort of one, and one job.
 
-**Local only.** A remote forward's saves come back detached, on the CPU, and
-a client-side optimizer over parameters the server never sees trains
-nothing; the executor refuses ``grad_enabled`` with ``remote`` and the engine
-refuses the document before that.
+A §2.2 ``draw`` re-plans the step's programs each epoch from a fresh draw,
+which only the client can do: it runs locally (``run_fit(redraw=)``) and is
+refused for a remote fit.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import functools
+import warnings
 from typing import Any, Mapping, Sequence
 
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
-from causalab.neural.shared.encoding import EncodedBatch
-from causalab.neural.shared.execution import TrainOutcome
-from causalab.neural.shared.executor_base import ExecutorBase
-from causalab.neural.shared.featurizers import featurizer_cache
-from causalab.neural.shared.training import (
-    FitSpec,
-    FitState,
-    build_fit_state,
-    fit_loop,
-    step_loss,
+from causalab.neural.engines.nnterp_engine.program import GroupProgram
+from causalab.neural.engines.nnterp_engine.fit import (
+    Artifacts,
+    TrainPlan,
+    run_fit,
+    stage_digest,
 )
+from causalab.neural.shared.encoding import EncodedBatch
+from causalab.neural.shared.execution import Checkpoint, TrainEvalScore, TrainOutcome
+from causalab.neural.shared.executor_base import ExecutorBase
+from causalab.neural.shared.featurizers import Gate
+from causalab.neural.shared.services import input_roles
 from causalab.neural.shared.training.draw import Drawn
 from causalab.neural.shared.training.executors import (
     eval_executor,
-    eval_pass,
     fit_spec,
-    minibatch_executors,
+    score_spec,
     seeded_stages,
 )
+from causalab.neural.shared.training.spec import FitSpec
 from causalab.protocol.engine import ExecutionRequest
+from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import Document
 
-__all__ = ["run_training"]
+__all__ = ["plan_fit", "run_training"]
 
 
 def _inner_executor(
@@ -74,9 +76,10 @@ def _inner_executor(
     drawn: bool = False,
 ) -> NnterpExecutor:
     """This engine's ``ExecutorFactory`` (``shared/training/executors.py``):
-    a fit's minibatch or eval executor
-    over the point's. ``rows`` and ``drawn`` key a forward store, which this
-    engine does not keep — every group an inner executor reads, it runs."""
+    the executor a fit's programs are planned on — over the point's rows with
+    gradients, or over the eval split's without — sharing the point's stage
+    cache. ``rows`` and ``drawn`` key a forward store, which this engine does
+    not keep."""
     del rows, drawn
     assert isinstance(executor, NnterpExecutor)
     return NnterpExecutor(
@@ -94,37 +97,170 @@ def _inner_executor(
     )
 
 
-@dataclasses.dataclass(eq=False)
-class _Fit:
-    """One point's fit on this engine: the loop's ``spec`` and ``state``, and
-    beside them what runs the forwards — the point's executor, one executor
-    per minibatch, the eval executor once a pass has built it, and the drawn
-    roles (§2.2 ``draw``). The loop sees none of it."""
-
-    doc: Document
-    executor: NnterpExecutor
-    spec: FitSpec
-    state: FitState
-    minibatches: list[ExecutorBase]
-    drawn: Drawn | None
-    evaluator: ExecutorBase | None = None
-
-
-def _prepare(doc: Document, executor: NnterpExecutor) -> _Fit:
-    """The fit's plain data, its stages on the point's own cache — seeded and
-    built in one breath, so a member's init is its document's whatever was
-    prepared before it — its state, then its minibatch executors."""
-    spec = fit_spec(doc, executor)
-    state = build_fit_state(
-        spec, stages=seeded_stages(spec, executor), device=executor.bundle.device
+def _with_every_stage(
+    spec: FitSpec, doc: Document, executor: NnterpExecutor
+) -> FitSpec:
+    """``spec`` with a recipe for every featurizer a read or a write of the
+    document names, after the trained ones: a fit's programs carry stacks by
+    name, so the fit builds every stage they resolve to, in this order."""
+    names = [recipe.name for recipe in spec.recipes]
+    for entry in (*executor.doc.reads.values(), *executor.doc.writes.values()):
+        chain = entry.featurizer
+        if isinstance(chain, str):
+            chain = (chain,)
+        for name in chain if isinstance(chain, (list, tuple)) else ():
+            if name not in names:
+                names.append(str(name))
+    extra = names[len(spec.recipes) :]
+    return dataclasses.replace(
+        spec,
+        recipes=spec.recipes + tuple(executor.stage_recipe(name) for name in extra),
+        featurizers={**spec.featurizers, **{n: doc.featurizers[n] for n in extra}},
     )
-    minibatches, drawn = minibatch_executors(doc, executor, spec, _inner_executor)
-    return _Fit(doc, executor, spec, state, minibatches, drawn)
 
 
-def _score(doc: Document, evaluator: ExecutorBase) -> dict[str, float]:
-    """One eval pass on ``evaluator`` (``executors.eval_pass``)."""
-    return eval_pass(doc, evaluator)
+@dataclasses.dataclass(eq=False)
+class _Planned:
+    """One point's fit, planned: what ships, and what stays here to finish
+    it — the digest of each client stage as built, and the drawn roles."""
+
+    plan: TrainPlan
+    executor: NnterpExecutor
+    init_digest: dict[str, str]
+    drawn: Drawn | None
+
+
+def plan_fit(
+    doc: Document, executor: NnterpExecutor, request: ExecutionRequest
+) -> _Planned:
+    """Plan one point's fit on its full-data ``executor`` (module docstring):
+    the client's stages are built here, on the executor's own cache."""
+    drawing = sorted(
+        role for role, data in input_roles(doc).items() if data.draw is not None
+    )
+    if drawing and executor.remote:
+        raise ProtocolError(
+            "P4",
+            "this fit draws a counterfactual member per row each epoch "
+            f"(data.{drawing[0]}.draw), which re-plans the step's forwards from "
+            "the drawn rows every epoch — planning is the client's, and a "
+            "remote fit is one job whose programs are planned once, before it "
+            "is submitted. Fit a drawn role against a locally loaded bundle "
+            "(remote=False).",
+        )
+    spec = _with_every_stage(fit_spec(doc, executor), doc, executor)
+    drawn = Drawn.of(doc, executor, spec.seed, _inner_executor)
+
+    # the client's stages, their saved starts recorded for the plan
+    artifacts = Artifacts()
+    loaders = executor.load_tensors, executor.load_table
+    executor.load_tensors, executor.load_table = artifacts.recording(*loaders)
+    try:
+        seeded_stages(spec, executor)
+    finally:
+        executor.load_tensors, executor.load_table = loaders
+    init_digest = {
+        recipe.name: stage_digest(executor.stage_cache[recipe.name])
+        for recipe in spec.recipes
+    }
+
+    frames = {role: executor.frame(role) for role in executor.role_rows}
+    every_row = list(range(len(executor.rows_for_metrics())))
+    if drawn is not None:
+        # a draw is a selection of one expanded frame; one "minibatch" of
+        # every row is the whole drawn frame the step's templates are over
+        drawn.bind([every_row], frames)
+        (planner,) = drawn.minibatches()
+    else:
+        planner = _inner_executor(
+            doc,
+            executor,
+            role_rows=executor.role_rows,
+            grad_enabled=True,
+            rows=tuple(every_row),
+            batches=frames,
+        )
+    assert isinstance(planner, NnterpExecutor)
+    train = planner.fit_programs(spec.objective_reads)
+
+    score, evaluation = None, ()
+    if spec.eval_every_epochs is not None and spec.epochs >= spec.eval_every_epochs:
+        evaluator = eval_executor(doc, executor, request, _inner_executor)
+        assert isinstance(evaluator, NnterpExecutor)
+        score = score_spec(
+            doc, evaluator.rows_for_metrics(), evaluator.bundle.tokenizer
+        )
+        evaluation = evaluator.fit_programs(score.reads)
+
+    remote = executor.remote
+    plan = TrainPlan(
+        label=f"{executor.bundle.key}{dict(executor.coords) or ''}",
+        spec=spec,
+        train=train,
+        eval=evaluation,
+        score=score,
+        artifacts=artifacts,
+        progress=bool(remote) and remote != "local",
+    )
+    return _Planned(plan, executor, init_digest, drawn)
+
+
+def _redraw(drawn: Drawn, spec: FitSpec) -> tuple[GroupProgram, ...]:
+    """A new epoch's draw (§2.2), and the step's programs planned over it."""
+    (planner,) = drawn.minibatches()
+    assert isinstance(planner, NnterpExecutor)
+    return planner.fit_programs(spec.objective_reads)
+
+
+def _load(planned: _Planned, result: Mapping[str, Any]) -> TrainOutcome:
+    """The fit's result into the client: each stage's state and plain
+    attributes onto the point executor's own stage object — identity kept, so
+    the finish phase evaluates the fitted featurizer — left as ``finish``
+    leaves a stage (eval mode, no pinned mask); then the outcome."""
+    cache = planned.executor.stage_cache
+    moved = sorted(
+        name
+        for name, digest in result["init_digest"].items()
+        if planned.init_digest.get(name) != digest
+    )
+    if moved:
+        warnings.warn(
+            f"fit {planned.plan.label}: the stages {moved} were built where the "
+            "fit ran with other bits than here (a differing BLAS moves the last "
+            "bit of a QR-completed rotation). The returned state is the fit's "
+            "and is what is loaded; a local re-run would start elsewhere.",
+            stacklevel=2,
+        )
+    for name, state in result["state"].items():
+        stage = cache[name]
+        stage.load_state_dict(dict(state))
+        for attr, value in result["attrs"][name].items():
+            if attr == "pool":
+                for pool_attr, pool_value in value.items():
+                    setattr(stage.pool, pool_attr, pool_value)
+            else:
+                setattr(stage, attr, value)
+        stage.eval()
+        if isinstance(stage, Gate):
+            stage.frozen_mask = None
+    spec = planned.plan.spec
+    return TrainOutcome(
+        stages={name: cache[name] for name in spec.trained_names},
+        eval_score=(
+            None
+            if result["eval_score"] is None
+            else TrainEvalScore(**result["eval_score"])
+        ),
+        diagnostics=result["diagnostics"],
+        controls=result["controls"],
+        control_trace=result["control_trace"],
+        constraints=result["constraints"],
+        constraint_trace=result["constraint_trace"],
+        anneals=result["anneals"],
+        phases=tuple(result["phases"]),
+        checkpoints=tuple(Checkpoint(**c) for c in result["checkpoints"]),
+        draws=planned.drawn.record() if planned.drawn is not None else {},
+    )
 
 
 def run_training(
@@ -134,57 +270,29 @@ def run_training(
 ) -> list[TrainOutcome]:
     """Fit each point; one outcome per point, in order.
 
-    Each ``executor`` is its point's full-data executor — its stage cache is
-    shared with every minibatch and with the eval executor, so the stages it
-    later evaluates are the fitted ones, and the outcome's ``stages`` are
-    those same objects. With ``train.early_stop`` they hold the best-scoring
-    weights (``eval_score.selected``), otherwise the last."""
+    Each ``executor`` is its point's full-data executor: the fitted state is
+    loaded into the stages of its own cache, which the finish phase reads, and
+    the outcome's ``stages`` are those same objects. With
+    ``train.early_stop`` they hold the best-scoring weights
+    (``eval_score.selected``), otherwise the last. ``executor.remote`` is
+    where the fit runs — here, or as one NDIF job."""
     if len(docs) != len(executors):
         raise ValueError(
             f"{len(docs)} documents but {len(executors)} executors — one per point"
         )
-    fits = [_prepare(doc, executor) for doc, executor in zip(docs, executors)]
-
-    def step(members: Sequence[int]) -> None:
-        """One optimizer step's forwards, member by member: the loss's reads
-        run the minibatch executor's traces under ``enable_grad``, and the
-        backward runs once they have exited."""
-        for fit in (fits[i] for i in members):
-            state = fit.state
-            minibatch = fit.minibatches[state.order[state.position]]
-            minibatch.reset_reads()
-            with featurizer_cache():
-                step_loss(state, fit.spec, minibatch.dense_value).backward()
-
-    def evaluate(members: Sequence[int]) -> list[dict[str, float]]:
-        """One pass per member on its own executor over its ``train.eval``
-        split — built on the first pass and kept, so the split is read and
-        encoded once."""
-        scores: list[dict[str, float]] = []
-        for fit in (fits[i] for i in members):
-            if fit.evaluator is None:
-                fit.evaluator = eval_executor(
-                    fit.doc, fit.executor, request, _inner_executor
-                )
-            scores.append(_score(fit.doc, fit.evaluator))
-        return scores
-
-    def on_epoch(members: Sequence[int]) -> None:
-        # §2.2 `draw`: a new member per row for the new epoch
-        for fit in (fits[i] for i in members):
-            if fit.drawn is not None:
-                fit.minibatches = fit.drawn.minibatches()
-
-    outcomes = fit_loop(
-        [fit.state for fit in fits],
-        [fit.spec for fit in fits],
-        step=step,
-        evaluate=evaluate,
-        on_epoch=on_epoch,
-    )
-    return [
-        dataclasses.replace(
-            outcome, draws=fit.drawn.record() if fit.drawn is not None else {}
-        )
-        for fit, outcome in zip(fits, outcomes)
-    ]
+    outcomes: list[TrainOutcome] = []
+    for doc, executor in zip(docs, executors):
+        planned = plan_fit(doc, executor, request)
+        with executor._kernel_path():  # pyright: ignore[reportPrivateUsage]
+            result = run_fit(
+                executor.bundle.model,
+                planned.plan,
+                remote=executor.remote,
+                redraw=(
+                    None
+                    if planned.drawn is None
+                    else functools.partial(_redraw, planned.drawn, planned.plan.spec)
+                ),
+            )
+        outcomes.append(_load(planned, result))
+    return outcomes

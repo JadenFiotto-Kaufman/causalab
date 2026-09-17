@@ -24,7 +24,9 @@ The NDIF rules the structure enforces:
   is ``rows × positions × width``, not the contract tensor. Values are
   detached, and moved to the CPU when the program says the forward is in
   another process; a gradient-enabled program keeps device tensors and
-  their graph.
+  their graph, flowing values included — inside a fit
+  (:mod:`.fit`) the graph of a step spans its traces, and ``backward()``
+  runs between them.
 * **the eager switch happens in the block**, on the module the model's
   envoy resolves to where the block runs, before any operation, and is
   reversed in a ``finally`` once the forward has finished or been stopped:
@@ -34,9 +36,13 @@ The NDIF rules the structure enforces:
 * **the forward runs no further than it is read.** A plain forward is
   stopped after its group's last operation (``tracer.stop()``); a generate
   consumes its whole run, and a gradient-enabled forward runs whole.
-* **operands stay on the server.** Inside a session, a read a later group
-  consumes is finished into ``flow`` (its feature tail applied from the
-  shipped stack) and the later group's write looks it up there.
+* **operands stay on the server.** Inside a session, a read a later
+  consumer needs — a later group's write, a fit's objective — is finished
+  into ``flow`` (its feature tail applied from the program's stack) and
+  looked up there.
+* **a remote run is checked before it is submitted.** Every function here
+  that takes ``remote`` first holds the server's ``causalab`` and ``nnterp``
+  to this client's (:mod:`.versions`).
 
 Two landings, one schedule. A **module boundary** lands on the envoy's
 ``input`` / ``output``. An **interior** lands on an op of the anchor envoy's
@@ -63,6 +69,8 @@ from causalab.neural.engines.nnterp_engine.program import (
     Op,
     Order,
     ReadPlan,
+    SlotRef,
+    StackRef,
     WritePlan,
 )
 from causalab.neural.engines.nnterp_engine.versions import ensure_server_matches
@@ -106,6 +114,7 @@ __all__ = [
     "execute",
     "fire_ops",
     "present_native",
+    "refuse_meta",
     "routing",
     "run_program",
     "run_session",
@@ -219,7 +228,7 @@ def execute(
     forward is stopped after its last operation, which ends the block."""
     out.update(reads={}, routing={}, fired=[], mismatch={}, steps={})
     module = model._module
-    _refuse_meta(module, program)
+    refuse_meta(module, program)
     previous = switch_to_eager(module) if program.needs_eager else None
     try:
         if previous is not None:
@@ -263,7 +272,7 @@ def execute(
             restore_attention(module, previous)
 
 
-def _refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
+def refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
     """Refuse a block that was handed a weight-free model.
 
     The block works on the model its envoy resolves to where it runs: it
@@ -311,11 +320,22 @@ def _over(
     return fn(value)
 
 
-def _stack_on(stack: FeaturizerStack, device: torch.device) -> FeaturizerStack:
+def _stack_on(
+    stack: "FeaturizerStack | StackRef", device: torch.device
+) -> FeaturizerStack:
     """``stack`` with its stages where the activation is. A no-op in one
     process (the stack was built on the bundle's device); on a server the
     shipped stages arrive on the CPU and the activation is wherever the
-    server put the model — a device the client cannot know."""
+    server put the model — a device the client cannot know. A stack still
+    named (:class:`StackRef`) belongs to a fit, whose body binds it to its
+    stage table before any forward (:func:`.fit.bind_stages`)."""
+    if isinstance(stack, StackRef):
+        raise ProtocolError(
+            "P4",
+            f"a program names the featurizer stack {list(stack.names)} instead "
+            "of carrying it: by-name stacks resolve against a fit's stage "
+            "table (nnterp_engine/fit.py) and this forward runs outside one",
+        )
     for stage in stack.stages:
         if any(p.device != device for p in stage.parameters()) or any(
             b.device != device for b in stage.buffers()
@@ -405,13 +425,18 @@ def _reduce(
             _flat(gather_rows(idx, plan.positions)), program
         )
     if plan.flow is not None:
-        value = _flat(gathered)
-        flow[plan.rname] = read_features(
-            value,
+        # the read's feature tail, where its consumer is: under ``grad`` with
+        # its graph (a fit's write operand, its objective), else built under
+        # ``no_grad`` and detached
+        rows = _flat(gathered)
+        value = read_features(
+            rows,
             plan.flow.site,
-            _stack_on(plan.flow.stack, value.device),
+            _stack_on(plan.flow.stack, rows.device),
             plan.flow.dims,
-        ).detach()
+            grad_enabled=program.grad,
+        )
+        flow[plan.rname] = value if program.grad else value.detach()
 
 
 def _derive_as(site: ResolvedSite, rname: str, value: torch.Tensor) -> torch.Tensor:
@@ -462,7 +487,8 @@ def _services(
                 ragged=ragged,
                 positioned=ragged is not None and write.positioned[value],
             )
-        if value not in write.operands:
+        if value not in write.operands or isinstance(write.operands[value], SlotRef):
+            # a slot still named belongs to a fit's stage table, as a stack does
             raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
         return write.operands[value]
 

@@ -71,29 +71,34 @@ operand by value, and the operands around it still flow. A lazy
 :meth:`~causalab.neural.shared.executor_base.ExecutorBase.read_value` before
 ``run_all`` runs one job per group. A plain forward stops after its group's
 last operation, so a shallow read does not pay for the layers above it.
-Remote mode refuses what cannot cross: a gradient-enabled executor (saved
-values come back detached), a ``pytorch_fn`` write (its code is the
-caller's, not the server's), and a weight-free bundle asked to run in this
-process.
+Remote mode refuses what cannot cross: a gradient-enabled forward as a job of
+its own (saved values come back detached — a fit runs whole inside one
+session instead, :mod:`.fit`, on programs :meth:`NnterpExecutor.fit_programs`
+plans here), a ``pytorch_fn`` write (its code is the caller's, not the
+server's), and a weight-free bundle asked to run in this process.
 
 What remote mode requires of the server, and what it does not promise:
 
-* **a trusted, in-process NDIF deployment with the same ``causalab``
-  installed.** The block is ``causalab``'s own functions, imported where it
-  runs, and it works on the served model itself — it flips that model's
-  attention implementation and calls its head and mixer projections. A
-  sandboxed (untrusted) deployment runs the block against a ``meta`` copy;
-  the block refuses there by name
+* **a trusted, in-process NDIF deployment with the same ``causalab`` and
+  ``nnterp`` installed.** The block is ``causalab``'s own functions,
+  imported where it runs, and it works on the served model itself — it flips
+  that model's attention implementation and calls its head and mixer
+  projections. A sandboxed (untrusted) deployment runs the block against a
+  ``meta`` copy; the block refuses there by name
   (:func:`~causalab.neural.engines.nnterp_engine.landers.execute`). A
-  version skew between the two ``causalab`` installs is a skew between the
-  plan and the code that reads it.
+  version skew between the two installs is a skew between the plan and the
+  code that reads it, so every remote submission is preceded by the version
+  guard (:mod:`.versions`): the server's ``/env`` (looked up once per host)
+  must report this client's ``causalab`` and ``nnterp`` versions exactly, or
+  the run is refused (P4) before any job is spent.
 * **a hard kill mid-block can leave a shared deployment on eager
   attention.** The switch is reversed in a ``finally``, which covers an
   exception and an early stop; a worker killed between the switch and the
   restore (a walltime, an OOM kill) runs no ``finally``, and the next
   request on that replica runs eager until something switches it back.
-* **featurizer stages ship by value, per session.** A write's stack (and a
-  flowing read's) is pickled into the payload: a full-rank rotation at
+* **an inference point's featurizer stages ship by value, per session.** (A
+  fit's never ship: its programs name them and the fit builds them where it
+  runs.) A write's stack (and a flowing read's) is pickled into the payload: a full-rank rotation at
   hidden 8192 is 8192² fp32 entries, ~268 MB, in every session that uses
   it. The program without stages is ~13.5 KB, beside the ~85 KB of nnterp
   that a remote ``StandardizedTransformer`` registers for by-value pickling.
@@ -109,7 +114,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-from typing import Any
+from typing import Any, Sequence
 
 import torch
 
@@ -121,6 +126,8 @@ from causalab.neural.engines.nnterp_engine.program import (
     FlowPlan,
     GroupProgram,
     ReadPlan,
+    SlotRef,
+    StackRef,
     StepPlan,
     WritePlan,
     needs_eager,
@@ -235,14 +242,6 @@ class NnterpExecutor(ExecutorBase):
                 "(remote=True or a host URL, or leave remote unset to inherit "
                 "the bundle's), or load the bundle with its weights.",
             )
-        if self.remote and self.grad_enabled:
-            raise ProtocolError(
-                "P4",
-                "a gradient-enabled executor cannot run remotely: what a "
-                "remote forward saves comes back detached, on the CPU, so no "
-                "gradient reaches a trained parameter — train against a "
-                "locally loaded bundle",
-            )
 
     @functools.cached_property
     def _tree(self) -> str:
@@ -255,9 +254,25 @@ class NnterpExecutor(ExecutorBase):
     # running: plan → program → run → finalize
     # ------------------------------------------------------------------ #
 
+    def _refuse_remote_grad(self) -> None:
+        """A gradient-enabled executor *plans* for any tier — a remote fit's
+        programs are planned on one (:meth:`fit_programs`) and run inside the
+        fit's session, where the graph lives. What it cannot do is run its
+        forwards as jobs of their own."""
+        if self.remote and self.grad_enabled:
+            raise ProtocolError(
+                "P4",
+                "a gradient-enabled forward cannot run as a remote job of its "
+                "own: what a remote forward saves comes back detached, on the "
+                "CPU, so no gradient reaches a trained parameter. A fit runs "
+                "whole inside one session (nnterp_engine/fit.py: run_fit), "
+                "where its stages, its optimizer and its graph live",
+            )
+
     def _run_group(self, model: str, input_role: str) -> None:
         if (model, input_role) in self._groups_run:
             return
+        self._refuse_remote_grad()
         # operands first — the acyclic model graph is the schedule skeleton
         for operand in self._operand_reads(model):
             self.read_value(operand)
@@ -281,6 +296,7 @@ class NnterpExecutor(ExecutorBase):
         if not self.remote:
             super().run_all()
             return
+        self._refuse_remote_grad()
         self._preflight()
         segments = self._segments(self._group_order())
         plans = [
@@ -341,6 +357,94 @@ class NnterpExecutor(ExecutorBase):
             read.pos, self._batch(input_role), input_role, cell=rname
         )
         return len({len(row) for row in per_row}) == 1
+
+    def fit_programs(self, reads: Sequence[str]) -> tuple[GroupProgram, ...]:
+        """The forwards of a fit's step (or of its eval pass) as programs of
+        the fit's session (:mod:`.fit`): the groups ``reads`` need — each
+        after the groups whose reads its writes consume — planned **once**,
+        over this executor's whole frame. A minibatch is a row selection of
+        them (:func:`~causalab.neural.engines.nnterp_engine.fit.select_rows`).
+
+        Nothing comes home from a fit's forward, so every value a consumer
+        needs **flows**: a write's operand, and each of ``reads`` — the
+        objective's or the eval metrics' — finished where the forward ran.
+        Featurizer stacks and slot operands are carried **by name**
+        (:class:`StackRef`, :class:`SlotRef`): the fit's stages are built and
+        stepped where it runs. A read the block cannot finish
+        (:meth:`_flowable`) refuses the fit by name."""
+        self._preflight()
+        order: list[Group] = []
+
+        def visit(group: Group) -> None:
+            if group in order:
+                return
+            for operand in self._operand_reads(group[0]):
+                read = self.doc.reads[operand]
+                visit((str(read.model), str(read.input)))
+            order.append(group)
+
+        for rname in reads:
+            read = self.doc.reads[rname]
+            visit((str(read.model), str(read.input)))
+        flowing = frozenset(reads) | {
+            operand for group in order for operand in self._operand_reads(group[0])
+        }
+        for rname in sorted(flowing):
+            if not self._flowable(rname):
+                raise ProtocolError(
+                    "P4",
+                    f"read {rname!r} feeds this fit — its objective, an eval "
+                    "metric, or a write of the trained forward — and is not a "
+                    "dense, positioned prompt-frame read off no routing table: "
+                    "a ragged, routed-interior, state, per-fire, whole-tensor "
+                    "or continuation read is finished on the client, and a "
+                    "fit's forwards run whole where its stages live "
+                    "(nnterp_engine/fit.py). The reference engine "
+                    "(neural/engines/pytorch_hooks) fits this document.",
+                )
+        return tuple(
+            self._by_name(
+                dataclasses.replace(
+                    self._plan(*group, flowing=flowing).program, offload=False
+                )
+            )
+            for group in order
+        )
+
+    def _by_name(self, program: GroupProgram) -> GroupProgram:
+        """``program`` with every featurizer stack and every featurizer-slot
+        operand replaced by its name."""
+
+        def named(op: Any) -> Any:
+            reads = tuple(
+                dataclasses.replace(
+                    plan,
+                    flow=dataclasses.replace(
+                        plan.flow, stack=StackRef(plan.flow.stack.names)
+                    ),
+                )
+                if isinstance(plan, ReadPlan) and plan.flow is not None
+                else plan
+                for plan in op.reads
+            )
+            write = op.write
+            if write is not None:
+                slots = {}
+                for name in write.operands:
+                    fname, _, slot = name.partition(".")
+                    if slot and fname in self.doc.featurizers:
+                        slots[name] = SlotRef(fname, slot)
+                write = dataclasses.replace(
+                    write,
+                    stacks={
+                        ename: StackRef(stack.names)
+                        for ename, stack in write.stacks.items()
+                    },
+                    operands={**write.operands, **slots},
+                )
+            return dataclasses.replace(op, reads=reads, write=write)
+
+        return dataclasses.replace(program, ops=tuple(named(op) for op in program.ops))
 
     def _bound(self, program: GroupProgram) -> GroupProgram:
         """``program`` with every read operand this client holds shipped by

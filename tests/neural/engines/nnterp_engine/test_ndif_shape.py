@@ -42,7 +42,6 @@ import causalab.neural.engines.nnterp_engine as engine_package
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.nnterp_engine.loading import load_model
 from causalab.neural.shared.loading import torch_module
-from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
 from tests.neural.engines.nnterp_engine.conftest import ROWS, TINY_LLAMA
@@ -191,24 +190,45 @@ def test_every_save_is_a_container_bound_at_block_level():
     assert seen  # or the check is vacuous
 
 
+def test_the_fit_session_body_is_the_container_and_one_call():
+    """A session returns every session-level variable bound to a saved
+    object, and an inner trace pushes its saved container up by name: a loop
+    written in the session body would download each step's graph-attached
+    container. So the body of a fit's session is exactly the saved container
+    and one call to a module-level function, whose locals are its own."""
+    (block,) = [
+        block
+        for filename, function, block in _trace_blocks()
+        if (filename, function.name) == ("fit.py", "run_fit")
+    ]
+    bind, call = block.body
+    assert ast.unparse(bind) == "result = nnsight.save({})"
+    assert ast.unparse(call) == "fit_body(model, plan, result)"
+
+
 def test_nnsight_captures_only_the_program_for_each_body_kind(
     remote_llama, ndif_llama, monkeypatch
 ):
     """The tripwire's dynamic complement: what nnsight's own block reduction
-    ships for each kind of body the engine opens — a session, a trace, a
-    generate — is the model, the program(s), and the function that runs them.
+    ships for each kind of body the engine opens — a point's session, a fit's
+    session, a trace, a generate — is the model, the program(s) or the plan,
+    and the function that runs them.
     """
     from nnsight.schema import request
 
+    from causalab.neural.engines.nnterp_engine.train import run_training
+
+    from tests._helpers.train_docs import ROWS as FIT_ROWS
+    from tests._helpers.train_docs import das_doc, train_request
     from tests.neural.engines.nnterp_engine.test_generate_frame import _gen_doc
 
-    captured: dict[str, set[str]] = {}
+    captured: dict[str, set[frozenset[str]]] = {}
     reduce_block = request.reduce_block
 
     def spy(node, glbls, lcls):
         source, used_globals, used_locals = reduce_block(node, glbls, lcls)
         kind = node.items[0].context_expr.func.attr
-        captured.setdefault(kind, set()).update(used_globals, used_locals)
+        captured.setdefault(kind, set()).add(frozenset({*used_globals, *used_locals}))
         return source, used_globals, used_locals
 
     monkeypatch.setattr(request, "reduce_block", spy)
@@ -226,12 +246,19 @@ def test_nnsight_captures_only_the_program_for_each_body_kind(
         rows=ROWS,
         with_cf=False,
     ).read_value("r")  # a generate
+    fit = sweep.make_executor(
+        NnterpExecutor, das_doc(), remote_llama, rows=FIT_ROWS, with_cf=True
+    )
+    run_training([fit.doc], [fit], train_request())  # a whole fit: one session
 
-    body = {"model", "tracer", "program", "flow", "nnsight", "execute"}
+    body = frozenset({"model", "tracer", "program", "flow", "nnsight", "execute"})
     assert captured == {
-        "session": {"model", "programs", "nnsight", "run_program"},
-        "trace": body,
-        "generate": body,
+        "session": {
+            frozenset({"model", "programs", "nnsight", "run_program"}),
+            frozenset({"model", "plan", "nnsight", "fit_body"}),
+        },
+        "trace": {body},
+        "generate": {body},
     }
 
 
@@ -328,16 +355,3 @@ def test_a_remote_bundle_holds_no_weights_and_still_plans():
 def test_a_remote_bundle_refuses_a_device():
     with pytest.raises(ValueError, match="holds no weights"):
         load_model(TINY_LLAMA, device="cuda", remote=True)
-
-
-def test_remote_mode_refuses_what_cannot_cross(nnterp_llama):
-    with pytest.raises(ProtocolError, match="cannot run remotely"):
-        sweep.make_executor(
-            NnterpExecutor,
-            sweep.interchange_doc("block_output", 1),
-            nnterp_llama,
-            rows=ROWS,
-            with_cf=True,
-            remote="local",
-            grad_enabled=True,
-        )
