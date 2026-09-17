@@ -965,7 +965,7 @@ def _execute_point(
     # of it runs until the fit above has finished and the stages are final.
     executor.run_all()
     # what every write through an expert-keyed gate found about the pair's
-    # routing (executor_base._align_by_expert): the base slots whose expert
+    # routing (executor_base.align_by_expert): the base slots whose expert
     # the operand's side never activated, per layer and example. Filled by
     # the writes the full-data pass above landed, so it describes the rows
     # the metric tables describe

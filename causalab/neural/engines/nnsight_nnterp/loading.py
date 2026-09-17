@@ -20,7 +20,21 @@ another's.
 Attention runs under the checkpoint's default implementation unless the
 caller pins one. The pattern read and the attention interior need the eager
 path (the mixer returns its weights, and the scores exist, only there),
-which the executor switches on around a trace that needs it.
+which the block switches on around a forward that needs it.
+
+A **remote** bundle (``load_model(..., remote=True)``) keeps the checkpoint
+off the client: the forwards run on NDIF, and what is built here is the
+structure alone. nnterp is told ``remote=True, dispatch=False,
+allow_dispatch=False, check_attn_probs_with_trace=False`` — 📐 its default
+attention-probability check otherwise runs a trace *without* ``remote=``,
+which dispatches the whole checkpoint locally, and its scan fallback would
+fire a real NDIF job at load time. The parameters stay on ``meta``; device
+placement and the CPU kernel binding are skipped (no forward runs here).
+Everything downstream is structural and works on the meta tree:
+``ModelInfo`` comes from the config, the adapter from the module tree,
+``resolve_site`` from attribute walks, and the encoding from the tokenizer.
+The bundle records ``device="cpu"`` — where the client finishes the slices
+the server gathered.
 """
 
 from __future__ import annotations
@@ -64,6 +78,9 @@ class NnterpBundle:
     device: str
     dtype: str
     quantization: dict[str, Any] | None = None
+    #: Whether the weights are elsewhere: a remote bundle's parameters are on
+    #: ``meta``, and its executor runs every forward on NDIF.
+    remote: bool = False
 
     @property
     def blocks(self) -> Any:
@@ -96,6 +113,7 @@ def load_model(
     dtype: str = "fp32",
     device: str = "cpu",
     attn_implementation: str | None = None,
+    remote: bool = False,
 ) -> NnterpBundle:
     """Load (and cache) one standardized bundle.
 
@@ -107,17 +125,34 @@ def load_model(
 
     ``attn_implementation=None`` keeps the checkpoint's default; ``"eager"``
     also enables nnterp's attention-probability accessor.
+
+    ``remote=True`` builds the weight-free bundle of the module docstring:
+    ``device`` is then where the client finishes values, and must be the CPU.
     """
     from nnterp import StandardizedTransformer
 
-    configure_compile_cache(device)
+    if remote and device != "cpu":
+        raise ValueError(
+            f"a remote bundle holds no weights to place on {device!r}: its "
+            'forwards run on NDIF, and the client finishes values on "cpu"'
+        )
+    if not remote:
+        configure_compile_cache(device)
     eager = attn_implementation == "eager"
+    placement: dict[str, Any] = (
+        {
+            "remote": True,
+            "dispatch": False,
+            "allow_dispatch": False,
+            "check_attn_probs_with_trace": False,
+        }
+        if remote
+        else {"device": device, "device_map": device, "dispatch": True}
+    )
     model = StandardizedTransformer(
         key,
         revision=revision,
         dtype=TORCH_DTYPES[dtype],
-        device=device,
-        device_map=device,
         # nnterp passes attn_implementation="eager" itself when it enables the
         # accessor, and a second spelling of it is a duplicate keyword
         **(
@@ -127,7 +162,7 @@ def load_model(
         ),
         enable_attention_probs=eager,
         check_renaming=True,
-        dispatch=True,
+        **placement,
     )
     raw = torch_module(model)
     raw.eval()
@@ -142,7 +177,8 @@ def load_model(
     register_model(info)
     # a DeltaNet family's kernel globals follow the device the weights are on
     # (shared/kernels.py); the executor wraps each trace in the torch path too
-    bind_kernel_path(raw, on_cuda=device.startswith("cuda"))
+    if not remote:
+        bind_kernel_path(raw, on_cuda=device.startswith("cuda"))
     return NnterpBundle(
         key=key,
         revision=revision,
@@ -152,4 +188,5 @@ def load_model(
         adapter=standard_adapter(raw),
         device=device,
         dtype=dtype,
+        remote=remote,
     )

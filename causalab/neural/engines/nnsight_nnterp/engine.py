@@ -77,10 +77,18 @@ class NnterpEngine(Engine):
     is_local = True
 
     def __init__(
-        self, *, device: str = "cpu", bundle: NnterpBundle | None = None
+        self,
+        *,
+        device: str = "cpu",
+        bundle: NnterpBundle | None = None,
+        remote: bool | str = False,
     ) -> None:
         self.device = device
         self.bundle = bundle
+        #: Where the forwards run: ``False`` here, ``True`` (or a host URL) on
+        #: NDIF against a weight-free bundle, ``"local"`` through nnsight's
+        #: in-process dry run of the remote path against a loaded one.
+        self.remote = remote
 
     @property
     def model_source(self) -> str:
@@ -133,6 +141,9 @@ class NnterpEngine(Engine):
                     if "attn_implementation" in realization
                     else {}
                 ),
+                # "local" dry-runs the remote path in this process, so it
+                # needs the weights here
+                remote=bool(self.remote) and self.remote != "local",
             )
         role_rows, role_fields = resolve_roles(doc, request)
         return NnterpExecutor(
@@ -143,4 +154,5 @@ class NnterpEngine(Engine):
             load_tensors=functools.partial(load_tensors, request),
             load_table=functools.partial(load_table, request),
             coords=coords,
+            remote=self.remote,
         )

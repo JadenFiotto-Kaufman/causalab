@@ -1,5 +1,5 @@
-"""The nnsight + nnterp engine: module-boundary interventions over the
-standardized envoy tree.
+"""The nnsight + nnterp engine: interventions over the standardized envoy
+tree, locally or on NDIF.
 
 The engine runs one nnsight trace per forward group over the tree
 :class:`nnterp.StandardizedTransformer` builds — the same block list, embedding,
@@ -39,6 +39,28 @@ Tiering, as built:
 
 Gradient-enabled groups run under ``torch.enable_grad()`` so the training
 tier can build on the same ``_run_group``; nothing here trains yet.
+
+The engine is **NDIF-shaped**, with one code path for local and remote
+execution. nnsight ships a traced block as its source plus every name the
+block reads, each pickled whole; a real server returns only saved
+block-level variables, and sees neither a client-side mutation nor a
+client-side config change. The structure follows from those rules:
+
+* no trace body reads ``self`` — each group is planned into a frozen
+  :class:`~.program.GroupProgram` before the trace (:mod:`.executor`), and the
+  block is module-level functions over the model and that program
+  (:mod:`.landers`);
+* one saved container per block, bound at block level; reads are gathered at
+  their positions inside the forward and detached there, fires and mismatch
+  counts come back as data;
+* the eager-attention switch is the block's own first statement;
+* with ``remote`` set, a whole point runs as one ``model.session`` — the
+  groups in dependency order, operands flowing between the traces on the
+  server — against a weight-free bundle (:mod:`.loading`).
+
+``tests/neural/engines/nnsight_nnterp/test_ndif_shape.py`` pins these
+without a server: nnsight's ``remote="local"`` dry run executes against the
+caller's own frame and so hides all three failure classes.
 
 Requires the ``nnsight`` extra (``pip install 'causalab[nnsight]'``), which
 carries both packages.

@@ -275,8 +275,10 @@ def interchange_doc(
     }
 
 
-def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool):
-    """The same document driven through either engine's executor."""
+def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool, **kwargs):
+    """The same document driven through either engine's executor; ``kwargs``
+    are the executor's own (``grad_enabled``, the nnsight engine's
+    ``remote``)."""
     from causalab.protocol.schema import parse_document
     from causalab.protocol.validate import validate_document
 
@@ -295,6 +297,7 @@ def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool):
         role_rows=role_rows,
         role_fields=role_fields,
         load_tensors=lambda path: (_ for _ in ()).throw(KeyError(path)),
+        **kwargs,
     )
 
 

@@ -22,6 +22,12 @@ import pytest
 import torch
 
 from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnsight_nnterp.landers import (
+    Navigation,
+    fire_ops,
+    present_native,
+    routing,
+)
 from causalab.neural.engines.nnsight_nnterp.sources import (
     ADDRESSES,
     GENERATED_ADDRESSES,
@@ -51,7 +57,7 @@ def _layer_for(bundle, component: str) -> int:
 
 @pytest.mark.parametrize("fixture", ["nnterp_qwen", "nnterp_gpt2"])
 def test_every_table_entry_resolves_in_one_trace_per_anchor(request, fixture):
-    """The canary proper. Navigation reuses the executor's own drill,
+    """The canary proper. Navigation reuses the block's own drill,
     memo and presentation — the same code path a document takes — so a
     green canary means real documents resolve, not merely that the strings
     match. Entries are requested in rank order, the discipline the
@@ -93,26 +99,22 @@ def test_every_table_entry_resolves_in_one_trace_per_anchor(request, fixture):
             _ = sites[component].module.source  # instrumented before the forward
     saves: dict[str, object] = {}
     for anchor_entries in by_anchor.values():
-        memo: dict = {}
+        nav = Navigation(bundle.key)
         with torch.no_grad(), torch_kernel_path(torch_module(bundle.model)):
             with bundle.model.trace(TEXT):
                 if any(address.expert_rows for _, address in anchor_entries):
                     # the routing table is the anchor's own input, requested
                     # at its entry before anything inside it
                     anchor_site = sites[anchor_entries[0][0]]
-                    saves["routing"] = nnsight.save(
-                        executor._routing(anchor_site, memo, 1)
-                    )
+                    saves["routing"] = nnsight.save(routing(anchor_site, nav, 1))
                 for component, address in anchor_entries:
                     site = sites[component]
                     if address.fires == "per_chunk":
-                        value_op, count = executor._fire_ops(site, address, memo)
+                        value_op, count = fire_ops(site, address, nav)
                         saves[f"{component}:trip"] = nnsight.save(count)
                         saves[component] = nnsight.save(value_op.output)
                         continue
-                    saves[component] = nnsight.save(
-                        executor._present_native(site, address, memo)
-                    )
+                    saves[component] = nnsight.save(present_native(site, address, nav))
     assert set(saves) >= {component for component, _ in entries}
     for component, value in saves.items():
         if component.endswith(":trip"):
@@ -164,10 +166,10 @@ def test_every_decode_table_entry_resolves_per_step(nnterp_qwen):
             saves = nnsight.save({component: [] for component, _ in entries})
             for _ in tracer.iter[1 : steps + 1]:
                 _ = embedding.input
-                memo: dict = {}
+                nav = Navigation(nnterp_qwen.key)
                 for component, address in entries:
                     saves[component].append(
-                        executor._present_native(sites[component], address, memo)
+                        present_native(sites[component], address, nav)
                     )
             _ = tracer.result.save()
     for component, values in saves.items():

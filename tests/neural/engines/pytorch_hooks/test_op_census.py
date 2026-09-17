@@ -17,7 +17,7 @@ swap of a counterfactual read into ``block_output``, a logits read):
   frame's per-row ``first_real`` in ``encoding.py`` is budgeted with the
   frame, not here);
 * the write landing gathers its positions once and copies nothing it does
-  not have to: no ``clone`` from ``_written_value``, exactly one from the
+  not have to: no ``clone`` from ``written_value``, exactly one from the
   hook (the tensor the in-place edit works on);
 * our kernel-launching glue per forward stays within a budget (the values
   are in the assertions; view ops and the engine's own grouped-experts
@@ -280,9 +280,9 @@ def test_the_landing_copies_only_what_the_hook_edits_in_place(
 ) -> None:
     census = _run(qwen35moe_bundle)
     patched = census.ours[2]
-    assert not _by_site(census, 2, "executor_base.py:_written_value"), dict(patched)
+    assert not _by_site(census, 2, "executor_base.py:written_value"), dict(patched)
     assert _by_site(census, 2, "executor.py:out_hook") == {"clone": 1}, dict(patched)
-    assert _by_site(census, 2, "executor_base.py:_apply_writes_to_contract") == {
+    assert _by_site(census, 2, "executor_base.py:apply_writes_to_contract") == {
         "index_put_": 1
     }, dict(patched)
 
