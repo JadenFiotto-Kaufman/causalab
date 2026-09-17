@@ -287,7 +287,7 @@ def test_the_soft_accuracy_objective_is_the_saved_tables_twin():
     on the same logits, so the objective a fit minimizes and the table it
     saves cannot disagree — the property `js` already has."""
     from causalab.neural.engines.pytorch_hooks.loading import load_model
-    from causalab.neural.engines.pytorch_hooks.train import metric_tensor
+    from causalab.neural.shared.training.objective import metric_tensor
     from causalab.neural.shared.metrics import compute_metric
 
     bundle = load_model(TINY_LLAMA)
@@ -790,7 +790,7 @@ def test_a_drawn_role_refuses_prepared_encodings_and_a_mismatched_sibling():
     the member count is a per-member sibling that does not match — refused
     (P2) rather than left whole for the document to read member 0 of."""
     from causalab.neural.engines.pytorch_hooks.loading import load_model
-    from causalab.neural.engines.pytorch_hooks.train import (
+    from causalab.neural.shared.training.draw import (
         _check_member_siblings,
         _drawn_row,
     )
@@ -1404,13 +1404,13 @@ def test_the_mask_penalty_is_keyed_on_the_map():
         validate_document(parse_document(in_order(l0_on_sigmoid)), engine_is_local=True)
     assert err.value.rule == 4 and "'l1'" in str(err.value)
 
-    from causalab.neural.engines.pytorch_hooks.train import _regularizer
+    from causalab.neural.shared.training.objective import regularizer
     from causalab.neural.shared.featurizers import Gate
 
     with pytest.raises(ProtocolError, match="does not pair"):
-        _regularizer("l1", ["g"], {"g": Gate(4, parametrization="hard_concrete")})
+        regularizer("l1", ["g"], {"g": Gate(4, parametrization="hard_concrete")})
     with pytest.raises(ProtocolError, match="does not pair"):
-        _regularizer("l0", ["g"], {"g": Gate(4)})
+        regularizer("l0", ["g"], {"g": Gate(4)})
 
 
 def test_validation_accepts_the_hard_concrete_doc_and_refuses_its_fields_elsewhere():
@@ -1547,17 +1547,17 @@ def test_a_regularizer_sum_is_the_mean_times_the_unit_count():
     """§2.11 ``reduce``: the sum over the concatenated per-unit quantities is
     the mean scaled by how many units there are — so under ``sum`` a kept unit
     costs the term's weight whatever the gate's size."""
-    from causalab.neural.engines.pytorch_hooks.train import _regularizer
+    from causalab.neural.shared.training.objective import regularizer
     from causalab.neural.shared.featurizers import Gate
 
     stages = {"a": Gate(5), "b": Gate(3)}
     with torch.no_grad():
         stages["a"].theta.copy_(torch.tensor([2.0, -1.0, 0.5, 0.0, 3.0]))
         stages["b"].theta.copy_(torch.tensor([-2.0, 1.0, 0.0]))
-    mean = _regularizer("l1", ["a", "b"], stages)
-    summed = _regularizer("l1", ["a", "b"], stages, "sum")
+    mean = regularizer("l1", ["a", "b"], stages)
+    summed = regularizer("l1", ["a", "b"], stages, "sum")
     assert torch.allclose(summed, mean * 8)
-    assert torch.allclose(_regularizer("l1", ["a", "b"], stages, "mean"), mean)
+    assert torch.allclose(regularizer("l1", ["a", "b"], stages, "mean"), mean)
 
 
 def test_a_regularizer_cost_scales_one_targets_quantities_before_the_concatenation():
@@ -1565,7 +1565,7 @@ def test_a_regularizer_cost_scales_one_targets_quantities_before_the_concatenati
     by its entry (1 when unlisted) before they are concatenated, under either
     reduction; ``parameter_count`` divides each target by its own element
     count, so under ``sum`` the term is the sum of per-featurizer means."""
-    from causalab.neural.engines.pytorch_hooks.train import _regularizer
+    from causalab.neural.shared.training.objective import regularizer
     from causalab.neural.shared.featurizers import Gate
 
     stages = {"a": Gate(5), "b": Gate(3)}
@@ -1573,16 +1573,16 @@ def test_a_regularizer_cost_scales_one_targets_quantities_before_the_concatenati
         stages["a"].theta.copy_(torch.tensor([2.0, -1.0, 0.5, 0.0, 3.0]))
         stages["b"].theta.copy_(torch.tensor([-2.0, 1.0, 0.0]))
     a, b = stages["a"].soft_mask(), stages["b"].soft_mask()
-    costed = _regularizer("l1", ["a", "b"], stages, "sum", {"b": 0.25})
+    costed = regularizer("l1", ["a", "b"], stages, "sum", {"b": 0.25})
     assert torch.allclose(costed, a.sum() + 0.25 * b.sum())
-    costed_mean = _regularizer("l1", ["a", "b"], stages, "mean", {"a": 2.0, "b": 0.5})
+    costed_mean = regularizer("l1", ["a", "b"], stages, "mean", {"a": 2.0, "b": 0.5})
     assert torch.allclose(costed_mean, torch.cat([2.0 * a, 0.5 * b]).mean())
-    per_count = _regularizer("l1", ["a", "b"], stages, "sum", "parameter_count")
+    per_count = regularizer("l1", ["a", "b"], stages, "sum", "parameter_count")
     assert torch.allclose(per_count, a.mean() + b.mean())
     # a cost of 1 everywhere, and no costs at all, are one number
-    plain = _regularizer("l1", ["a", "b"], stages, "sum")
+    plain = regularizer("l1", ["a", "b"], stages, "sum")
     assert torch.allclose(
-        _regularizer("l1", ["a", "b"], stages, "sum", {"a": 1.0}), plain
+        regularizer("l1", ["a", "b"], stages, "sum", {"a": 1.0}), plain
     )
     # a non-gate target under `parameter_count` counts every slot it matched
     from causalab.neural.shared.featurizers import Subspace
@@ -1590,8 +1590,8 @@ def test_a_regularizer_cost_scales_one_targets_quantities_before_the_concatenati
     rot = Subspace(4, 2, parametrization="cayley")
     elements = sum(p.numel() for p in rot.slot_params().values())
     assert torch.allclose(
-        _regularizer("l2", ["rot"], {"rot": rot}, "sum", "parameter_count"),
-        _regularizer("l2", ["rot"], {"rot": rot}, "sum") / elements,
+        regularizer("l2", ["rot"], {"rot": rot}, "sum", "parameter_count"),
+        regularizer("l2", ["rot"], {"rot": rot}, "sum") / elements,
     )
 
 
@@ -1603,7 +1603,7 @@ def test_costs_compose_with_l0_and_a_grouped_gate_counts_its_units():
     over 8 coordinates in 2 heads has 2 units, so its divisor is 2 — not the
     8 coordinates the heads span — the same per-unit reading the quantity
     itself has."""
-    from causalab.neural.engines.pytorch_hooks.train import _regularizer
+    from causalab.neural.shared.training.objective import regularizer
     from causalab.neural.shared.featurizers import Gate
 
     stages = {
@@ -1615,18 +1615,18 @@ def test_costs_compose_with_l0_and_a_grouped_gate_counts_its_units():
         stages["b"].theta.copy_(torch.tensor([-2.0, 1.0, 0.0]))
     a, b = stages["a"].expected_l0(), stages["b"].expected_l0()
     assert torch.allclose(
-        _regularizer("l0", ["a", "b"], stages, "sum", "parameter_count"),
+        regularizer("l0", ["a", "b"], stages, "sum", "parameter_count"),
         a.mean() + b.mean(),
     )
     assert torch.allclose(
-        _regularizer("l0", ["a", "b"], stages, "sum", {"b": 0.25}),
+        regularizer("l0", ["a", "b"], stages, "sum", {"b": 0.25}),
         a.sum() + 0.25 * b.sum(),
     )
     grouped = Gate(8, group="head", groups=(2, 4))
     assert grouped.theta.numel() == 2
     with torch.no_grad():
         grouped.theta.copy_(torch.tensor([1.0, -1.0]))
-    per_unit = _regularizer("l1", ["g"], {"g": grouped}, "sum", "parameter_count")
+    per_unit = regularizer("l1", ["g"], {"g": grouped}, "sum", "parameter_count")
     units = grouped.soft_mask().flatten()
     assert units.numel() == 2
     assert torch.allclose(per_unit, units.sum() / 2)
@@ -1723,13 +1723,14 @@ def test_a_controlled_weight_follows_the_fit_and_is_recorded():
 
 
 def test_all_control_signals_are_read_in_one_host_copy() -> None:
-    """``_read_signals`` over every member of a step is ``read_signal`` per
+    """``read_signals`` over every member of a step is ``read_signal`` per
     controller with the counts copied to the host together: the same
     numbers — the same left-to-right float sum — one synchronization."""
     from types import SimpleNamespace
 
-    from causalab.neural.engines.pytorch_hooks import train as train_module
     from causalab.neural.shared.featurizers import Gate
+    from causalab.neural.shared.training.loop import read_signals
+    from causalab.neural.shared.training.schedules import Control
 
     gates = [Gate(8).eval() for _ in range(3)]
     for i, gate in enumerate(gates):
@@ -1737,7 +1738,7 @@ def test_all_control_signals_are_read_in_one_host_copy() -> None:
             gate.theta.copy_(torch.linspace(-1, 1, 8) + 0.3 * i)
 
     def control(stages: list[Gate], signal: str) -> Any:
-        return train_module._Control(  # pyright: ignore[reportPrivateUsage]
+        return Control(
             controller=None,  # type: ignore[arg-type]  # never consulted by a read
             ramp=(0.0, 1.0, 1.0),
             initial=0.0,
@@ -1752,7 +1753,7 @@ def test_all_control_signals_are_read_in_one_host_copy() -> None:
             controls={"fraction": control(gates[1:], "hard_mask_fraction")}
         ),
     ]
-    signals = train_module._read_signals(fits)  # type: ignore[arg-type]  # pyright: ignore[reportPrivateUsage]
+    signals = read_signals(fits)  # type: ignore[arg-type]
     for fit in fits:
         for target, ctl in fit.controls.items():
             counts = ctl.signal_counts()
@@ -1764,11 +1765,11 @@ def test_all_control_signals_are_read_in_one_host_copy() -> None:
         sum(int((g.theta > 0).sum()) for g in gates[:2])
     )
     assert 0.0 < signals[(id(fits[1]), "fraction")] < 1.0
-    assert train_module._read_signals([]) == {}  # pyright: ignore[reportPrivateUsage]
+    assert read_signals([]) == {}
 
 
 def test_checkpoint_steps_space_the_run_and_always_end_on_its_last_update():
-    from causalab.neural.engines.pytorch_hooks.train import _checkpoint_steps
+    from causalab.neural.shared.training.fit import checkpoint_steps
     from causalab.protocol.schema import parse_document
 
     from tests.protocol._docs import in_order
@@ -1778,7 +1779,7 @@ def test_checkpoint_steps_space_the_run_and_always_end_on_its_last_update():
         doc["method"]["save"].append(
             {"kind": "trajectory", "every": every, "file_path": "t.safetensors"}
         )
-        return _checkpoint_steps(parse_document(in_order(doc)), total, per_epoch)
+        return checkpoint_steps(parse_document(in_order(doc)), total, per_epoch)
 
     assert steps({"count": 4}, 6, 2) == {1, 3, 4, 6}
     assert steps({"count": 10}, 6, 2) == {
@@ -1792,7 +1793,7 @@ def test_checkpoint_steps_space_the_run_and_always_end_on_its_last_update():
     assert steps({"updates": 2}, 6, 2) == {2, 4, 6}
     assert steps({"updates": 4}, 6, 2) == {4, 6}  # the final update always
     assert steps({"epochs": 1}, 6, 2) == {2, 4, 6}
-    assert _checkpoint_steps(parse_document(in_order(clamp_dbm_doc())), 6, 2) == set()
+    assert checkpoint_steps(parse_document(in_order(clamp_dbm_doc())), 6, 2) == set()
 
 
 def test_a_trajectory_photographs_the_fit_at_its_scheduled_updates():
@@ -2118,7 +2119,7 @@ def test_lr_factor_is_hfs_linear_warmup_then_decay() -> None:
     """``get_linear_schedule_with_warmup`` at 10 % warm-up over 100 updates: 0 at
     the first update, 1 at the end of the warm-up, 0 after the last update;
     linear on both sides. No warm-up: a straight decay from 1."""
-    from causalab.neural.engines.pytorch_hooks.train import lr_factor
+    from causalab.neural.shared.training.schedules import lr_factor
 
     assert lr_factor(0, 100, 0.1) == 0.0
     assert lr_factor(5, 100, 0.1) == pytest.approx(0.5)

@@ -13,7 +13,7 @@ from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle
-from causalab.neural.engines.pytorch_hooks.train import metric_tensor
+from causalab.neural.shared.training.objective import metric_tensor
 from causalab.neural.sequences import (
     add_readouts,
     add_rollout_readouts,

@@ -580,7 +580,7 @@ def js_divergence(
     distributions are first **restricted to its answer ids and renormalised**
     — a ``log_softmax`` over the sliced logits, which is exact and needs no
     ``eps``. Differentiable in both arguments, so the same function is the
-    objective term (``pytorch_hooks.train.metric_tensor``) and the saved
+    objective term (``shared.training.objective.metric_tensor``) and the saved
     record — one arithmetic, one unit."""
     if restrict_ids is None:
         return _js_from_log_probs(

@@ -28,6 +28,7 @@ from causalab.neural.engines.pytorch_hooks.graph_reuse import FitGraphCache
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.execution import campaign_cache
 from causalab.neural.shared.executor_base import Interning
+from causalab.neural.shared.training import fit as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.plan import plan_point
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
@@ -166,7 +167,7 @@ class _Trace:
         )
 
     def __enter__(self):
-        build_optimizer = train._build_optimizer
+        build_optimizer = fit_module.build_optimizer
         score = train._score
         replay_call = Replay.__call__
         replay_init = Replay.__init__
@@ -211,7 +212,7 @@ class _Trace:
                 trace.eval_captures += 1
 
         self._patches = [
-            patch.object(train, "_build_optimizer", traced_optimizer),
+            patch.object(fit_module, "build_optimizer", traced_optimizer),
             patch.object(train, "_score", traced_score),
             patch.object(Replay, "__call__", counted_call),
             patch.object(Replay, "__init__", counted_init),

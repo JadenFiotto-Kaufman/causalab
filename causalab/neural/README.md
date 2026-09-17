@@ -8,12 +8,15 @@ map, and `docs/running_experiments.md` §6 is the user-facing routing table.
 - `shared/` — everything that is not *how a tensor is reached*: the component →
   tap map and its write-policy tables (`sites.py`), tokenization and position
   frames (`encoding.py`), the closed `do` set (`mechanisms.py`), featurizer
-  application, metric lowering, output writing, tensor layouts, and the
-  `ExecutorBase` both executors inherit.
+  application, metric lowering, output writing, tensor layouts, the
+  `ExecutorBase` every executor inherits, and the engine-neutral half of
+  training (`training/`: what a `train` section means, and the update loop an
+  engine plugs its forward into).
 - `engines/pytorch_hooks/` — the **reference** engine: raw module hooks, plus
   the interior taps no hook can reach (the eager attention call, the Gated
-  DeltaNet kernel boundary, the routed-experts dispatch) and the `train` loop,
-  which is why it is the only engine declaring `grad`.
+  DeltaNet kernel boundary, the routed-experts dispatch) and the `train`
+  runner — cohorts, row budgets, captured graphs — which is why it is the only
+  engine declaring `grad`.
 - `engines/nnsight_tracing/` — the second engine: one trace over an envoy tree,
   with fused-forward interiors addressed through nnsight `.source`.
 - `token_positions.py` — char→token position utilities (offset-mapping based,

@@ -2935,7 +2935,7 @@ a run that does not.
   The controlled value's start, end, last signal and setpoint and update count
   are recorded in `fit_diagnostics.json` under `controls`, per target; the
   per-update trace is what a `trajectory` checkpoint (sec. 2.12) records at
-  its step. Engine: `pytorch_hooks/control.py`.
+  its step. Engine-neutral: `causalab/neural/shared/training/control.py`.
 - **`phases` — the fit in windows.** One `train.params` set for the whole run
   cannot say "gate only for the first tenth, then both, then the rotation
   alone at a frozen hard mask" — the shape every joint rotation-plus-gate
@@ -4276,9 +4276,9 @@ serving each component; the `N of 56` cells are
 | `quantized_weights` | ✓ | ✗ |
 | `writable_attention_probs` | ✓ inside the eager attention call | ✓ on the softmax's output inside the same call |
 | `pytorch_fn_local` | ✓ | ✓ |
-| `train_free_params` | ✗ — `train.py`'s loop optimizes featurizer slots only, and refuses a free tensor as arrived-unvalidated | ✗ — no `grad` |
-| `train_loss_precision` | ✗ — `train.py` casts logits and targets to fp32 unconditionally; the authored `train.precision` is digested, not executed | ✗ — no `grad` |
-| `train_eval_updates` | ✗ — `train.py` reaches an eval on epoch boundaries only, and refuses an `updates` counter as arrived-unvalidated | ✗ — no `grad` |
+| `train_free_params` | ✗ — the shared loop (`neural/shared/training/`) optimizes featurizer slots only, and refuses a free tensor as arrived-unvalidated | ✗ — no `grad` |
+| `train_loss_precision` | ✗ — the shared objective casts logits and targets to fp32 unconditionally; the authored `train.precision` is digested, not executed | ✗ — no `grad` |
+| `train_eval_updates` | ✗ — the shared loop reaches an eval on epoch boundaries only, and refuses an `updates` counter as arrived-unvalidated | ✗ — no `grad` |
 | `component:<name>`[`:write`] | 52 of 56 — all but `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation` | 51 of 56 — all but `delta_query` / `delta_key` / `delta_state` |
 
 Neither engine is a superset of the other, which is the point of routing: the

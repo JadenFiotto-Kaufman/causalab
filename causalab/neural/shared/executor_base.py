@@ -1340,7 +1340,7 @@ class ExecutorBase:
     #: of moving to the CPU (``_finalize_read``) — detached either way, only
     #: the placement is the flag's: a fit's eval executor when a metric
     #: selects from the read on the device and its scorer copies the columns
-    #: rather than the vocabulary (``train._score``), and a CUDA evaluation
+    #: rather than the vocabulary (``training.loop.score``), and a CUDA evaluation
     #: capture (``graph_cohort.EvaluationGraphs``). Off by default: a point's
     #: own passes hand CPU values to the writers.
     device_reads = False

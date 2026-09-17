@@ -4,8 +4,8 @@ Implements the spec §8 services on the two supported architecture families.
 All **seven** capabilities in :data:`~causalab.protocol.engine.CAPABILITIES`
 — this engine is the only one declaring the full set:
 
-* ``grad`` (the train loop, train.py) — the reason a ``train`` document
-  routes here;
+* ``grad`` (the train runner, train.py, under ``shared/training``'s loop) —
+  the reason a ``train`` document routes here;
 * ``paired_forward`` (cross-input operand flow via the lazy group executor);
 * ``full_logits`` (lm_head is an ordinary tap wherever the document needs
   the whole projection — a read of every position, a write at the head, a

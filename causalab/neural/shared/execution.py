@@ -211,7 +211,7 @@ class TrainOutcome:
     stages: Mapping[str, Any]
     eval_score: TrainEvalScore | None = None
     #: Per trained featurizer, whatever the fit can say about *itself* — see
-    #: :func:`~causalab.neural.engines.pytorch_hooks.train.fit_diagnostics`.
+    #: :func:`~causalab.neural.shared.training.diagnostics.fit_diagnostics`.
     #: Written beside the bundle, because a fit that produced a meaningless
     #: parameter and a perfect score is otherwise indistinguishable from a
     #: good one.

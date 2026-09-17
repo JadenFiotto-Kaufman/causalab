@@ -14,7 +14,7 @@ import math
 
 import pytest
 
-from causalab.neural.engines.pytorch_hooks.control import (
+from causalab.neural.shared.training.control import (
     PidController,
     build_controller,
     ramp_setpoint,

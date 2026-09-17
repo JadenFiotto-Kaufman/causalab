@@ -23,6 +23,7 @@ from causalab.neural.engines.pytorch_hooks.cuda_graphs import (
 from causalab.neural.engines.pytorch_hooks.executor import ForwardCache, Interning
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.featurizers import Gate
+from causalab.neural.shared.training import fit as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
 from tests.neural.engines.pytorch_hooks._drive import executor_for
@@ -254,7 +255,7 @@ def test_production_fit_matches_eager_updates_and_eval(
         env=ResolutionEnv(datasets=Datasets(), artifacts=FileArtifacts(tmp_path)),
         output_dir=tmp_path,
     )
-    build_optimizer = train._build_optimizer
+    build_optimizer = fit_module.build_optimizer
     replay_call = Replay.__call__
     replay_init = Replay.__init__
     replay_count = 0
@@ -333,7 +334,7 @@ def test_production_fit_matches_eager_updates_and_eval(
             return optimizer
 
         with (
-            patch.object(train, "_build_optimizer", traced_optimizer),
+            patch.object(fit_module, "build_optimizer", traced_optimizer),
             patch.object(Replay, "__call__", counted_replay),
             patch.object(Replay, "__init__", counted_init),
             patch.object(train, "_score", traced_eval),
@@ -652,7 +653,7 @@ def test_a_fit_with_three_buckets_matches_eager_without_fallback(bundle, tmp_pat
         env=ResolutionEnv(datasets=Datasets(), artifacts=FileArtifacts(tmp_path)),
         output_dir=tmp_path,
     )
-    build_optimizer = train._build_optimizer
+    build_optimizer = fit_module.build_optimizer
     score_fit = train._score
     replay_call = Replay.__call__
 
@@ -685,7 +686,7 @@ def test_a_fit_with_three_buckets_matches_eager_without_fallback(bundle, tmp_pat
             return replay_call(self)
 
         with (
-            patch.object(train, "_build_optimizer", traced_optimizer),
+            patch.object(fit_module, "build_optimizer", traced_optimizer),
             patch.object(train, "_score", traced_score),
             patch.object(Replay, "__call__", counted_replay),
         ):
