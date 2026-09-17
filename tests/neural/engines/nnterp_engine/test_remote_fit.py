@@ -26,6 +26,7 @@ from causalab.neural.engines.nnterp_engine.train import plan_fit, run_training
 from causalab.neural.shared import featurizers
 from causalab.neural.shared.execution import TrainOutcome
 from causalab.neural.shared.loading import torch_module
+from causalab.neural.shared.training.executors import fit_spec, seeded_stages
 from causalab.neural.shared.services import TensorBundle
 from causalab.protocol.errors import ProtocolError
 
@@ -46,10 +47,9 @@ EVAL_SPLIT = "weekdays/data#test"
 ORIGINAL = "parametrizations.weight.original"
 
 
-def _early_stopped_das() -> dict[str, Any]:
-    """DAS with a real eval pass every epoch and ``early_stop`` on it: the
+def _early_stopped(doc: dict[str, Any]) -> dict[str, Any]:
+    """``doc`` with a real eval pass every epoch and ``early_stop`` on it: the
     split is scored, the best fit snapshotted and restored, all server-side."""
-    doc = das_doc(seed=0, epochs=6)
     doc["method"]["train"]["eval"] = {
         "every": {"epochs": 1},
         "split": EVAL_SPLIT,
@@ -66,13 +66,35 @@ def _early_stopped_das() -> dict[str, Any]:
     return doc
 
 
+def _dbm_eval_early_stop() -> dict[str, Any]:
+    return _early_stopped(dbm_doc())
+
+
+def _chain_eval_early_stop() -> dict[str, Any]:
+    doc = chain_doc(0.05)
+    doc["method"]["train"]["steps"] = {"epochs": 4}
+    return _early_stopped(doc)
+
+
 FITS = {
     "das": lambda: das_doc(seed=0, epochs=3),
     "dbm": dbm_doc,
-    "das_eval_early_stop": _early_stopped_das,
+    "das_eval_early_stop": lambda: _early_stopped(das_doc(seed=0, epochs=6)),
+    # the gate and the two-stage chain through the same eval and early stop:
+    # an annealed θ snapshotted and restored, and a stack of two trained
+    # stages whose second is sized by the first
+    "dbm_eval_early_stop": _dbm_eval_early_stop,
+    "chain_eval_early_stop": _chain_eval_early_stop,
     "pid_controlled_dbm": controlled_dbm_doc,
     "phased_chain_trajectory": phased_chain_doc,
 }
+
+#: What no test here reaches, and what would have to run it: a hybrid model
+#: (a remote GPT-2 or Qwen fit — the fixtures are one tiny Llama), a
+#: featurizer starting from `init.from_scores` (an artifact-backed start; only
+#: `init.file_path` is covered), an objective with a `constraint` and its dual
+#: term, and a failure raised mid-fit on the server (what the client sees when
+#: a job dies between updates).
 
 
 def _executor(bundle: Any, doc_raw: dict[str, Any], **kwargs: Any) -> NnterpExecutor:
@@ -91,13 +113,36 @@ def _fit(bundle: Any, doc_raw: dict[str, Any], **kwargs: Any) -> TrainOutcome:
     return outcome
 
 
-def _assert_same_fit(here: TrainOutcome, there: TrainOutcome) -> None:
+def _init_state(executor: NnterpExecutor) -> dict[str, dict[str, torch.Tensor]]:
+    """Every trained stage's ``state_dict`` as the document builds it, before
+    any update — ``seeded_stages`` on a fresh executor, which is what a fit
+    starts from."""
+    spec = fit_spec(executor.doc, executor)
+    return {
+        name: {key: value.detach().clone() for key, value in stage.state_dict().items()}
+        for name, stage in seeded_stages(spec, executor).items()
+    }
+
+
+def _assert_same_fit(
+    here: TrainOutcome,
+    there: TrainOutcome,
+    init: dict[str, dict[str, torch.Tensor]],
+) -> None:
+    """The two fits agree on everything they returned — and both of them
+    moved: two sides that each did nothing would agree just as well, so every
+    trained stage is held against its own start (``init``)."""
     assert here.stages.keys() == there.stages.keys()
+    assert init.keys() == here.stages.keys()
     for name, stage in here.stages.items():
         other = there.stages[name]
         assert stage.state_dict().keys() == other.state_dict().keys()
         for key, value in stage.state_dict().items():
             assert torch.equal(value, other.state_dict()[key]), f"{name}.{key}"
+        assert any(
+            not torch.equal(value, init[name][key])
+            for key, value in stage.state_dict().items()
+        ), f"{name} is where it started: this fit trained nothing"
         assert not other.training
         assert getattr(stage, "temperature", None) == getattr(
             other, "temperature", None
@@ -133,7 +178,9 @@ def test_a_remote_fit_is_the_local_fit_to_the_bit(
     assert job.returned == ("result",)
     here = _fit(nnterp_llama_default_impl, FITS[name](), remote=False)
     assert len(ndif_llama.jobs) == 1  # the local fit is no job
-    _assert_same_fit(here, there)
+    _assert_same_fit(
+        here, there, _init_state(_executor(nnterp_llama_default_impl, FITS[name]()))
+    )
     client = torch_module(remote_llama.model)
     assert {p.device.type for p in client.parameters()} == {"meta"}
     assert all(
@@ -141,10 +188,14 @@ def test_a_remote_fit_is_the_local_fit_to_the_bit(
         for p in torch_module(nnterp_llama_default_impl.model).parameters()
     )
     # server-side bookkeeping did run
-    if name == "das_eval_early_stop":
+    if name.endswith("eval_early_stop"):
         assert there.eval_score is not None
+        # `mode: max` on a loss the fit reduces: the first pass stays the
+        # best, so what comes back is its snapshot and not the last update's
         assert there.eval_score.selected == "early_stop.best"
-        assert 1 < there.eval_score.passes < 6  # patience stopped it
+        assert there.eval_score.passes > 1
+        if name == "das_eval_early_stop":
+            assert there.eval_score.passes < 6  # patience stopped it short
     if name == "pid_controlled_dbm":
         (trace,) = there.control_trace.values()
         assert len(trace) == 20 and trace[0]["signal"] == 16.0
@@ -170,6 +221,63 @@ def test_the_loss_moves_across_updates_on_the_server(remote_llama, ndif_llama):
     (job,) = ndif_llama.jobs
     assert len(job.logs) == 3 and "6 of 6 updates" not in job.logs[0]
     assert job.logs[-1].endswith(f"loss {losses[-1]:.6g}")
+
+
+def test_several_points_are_several_jobs_and_each_is_its_own_fit(
+    remote_llama, nnterp_llama_default_impl, ndif_llama
+):
+    """``run_training`` takes a point per document: each is planned, fitted
+    and loaded on its own, in order, one job each, and a point's fit is what
+    it would be alone — a cohort of one, whatever runs beside it. The waiting
+    client is told how each one is going."""
+    docs = [das_doc(seed=0, epochs=2), das_doc(seed=3, epochs=2)]
+    executors = [_executor(remote_llama, raw) for raw in docs]
+    outcomes = run_training([ex.doc for ex in executors], executors, _request())
+
+    assert len(outcomes) == len(ndif_llama.jobs) == 2
+    assert all(job.returned == ("result",) and job.logs for job in ndif_llama.jobs)
+    first, second = (
+        outcome.stages["rot"].state_dict()[ORIGINAL] for outcome in outcomes
+    )
+    assert not torch.equal(first, second)  # two seeds, two fits
+    for raw, outcome in zip(docs, outcomes):
+        alone = _fit(nnterp_llama_default_impl, raw, remote=False)
+        _assert_same_fit(
+            alone, outcome, _init_state(_executor(nnterp_llama_default_impl, raw))
+        )
+
+
+def test_a_fit_s_program_outside_a_fit_refuses_by_name(nnterp_llama):
+    """A fit's programs carry their featurizer stacks by name, and the names
+    resolve against the fit's own stage table. Run one without that table —
+    any forward that is not a fit's — and it refuses rather than reaching for
+    a stack that is not there."""
+    from causalab.neural.engines.nnterp_engine.landers import run_program
+
+    executor = _executor(nnterp_llama, das_doc())
+    planned = plan_fit(executor.doc, executor, _request())
+    with pytest.raises(ProtocolError, match="resolve against a fit's stage table"):
+        run_program(nnterp_llama.model, planned.plan.train[0], {})
+
+
+def test_a_fit_returns_the_attributes_its_document_moves(remote_llama, ndif_llama):
+    """What comes back beside a stage's ``state_dict`` is what the document's
+    schedules move — the annealed ``temperature`` of the DBM's gate, nothing
+    for a DAS fit that anneals nothing — not every number the stage happens
+    to keep. `width` and `hard_eval` are the client's own, built from the
+    same spec, and are never overwritten from the wire."""
+    executor = _executor(remote_llama, dbm_doc())
+    planned = plan_fit(executor.doc, executor, _request())
+    result = run_fit(remote_llama.model, planned.plan, remote=True)
+    assert set(result["attrs"]) == {"gate"}
+    assert set(result["attrs"]["gate"]) == {"temperature"}
+    assert result["attrs"]["gate"]["temperature"] < 1.0  # the anneal ran
+
+    plain = _executor(remote_llama, das_doc(seed=0, epochs=2))
+    result = run_fit(
+        remote_llama.model, plan_fit(plain.doc, plain, _request()).plan, remote=True
+    )
+    assert result["attrs"] == {"rot": {}}
 
 
 def test_the_fit_payload_is_the_plan(remote_llama, ndif_llama):
@@ -331,7 +439,11 @@ def test_a_saved_start_ships_with_the_plan(
     there = fit(remote_llama)
     (job,) = ndif_llama.jobs
     assert job.raw_bytes < 256 * 1024  # the entry, not the 4 MB bundle
-    _assert_same_fit(fit(nnterp_llama_default_impl, remote=False), there)
+    starting = _executor(nnterp_llama_default_impl, doc_raw, remote=False)
+    starting.load_tensors = lambda path: {"start.safetensors": bundle}[path]
+    _assert_same_fit(
+        fit(nnterp_llama_default_impl, remote=False), there, _init_state(starting)
+    )
     assert not torch.equal(there.stages["gate"].theta.detach().reshape(-1), theta)
 
 
@@ -378,7 +490,7 @@ def test_a_scope_a_killed_request_left_open_does_not_reach_the_fit(
     clean = _fit(remote_llama, das_doc(seed=0, epochs=3))
     monkeypatch.setattr(featurizers, "_SCOPE", featurizers._Scope(depth=1, entries={}))  # pyright: ignore[reportPrivateUsage]
     dirty = _fit(remote_llama, das_doc(seed=0, epochs=3))
-    _assert_same_fit(clean, dirty)
+    _assert_same_fit(clean, dirty, _init_state(_executor(remote_llama, das_doc())))
     assert featurizers._SCOPE.depth == 1  # pyright: ignore[reportPrivateUsage]
 
 
@@ -421,7 +533,11 @@ def test_the_dry_run_mode_fits(nnterp_llama):
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(local, "_SERVER_MODULES", {*local._SERVER_MODULES, "causalab"})
         dry = _fit(nnterp_llama, das_doc(seed=0, epochs=2), remote="local")
-    _assert_same_fit(_fit(nnterp_llama, das_doc(seed=0, epochs=2)), dry)
+    _assert_same_fit(
+        _fit(nnterp_llama, das_doc(seed=0, epochs=2)),
+        dry,
+        _init_state(_executor(nnterp_llama, das_doc(seed=0, epochs=2))),
+    )
 
 
 def test_the_engine_fits_a_corpus_document_as_one_job_through_the_front_door(

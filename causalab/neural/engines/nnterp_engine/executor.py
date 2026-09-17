@@ -404,7 +404,10 @@ class NnterpExecutor(ExecutorBase):
                     "or continuation read is finished on the client, and a "
                     "fit's forwards run whole where its stages live "
                     "(nnterp_engine/fit.py). The reference engine "
-                    "(neural/engines/pytorch_hooks) fits this document.",
+                    "(neural/engines/pytorch_hooks) fits this document — in "
+                    "this process, against a locally loaded model: it has no "
+                    "remote mode, so a document whose fit reads this way "
+                    "cannot be trained on NDIF at all.",
                 )
         return tuple(
             self._by_name(
