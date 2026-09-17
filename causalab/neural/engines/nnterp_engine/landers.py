@@ -65,6 +65,7 @@ from causalab.neural.engines.nnterp_engine.program import (
     ReadPlan,
     WritePlan,
 )
+from causalab.neural.engines.nnterp_engine.versions import ensure_server_matches
 from causalab.neural.engines.nnterp_engine.sources import (
     AddressResolutionError,
     SourceAddress,
@@ -151,6 +152,7 @@ def run_program(
     """
     import nnsight
 
+    ensure_server_matches(remote)
     with torch.set_grad_enabled(program.grad):
         if program.depth:
             # depth+1 forwards give every generated position its
@@ -195,6 +197,7 @@ def run_session(
     group's saved container, by the group's label."""
     import nnsight
 
+    ensure_server_matches(remote)
     with model.session(remote=remote):
         results = nnsight.save({})
         flow = {}
