@@ -3040,17 +3040,26 @@ class ExecutorBase:
         resolved = self._artifact_operand(value)
         if resolved is None:
             raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
-        return resolved
+        return resolved[0]
 
-    def _artifact_operand(self, value: str) -> torch.Tensor | None:
-        """An operand the document's artifacts hold — a featurizer slot or a
-        ``params`` entry — or ``None`` when ``value`` names neither."""
+    def _artifact_operand(
+        self, value: str
+    ) -> tuple[torch.Tensor, tuple[str, str] | None] | None:
+        """An operand the document's artifacts hold — the tensor, and the
+        ``(featurizer, slot)`` it is the slot of when it is one — or ``None``
+        when ``value`` names neither a featurizer slot nor a ``params`` entry.
+
+        The pair is this dispatch itself, handed on rather than repeated: an
+        engine that ships such an operand **by name** (a fit's programs carry
+        a slot as a ``SlotRef``) reads which it was from here, where a second
+        parse of the string would take a ``params`` entry whose prefix
+        happens to be a featurizer's name for a slot of that featurizer."""
         if "." in value:
             fname, slot = value.split(".", 1)
             if fname in self.doc.featurizers:
                 params = self.stage(fname).slot_params()
                 if slot in params:
-                    return params[slot]
+                    return params[slot], (fname, slot)
         if value in self.doc.params:
             spec = self.doc.params[value]
             if isinstance(spec.file_path, str):
@@ -3060,7 +3069,7 @@ class ExecutorBase:
                 point = self.load_tensors(spec.file_path).point(
                     slot, want, what=what, implicit=implicit
                 )
-                return point.tensor(slot)
+                return point.tensor(slot), None
             raise NotImplementedError(
                 f"trainable free params ({value!r}) arrive with the train loop"
             )

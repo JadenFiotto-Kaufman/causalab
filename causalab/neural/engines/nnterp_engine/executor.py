@@ -230,6 +230,10 @@ class NnterpExecutor(ExecutorBase):
         self, *args: Any, remote: bool | str | None = None, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
+        #: the featurizer slot each operand of a planned write resolved to,
+        #: as `_artifact_operand` dispatched it — what `_by_name` ships in
+        #: the operand's place for a fit
+        self._slot_operands: dict[str, SlotRef] = {}
         weight_free = bool(getattr(self.bundle, "remote", False))
         self.remote: bool | str = weight_free if remote is None else remote
         if weight_free and (not self.remote or self.remote == "local"):
@@ -413,7 +417,10 @@ class NnterpExecutor(ExecutorBase):
 
     def _by_name(self, program: GroupProgram) -> GroupProgram:
         """``program`` with every featurizer stack and every featurizer-slot
-        operand replaced by its name."""
+        operand replaced by its name — the slots as
+        :meth:`~causalab.neural.shared.executor_base.ExecutorBase.
+        _artifact_operand` resolved them (:attr:`_slot_operands`), not as a
+        second parse of the operand string would guess them."""
 
         def named(op: Any) -> Any:
             reads = tuple(
@@ -429,18 +436,16 @@ class NnterpExecutor(ExecutorBase):
             )
             write = op.write
             if write is not None:
-                slots = {}
-                for name in write.operands:
-                    fname, _, slot = name.partition(".")
-                    if slot and fname in self.doc.featurizers:
-                        slots[name] = SlotRef(fname, slot)
                 write = dataclasses.replace(
                     write,
                     stacks={
                         ename: StackRef(stack.names)
                         for ename, stack in write.stacks.items()
                     },
-                    operands={**write.operands, **slots},
+                    operands={
+                        name: self._slot_operands.get(name, operand)
+                        for name, operand in write.operands.items()
+                    },
                 )
             return dataclasses.replace(op, reads=reads, write=write)
 
@@ -785,7 +790,9 @@ class NnterpExecutor(ExecutorBase):
                     # refuses it as unresolved if a mechanism ever asks
                     resolved = self._artifact_operand(name)
                     if resolved is not None:
-                        operands[name] = resolved
+                        operands[name] = resolved[0]
+                        if resolved[1] is not None:
+                            self._slot_operands[name] = SlotRef(*resolved[1])
         return WritePlan(
             entries=tuple(entries),
             positions=positions,
