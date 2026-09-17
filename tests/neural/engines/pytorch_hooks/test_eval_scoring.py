@@ -123,11 +123,13 @@ def test_the_scorer_reads_from_the_device_and_matches_the_cpu_path(
     scores = train_module._score(point.doc, evaluator)
     # the selecting kind's ids were resolved once, over the two rows that
     # carry both answers; the third row is excluded, never scored
-    assert set(evaluator.metric_token_ids) == {"iia"}
-    assert {k: len(v) for k, v in evaluator.metric_token_ids["iia"].items()} == {
-        "a": 2,
-        "b": 2,
+    gathered = {
+        metric.name: metric.gathered_ids
+        for metric in evaluator.score_spec.metrics
+        if metric.gathered_ids is not None
     }
+    assert set(gathered) == {"iia"}
+    assert {k: len(v) for k, v in gathered["iia"].items()} == {"a": 2, "b": 2}
     first = resolved.count("metric logit_diff.a") + resolved.count(
         "metric logit_diff.b"
     )
@@ -174,7 +176,7 @@ def test_a_softmax_only_eval_keeps_its_reads_on_the_host(bundle: ModelBundle) ->
     assert not evaluator.device_reads
     train_module._fresh_for_eval(evaluator)
     scores = train_module._score(point.doc, evaluator)
-    assert evaluator.metric_token_ids == {}
+    assert all(m.gathered_ids is None for m in evaluator.score_spec.metrics)
     logits = evaluator.dense_value("logits")
     assert isinstance(logits, torch.Tensor)
     values = compute_metric(

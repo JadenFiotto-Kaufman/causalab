@@ -51,7 +51,8 @@ def test_a_stage_and_its_optimizer_round_trip_and_step_on_alike(kind):
 
 def test_a_frozen_subspace_stays_frozen():
     stage = Subspace(8, 4, "cayley", seed=0).eval()
-    stage.parametrizations.weight.original.requires_grad_(False)  # a §2.11 phase
+    original = stage.parametrizations.weight.original  # type: ignore[union-attr]
+    original.requires_grad_(False)  # a §2.11 phase
     copy = pickle.loads(pickle.dumps(stage))
     assert not copy.training
     assert not copy.parametrizations.weight.original.requires_grad

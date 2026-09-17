@@ -18,6 +18,7 @@ import torch
 from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine import train as train_module
 from causalab.neural.engines.nnterp_engine.train import run_training
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle
@@ -27,7 +28,6 @@ from causalab.neural.engines.pytorch_hooks.train import (
 from causalab.neural.shared.execution import TrainOutcome
 from causalab.neural.shared.loading import torch_module
 from causalab.neural.shared.metrics import compute_metric
-from causalab.neural.shared.training import loop as loop_module
 from causalab.protocol.engine import requires
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import parse_document
@@ -143,14 +143,14 @@ def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
     doc_raw = _with_eval(das_doc(seed=0, epochs=3), {"epochs": 1})
     executor = _executor(nnterp_llama, doc_raw)
     built: list[NnterpExecutor] = []
-    real = loop_module.score
+    real = train_module._score  # pyright: ignore[reportPrivateUsage]
 
     def recording(doc, eval_executor):
         built.append(eval_executor)
         return real(doc, eval_executor)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(loop_module, "score", recording)
+        patch.setattr(train_module, "_score", recording)
         (outcome,) = run_training(
             [executor.doc], [executor], train_request({EVAL_SPLIT: ROWS})
         )
@@ -192,7 +192,7 @@ def test_early_stop_returns_the_best_fit_not_the_last(nnterp_llama, monkeypatch)
         seen.append({k: v.detach().clone() for k, v in stage.state_dict().items()})
         return {"ce": scores[len(seen) - 1]}
 
-    monkeypatch.setattr(loop_module, "score", scripted)
+    monkeypatch.setattr(train_module, "_score", scripted)
     outcome = _fit(nnterp_llama, doc_raw, splits={EVAL_SPLIT: ROWS})
 
     assert len(seen) == len(scores)  # patience never fires: five evals ran

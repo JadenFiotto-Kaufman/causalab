@@ -23,7 +23,7 @@ from causalab.neural.engines.pytorch_hooks.cuda_graphs import (
 from causalab.neural.engines.pytorch_hooks.executor import ForwardCache, Interning
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.featurizers import Gate
-from causalab.neural.shared.training import fit as fit_module
+from causalab.neural.shared.training import state as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
 from tests.neural.engines.pytorch_hooks._drive import executor_for

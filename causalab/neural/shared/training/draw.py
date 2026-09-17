@@ -1,5 +1,9 @@
 """§2.2 ``draw``: the drawn roles of a fit — one member per row, redrawn
-every epoch — and the row slicing a minibatch is cut with."""
+every epoch — and the row slicing a minibatch is cut with.
+
+Engine-side: a :class:`Drawn` holds the point's executor and builds
+executors, so it sits beside a fit's state in the engine's keeping, never on
+it — the loop only says when an epoch turns (``fit_loop(on_epoch=…)``)."""
 
 from __future__ import annotations
 
@@ -15,7 +19,7 @@ from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import DataRole, Document
 
 if TYPE_CHECKING:
-    from causalab.neural.shared.training.fit import ExecutorFactory, Fit
+    from causalab.neural.shared.training.executors import ExecutorFactory
 
 __all__ = ["Drawn", "slice_rows"]
 
@@ -46,11 +50,12 @@ class Drawn:
     cannot combine with a re-encoded role (P4).
 
     The minibatch executors are the engine's: ``executor_factory``
-    (:class:`~causalab.neural.shared.training.fit.ExecutorFactory`) builds
-    each one, told it is ``drawn``. The shapes *are* epoch-invariant (every
-    minibatch is a ``select`` of one frame); it is the per-epoch rebuild of
-    the executors that anything keyed by executor cannot follow, which
-    :meth:`redraw` tells the fit (``Fit.minibatches_rebuilt``)."""
+    (:class:`~causalab.neural.shared.training.executors.ExecutorFactory`)
+    builds each one, told it is ``drawn``. The shapes *are* epoch-invariant
+    (every minibatch is a ``select`` of one frame); it is the per-epoch
+    rebuild of the executors that anything keyed by executor cannot follow —
+    the engine that calls :meth:`minibatches` for a new epoch drops what it
+    keyed by the old ones."""
 
     def __init__(
         self,
@@ -213,8 +218,8 @@ class Drawn:
                 # the factory hands every inner executor the outer one's
                 # fields as they are (`role_fields[role]` is the drawn
                 # member's — `of` checks it once, at prepare) and its stage
-                # cache, shared, not per executor: `prepare_fit` built the
-                # optimizer's groups over these stages, so a rebuilt
+                # cache, shared, not per executor: the fit's optimizer
+                # groups are over these stages, so a rebuilt
                 # minibatch's `stage(name)` is a cache hit on the tensors
                 # being stepped — a fresh cache would re-initialise every
                 # featurizer each epoch while the optimizer stepped the
@@ -241,13 +246,6 @@ class Drawn:
         ``fit.drawn`` can find them unset."""
         self.batches = list(batches)
         self.frames = dict(frames)
-
-    def redraw(self, fit: "Fit") -> None:
-        """A new member per row for a new epoch: the fit's minibatch
-        executors are rebuilt over this draw, and whatever the engine keyed
-        by executor falls with them (``Fit.minibatches_rebuilt``)."""
-        fit.minibatch_executors = self.minibatches()
-        fit.minibatches_rebuilt()
 
 
 #: The per-member siblings of a list column (§2.2): the prompt-variable table

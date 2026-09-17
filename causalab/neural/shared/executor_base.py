@@ -1405,10 +1405,11 @@ class ExecutorBase:
         #: a swept bundle a loaded featurizer/param points at (§2.5)
         self.coords = dict(coords or {})
         self._read_values: dict[str, torch.Tensor | RaggedValue] = {}
-        #: per eval metric, the token ids its answer columns resolve to over
-        #: this executor's rows (``metrics.metric_token_ids``) — the rows never
-        #: change, so a fit's eval executor resolves them once, not per pass
-        self.metric_token_ids: dict[str, dict[str, list[int]]] = {}
+        #: a fit's eval metrics resolved to token ids over this executor's
+        #: rows (``training.spec.ScoreSpec``, set by
+        #: ``training.executors.score_executor``) — the rows never change, so
+        #: a fit's eval executor resolves them once, not per pass
+        self.score_spec: Any = None
         self._deferred_heads: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {}
         #: per dense read at a routed-interior site, the routing table
         #: gathered at the read's own rows and positions, ``(batch, position,

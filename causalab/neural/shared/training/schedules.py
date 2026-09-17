@@ -22,7 +22,8 @@ from causalab.protocol.schema import (
 )
 
 if TYPE_CHECKING:
-    from causalab.neural.shared.training.fit import Fit
+    from causalab.neural.shared.training.spec import FitSpec
+    from causalab.neural.shared.training.state import FitState
 
 __all__ = [
     "DUAL_GROUP",
@@ -154,18 +155,17 @@ def lr_factor(step: int, total_steps: int, warmup_frac: float) -> float:
 _BASE_LR = "_schedule_base_lr"
 
 
-def apply_lr_schedule(fit: "Fit") -> None:
+def apply_lr_schedule(state: "FitState", spec: "FitSpec") -> None:
     """Set every group's lr for this update under §2.11 ``optimizer.schedule``:
     a no-op under ``constant``. Per-entry lrs are each scaled by the same factor.
     Refused beside ``phases`` at load (rule 4), so no other writer of ``lr``
     runs in the same fit."""
-    spec = fit.doc.train.optimizer if fit.doc.train is not None else {}
-    schedule = str(spec.get("schedule", "constant"))
+    schedule = str(spec.optimizer.get("schedule", "constant"))
     if schedule == "constant":
         return
-    warmup_frac = float(spec.get("warmup_frac", 0.1))
-    factor = lr_factor(fit.step, fit.total_steps, warmup_frac)
-    for group in fit.optimizer.param_groups:
+    warmup_frac = float(spec.optimizer.get("warmup_frac", 0.1))
+    factor = lr_factor(state.step, spec.total_steps, warmup_frac)
+    for group in state.optimizer.param_groups:
         if DUAL_GROUP in group:
             continue  # a constraint's duals ascend at their own authored rate
         if _BASE_LR not in group:
@@ -252,7 +252,7 @@ def build_phases(
     return tuple(out)
 
 
-def advance_phase(fit: "Fit") -> None:
+def advance_phase(fit: "FitState") -> None:
     """Before an update: enter the phase that owns ``fit.step``, if the fit is
     not in it yet. Entering sets, per ``train.params`` entry, whether its
     tensors take gradients and its optimizer group's ``lr`` /
@@ -330,21 +330,18 @@ def parse_anneals(
 
 
 def set_anneal(
-    fit: "Fit",
+    fit: "FitState",
     dotted: str,
     schedule: AnnealSchedule,
     *,
-    step: int | None = None,
-    total_steps: int | None = None,
+    step: int,
+    total_steps: int,
 ) -> None:
     """Write this update's scheduled value where ``dotted`` points: into the
     named term's live weight, or onto the stage attribute the path names.
-    ``step`` / ``total_steps`` default to the run's; a phase passes its own
-    window so its schedule spans the phase (§2.11)."""
-    value = schedule.value_at(
-        fit.step if step is None else step,
-        fit.total_steps if total_steps is None else total_steps,
-    )
+    ``step`` of ``total_steps`` is the run's, or a phase's own window so its
+    schedule spans the phase (§2.11)."""
+    value = schedule.value_at(step, total_steps)
     if dotted.startswith(OBJECTIVE_WEIGHT_PREFIX):
         # `step_loss` reads the live weight of a named term (§2.11), so the
         # schedule lands there and the checkpoint's `weight.<name>` is the
