@@ -428,6 +428,32 @@ def test_wrong_stream_refusal_is_identical(hooks_qwen, nnterp_qwen):
     assert str(hooks_err.value) == str(trace_err.value)
 
 
+# --------------------------------------------------------------------------- #
+# routing: the pattern is served here, so a document naming it stays here
+# --------------------------------------------------------------------------- #
+
+
+def test_a_pattern_document_routes_here_when_this_engine_is_listed_first():
+    """The attention pattern — read off the mixer's returned weights, written
+    on the softmax's output inside the eager function — is this engine's to
+    serve, reads and writes: a document naming it stays on this engine when
+    it is first in the list."""
+    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
+    from causalab.protocol.engine import choose_engine, component_capability
+    from causalab.protocol.schema import parse_document
+
+    from tests.protocol._docs import in_order
+
+    doc = parse_document(in_order(sweep.read_doc("attention_probs", 1, pos="all")))
+    chosen = choose_engine(doc, [NnterpEngine(), PytorchHooksEngine()])
+    assert isinstance(chosen, NnterpEngine)
+    assert (
+        component_capability("attention_probs") in NnterpEngine().effective_capabilities
+    )
+    assert "writable_attention_probs" in NnterpEngine().capabilities
+
+
 def test_a_grad_enabled_group_runs_smoke(nnterp_llama):
     """Smoke only: a grad-enabled executor runs its trace under
     ``enable_grad`` and hands back the same numbers. Nothing here observes

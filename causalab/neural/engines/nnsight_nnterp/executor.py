@@ -469,14 +469,18 @@ class NnterpExecutor(ExecutorBase):
         # navigates ops by name, and the first access parses the forward. On
         # a loaded tree that access also rewrites the forward, which must
         # precede the run; on a weight-free tree only the parse happens here
-        # — the server instruments its own module when the block drills
+        # — the server instruments its own module when the block drills.
+        # Under the kernel path: the rewritten forward runs over a snapshot
+        # of its module's globals taken at this access, so the DeltaNet
+        # kernel globals it will call are the ones bound right now
         anchors = {
             id(op.site.module): op.site.module
             for op in ops + step_ops
             if op.address is not None
         }
-        for anchor in anchors.values():
-            _ = anchor.source
+        with self._kernel_path():
+            for anchor in anchors.values():
+                _ = anchor.source
 
         variable = any(plan.spec.variable is not None for plan in step_plans)
         program = GroupProgram(

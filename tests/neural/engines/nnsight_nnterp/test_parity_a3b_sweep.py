@@ -261,3 +261,26 @@ def test_mlp_activation_does_not_exist_on_this_architecture(nnterp_qwen, layers)
             sweep.read_doc("mlp_activation", delta_layer), nnterp_qwen, with_cf=False
         ).read_value("r")
     assert "mlp_activation" in str(excinfo.value)
+
+
+# --------------------------------------------------------------------------- #
+# 5. completeness — a new component cannot join the vocabulary unswept
+# --------------------------------------------------------------------------- #
+
+
+def test_every_component_is_claimed_by_exactly_one_bucket():
+    """The guard that makes this file a *sweep* rather than a sample.
+
+    Adding a component to ``schema.Component`` without deciding which engines
+    serve it and which block type it lives in fails here, naming it — the same
+    discipline the corpus digests apply to documents.
+    """
+    unclaimed = sweep.unclaimed_components()
+    assert not unclaimed, (
+        f"components in the vocabulary but in no sweep bucket: {list(unclaimed)}. "
+        "Add each to tests/_helpers/a3b_sweep.py — SHARED_* if both engines "
+        "serve it, a single-engine bucket if one does, ABSENT_ON_A3B if this "
+        "architecture has no such tensor."
+    )
+    twice = sweep.double_claimed_components()
+    assert not twice, f"components claimed by two buckets: {list(twice)}"
