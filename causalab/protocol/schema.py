@@ -260,7 +260,7 @@ COMPONENTS: tuple[Component, ...] = get_args(Component)
 #: mean a different tensor. An alias that redirects is safe; an alias that
 #: rebinds is the failure this whole rename exists to avoid.
 #:
-#: 🔤 The eight ``deltanet_*`` spellings below named the nnsight engine's
+#: 🔤 The eight ``deltanet_*`` spellings below named the nnterp engine's
 #: ``.source`` reach into the Gated DeltaNet forward, while ``delta_*`` named
 #: the reference engine's kernel-boundary reach — two vocabularies for **the
 #: same physical tensors** (📐 measured identical in shape and value on

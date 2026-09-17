@@ -1263,22 +1263,22 @@ def test_the_engine_table_lists_every_capability() -> None:
 def test_the_engine_table_matches_what_each_engine_declares() -> None:
     """Every ✓/✗ cell equals that engine's `capabilities` frozenset.
 
-    This is the check the retired "reference matrix" needed: it claimed `grad`
-    and `quantized_weights` for the nnsight engine, which declares neither.
+    A hand-kept matrix drifts from the classes one cell at a time; this holds
+    every cell to the class it describes.
 
     Engines are imported inside the test — they pull torch, and this module is
     a `unit` test about markdown.
     """
-    from causalab.neural.engines.nnsight_tracing.engine import NnsightEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 
-    engines = [PytorchHooksEngine, NnsightEngine]
+    engines = [PytorchHooksEngine, NnterpEngine]
     wrong: list[str] = []
     for row in _engine_declaration_rows():
         if _is_component_row(row):
             continue
         name = _row_name(row)
-        # strict: deleting the `nnsight` column would leave 2-cell rows and a
+        # strict: deleting the `nnterp` column would leave 2-cell rows and a
         # lenient zip would truncate — all three §8 tests passing while
         # checking one engine. A third engine column must be red here too.
         for engine, cell in zip(engines, row[1:], strict=True):
@@ -1316,7 +1316,7 @@ def test_the_component_counts_match_each_engine() -> None:
     `writable_components` is asserted equal to `components` because the row's
     header carries `[:write]`, so the counts are claimed for writes too.
     """
-    from causalab.neural.engines.nnsight_tracing.engine import NnsightEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 
     rows = [row for row in _engine_declaration_rows() if _is_component_row(row)]
@@ -1324,7 +1324,7 @@ def test_the_component_counts_match_each_engine() -> None:
 
     wrong: list[str] = []
     for engine, cell in zip(
-        [PytorchHooksEngine, NnsightEngine], rows[0][1:], strict=True
+        [PytorchHooksEngine, NnterpEngine], rows[0][1:], strict=True
     ):
         match = re.match(r"(\d+) of (\d+)", cell)
         assert match, f"§8's component cell for {engine.name} is not 'N of M': {cell!r}"
@@ -1379,14 +1379,15 @@ def test_every_component_has_exactly_one_capability_row() -> None:
         assert row.component == component
 
 
-#: The two engines' `components` sets as the base before the registry declared
-#: them (`pytorch_hooks/engine.py:63-67`, `nnsight_tracing/engine.py:74-76`):
-#: 50 and 49 names — then the one decided change applied: the
-#: eight `deltanet_*` spellings that named the reference engine's `delta_*`
-#: tensors are aliases (schema.DEPRECATED_COMPONENTS), so they leave the
-#: nnsight set and the eight `delta_*` names enter it (50 and 49 members
-#: still, 54 names in all). Listed, not derived, so that generating the sets
-#: from the rows is proven to reproduce the routing the suite was green on.
+#: The two engines' `components` sets at the base the registry was built on —
+#: 50 and 49 names — with the one decided change applied: the eight
+#: `deltanet_*` spellings that named the reference engine's `delta_*` tensors
+#: are aliases (schema.DEPRECATED_COMPONENTS), so the second engine's set
+#: carries the eight `delta_*` names in their place (50 and 49 members still,
+#: 54 names in all). Listed, not derived, so that generating the sets from the
+#: rows is proven to reproduce the routing the suite was green on; what each
+#: engine serves beyond its listed set is spelled out where the sets are
+#: compared.
 PRE_PR22_PYTORCH_HOOKS_COMPONENTS: frozenset[str] = frozenset(
     {
         "input_ids", "embeddings", "block_input", "attention_input_norm",
@@ -1406,7 +1407,7 @@ PRE_PR22_PYTORCH_HOOKS_COMPONENTS: frozenset[str] = frozenset(
         "lm_head",
     }
 )  # fmt: skip
-PRE_PR22_NNSIGHT_COMPONENTS: frozenset[str] = frozenset(
+PRE_PR22_SECOND_ENGINE_COMPONENTS: frozenset[str] = frozenset(
     {
         "input_ids", "embeddings", "block_input", "attention_input_norm",
         "attention_query_pre_rope", "attention_key_pre_rope",
@@ -1429,18 +1430,18 @@ PRE_PR22_NNSIGHT_COMPONENTS: frozenset[str] = frozenset(
 
 def test_the_pre_pr_literals_have_their_recorded_sizes() -> None:
     assert len(PRE_PR22_PYTORCH_HOOKS_COMPONENTS) == 50
-    assert len(PRE_PR22_NNSIGHT_COMPONENTS) == 49
+    assert len(PRE_PR22_SECOND_ENGINE_COMPONENTS) == 49
 
 
 def test_engine_component_sets_are_generated_from_the_rows() -> None:
     """Each engine's `components` and `writable_components` are exactly the
     rows whose `reads` name it — nothing declared by hand survives in the
     classes. Engines are imported inside the test (they pull torch)."""
-    from causalab.neural.engines.nnsight_tracing.engine import NnsightEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
     from causalab.protocol.registry import CAPABILITIES, components_served_by
 
-    for engine in (PytorchHooksEngine, NnsightEngine):
+    for engine in (PytorchHooksEngine, NnterpEngine):
         from_rows = frozenset(
             c for c, row in CAPABILITIES.items() if engine.name in row.reads
         )
@@ -1449,7 +1450,9 @@ def test_engine_component_sets_are_generated_from_the_rows() -> None:
 
 
 def test_the_generated_sets_equal_the_pre_pr_declarations() -> None:
-    """Both engines add complete neuron outputs to the recorded component set."""
+    """Both engines add complete neuron outputs to the recorded component set;
+    the nnterp engine also serves the two tiled kernel arguments
+    (`delta_query`, `delta_key`), read off the kernel call both engines tap."""
     from causalab.protocol.registry import components_served_by
 
     assert components_served_by(
@@ -1458,9 +1461,11 @@ def test_the_generated_sets_equal_the_pre_pr_declarations() -> None:
         "mlp_neuron_output",
         "expert_neuron_output",
     }
-    assert components_served_by("nnsight") == PRE_PR22_NNSIGHT_COMPONENTS | {
+    assert components_served_by("nnterp") == PRE_PR22_SECOND_ENGINE_COMPONENTS | {
         "mlp_neuron_output",
         "expert_neuron_output",
+        "delta_query",
+        "delta_key",
     }
 
 
@@ -1574,8 +1579,8 @@ def test_the_a3b_sweep_buckets_are_the_registry() -> None:
     assert set(sweep.HOOKS_ONLY) == {
         c for c, r in CAPABILITIES.items() if r.reads == {"pytorch_hooks"}
     }
-    assert set(sweep.NNSIGHT_ONLY) == {
-        c for c, r in CAPABILITIES.items() if r.reads == {"nnsight"}
+    assert set(sweep.NNTERP_ONLY) == {
+        c for c, r in CAPABILITIES.items() if r.reads == {"nnterp"}
     }
     assert set(sweep.SHARED_FULL_ONLY) == {
         c
@@ -1587,7 +1592,8 @@ def test_the_a3b_sweep_buckets_are_the_registry() -> None:
         for c, r in CAPABILITIES.items()
         if r.stream == "linear_attention" and len(r.reads) == 2
     }
-    assert len(sweep.SHARED_LINEAR_ONLY) == 8  # the eight aliased pairs' names
+    # the eight aliased pairs' names and the two tiled kernel arguments
+    assert len(sweep.SHARED_LINEAR_ONLY) == 10
     assert set(sweep.ABSENT_ON_A3B) == {"mlp_activation", "mlp_neuron_output"}
 
 

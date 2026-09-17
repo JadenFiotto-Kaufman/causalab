@@ -108,10 +108,10 @@ The base lock excludes all optional extras:
 - **`notebook`** is a jupyter-server and Dash stack. A headless install has no
   use for it; a headless GPU job image that merged causalab into a
   network-less venv paid for all of it, which is why the extra exists at all.
-- **`nnsight`** is a **git** dependency, pinned to a verified revision. A git
-  revision has no artifact hash, and `--require-hashes` refuses a file
+- **`nnterp`** carries nnsight and nnterp, **git** dependencies pinned to
+  verified revisions. A git revision has no artifact hash, and `--require-hashes` refuses a file
   containing even one unhashable requirement — so including it would disable
-  hash-locking for *every* consumer, not just the ones who wanted nnsight.
+  hash-locking for *every* consumer, not just the ones who wanted the engine.
 - **`flash-attn` / `flash-linear-attention`** supply optional Linux GPU
   kernels. The base install keeps Transformers' fallbacks; installation and
   selection are described in [attention backends](attention_backends.md).

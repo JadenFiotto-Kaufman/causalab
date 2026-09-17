@@ -945,11 +945,11 @@ def test_a_host_with_no_engine_for_the_step_reuses_its_record_under_resume(
 
     record_path = root / "ctl" / SIDECAR
     record = json.loads(record_path.read_text())
-    record["engine"] = "nnsight"
+    record["engine"] = "nnterp"
     record_path.write_text(json.dumps(record))
     foreign = run_workflow(loaded, env, out, [], resume=True)
     assert _statuses(foreign) == {name: "reused" for name in loaded.order}
-    assert _record(root, "ctl")["engine"] == "nnsight"  # reused as recorded
+    assert _record(root, "ctl")["engine"] == "nnterp"  # reused as recorded
 
     implementation = {"tree_digest": runtime_identity().tree_digest}
     step = loaded.document.steps["ctl"]

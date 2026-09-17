@@ -412,7 +412,7 @@ def test_the_tiny_hybrid_inventory_is_hydras_counts_in_miniature(qwen35moe_bundl
     assert inv.layerless == ("input_ids", "embeddings", "ln_final", "lm_head")
     # the mechanisms are the rows'
     layer3 = inv.layers[3]
-    assert layer3.reads["attention_probs"] == {"pytorch_hooks", "nnsight"}
+    assert layer3.reads["attention_probs"] == {"pytorch_hooks", "nnterp"}
     assert layer3.writes["attention_probs"] == {"swap"}
     assert layer3.writes["attention_result"] is None
 

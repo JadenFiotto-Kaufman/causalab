@@ -5,7 +5,7 @@ feature)`` and the document: position resolution, gathers, featurizer stacks,
 operand lookup, and the class-ordered write math. What an engine adds is one
 method — :meth:`ExecutorBase._run_group` — that produces contract tensors for
 this group's taps and lands its writes (hooks in the reference engine, traces
-in the nnsight engine). The public surface consumed by
+in the nnterp engine). The public surface consumed by
 :mod:`causalab.neural.shared.execution` lives here so the two engines cannot
 drift apart on what a read means.
 """
@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-from typing import Any, Callable, Hashable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Container, Hashable, Iterable, Mapping, Sequence
 
 import torch
 
@@ -106,9 +106,17 @@ __all__ = [
     "RaggedValue",
     "RowWindow",
     "TapKey",
+    "WriteServices",
+    "align_by_expert",
+    "apply_writes_to_contract",
     "document_seed",
+    "gather_rows",
+    "land_ragged",
+    "read_features",
+    "read_operand",
     "refuse_unstackable",
     "tap_key",
+    "written_value",
 ]
 
 
@@ -230,7 +238,7 @@ def tap_key(site: ResolvedSite, source: Any = None) -> TapKey:
     at the same interior slot naming *different* experts must land as two
     separately masked applications, and the address grouping keys on this.
 
-    ``source`` is an engine-specific *interior* address (an nnsight engine's
+    ``source`` is an engine-specific *interior* address (the nnterp engine's
     ``SourceAddress``, a frozen dataclass): two interior taps may share the
     module, side and even shape while meaning different ops inside its
     forward — the DeltaNet q and k reshapes — so the address itself joins the
@@ -483,8 +491,8 @@ class Interning:
 
 
 def whole_native_tensor(
-    rname: str, read: "ReadSpec | WriteSpec", raw: torch.Tensor, site: ResolvedSite
-) -> torch.Tensor:
+    rname: str, read: "ReadSpec | WriteSpec", raw: Any, site: ResolvedSite
+) -> Any:
     """A read of a tap with **no contract form**: the whole native tensor.
 
     The one such tap is the attention pattern, ``(batch, heads, query, key)``,
@@ -555,9 +563,11 @@ def _attention_result(site: ResolvedSite, premix: torch.Tensor) -> torch.Tensor:
     module defines cannot be wrong about its own layout, and the bias — which is
     *not* attributable to any head — is subtracted back off explicitly.
 
-    ⚠️ Calls ``site.module`` directly, so it needs a real ``nn.Module``. That is
-    why the nnsight engine, whose ``site.module`` is an envoy, does not declare
-    this component.
+    ⚠️ Calls ``site.module`` directly, so it needs something that runs the
+    projection when called: a real ``nn.Module``, or an envoy inside a trace
+    body, where the call runs the module the envoy resolves to — which is how
+    the nnterp engine derives it, in its block, over the gathered
+    rows.
     """
     module = site.module
     bias = getattr(module, "bias", None)
@@ -594,7 +604,7 @@ def _ragged_write_error(
     first. Typed ``ragged_write_unsupported`` (§2.4): a write that declares
     no ``ragged`` policy, or ``refuse``, meets this; a declared
     ``exact_length_buckets`` / ``padded_masked`` lands instead
-    (:meth:`ExecutorBase._land_ragged`)."""
+    (:func:`land_ragged`)."""
     where = f" in intervened_model {model!r}" if model else ""
     return ValidationError(
         19,
@@ -626,8 +636,8 @@ def _operand_width_error(
 ) -> ValidationError:
     """Rule 19 for an operand whose row widths disagree with the write's
     under a landing policy — a ragged read re-nested row by row
-    (:meth:`ExecutorBase._nest_ragged_operand`), or a dense read whose one
-    width is not every row's (:meth:`ExecutorBase._check_dense_operand`):
+    (:func:`nest_ragged_operand`), or a dense read whose one
+    width is not every row's (:func:`check_dense_operand`):
     an operand pairs into a ragged write row by row, at each row's own width,
     and a row where the two windows differ has no aligned shape — it is
     refused, never truncated or left-aligned into the narrower window.
@@ -702,6 +712,625 @@ def _pair_offsets(
     )
 
 
+# ---------------------------------------------------------------------- #
+# the write math, as functions of data
+#
+# Everything a write needs from the document and the executor arrives
+# through a `WriteServices`, so the same math runs from a method of a live
+# executor (the hook engines: the services are its bound methods) and from a
+# block that ships to another process (the nnterp engine on NDIF: the
+# services are tables prepared before the trace, and no executor travels).
+# ---------------------------------------------------------------------- #
+
+
+@dataclasses.dataclass(frozen=True)
+class WriteServices:
+    """What the write math asks of whoever lands a write.
+
+    ``positions_of(ename, write)`` is the write's positions over **every**
+    row of the role (the whole padded frame). ``lookup(value, *, rows=None,
+    ragged=None)`` resolves one operand (:meth:`ExecutorBase._operand_lookup`
+    is the contract). ``stack_of(ename, write, site)`` is the write's
+    featurizer stack. ``routing_of(operand, rows)`` is the routing table a
+    tensor operand was read beside, ``None`` when it carries none. ``reads``
+    answers ``name in reads`` for the document's read names; ``code`` is the
+    document's ``code`` table (only ``pytorch_fn`` reads it). ``mismatches``
+    receives the expert alignment's counts, keyed ``(write, layer,
+    examples)`` — the caller owns where they are recorded.
+    """
+
+    positions_of: Callable[[str, WriteSpec], "list[list[int]]"]
+    lookup: Callable[..., "torch.Tensor | float"]
+    stack_of: Callable[[str, WriteSpec, ResolvedSite], FeaturizerStack]
+    routing_of: Callable[[Any, "RowWindow | None"], "torch.Tensor | None"]
+    reads: Container[str]
+    code: Mapping[str, Any] | None
+    mismatches: "dict[tuple[str, int, tuple[int, ...]], tuple[torch.Tensor, int]]"
+
+
+def gather_rows(
+    tensor: torch.Tensor, per_row: Sequence[Sequence[int]]
+) -> "torch.Tensor | RaggedValue":
+    """``tensor`` at each row's positions: dense ``(rows, width, …)`` when
+    every row addresses one width, else the flat rows plus their widths."""
+    widths = {len(row) for row in per_row}
+    if len(widths) == 1:
+        return gather_positions(tensor, dense_index(per_row, tensor.device))
+    # ragged: one flat advanced index, (total_positions, ...) + widths
+    return RaggedValue(
+        flat=gather_positions(tensor, flat_index(per_row, tensor.device)),
+        widths=tuple(len(row) for row in per_row),
+    )
+
+
+def read_features(
+    value: torch.Tensor,
+    site: ResolvedSite,
+    stack: FeaturizerStack,
+    dims: Any,
+    *,
+    routing: torch.Tensor | None = None,
+    grad_enabled: bool = False,
+) -> torch.Tensor:
+    """The feature tail of a read over its gathered rows: the head's slice,
+    the featurizer stack, then ``dims`` — what a read's value is past the
+    gather, and what a later write consumes as its operand."""
+    if site.feature_slice is not None:
+        value = value[..., site.feature_slice]
+    if not stack.is_identity:
+        # a read whose executor keeps no gradients is detached afterwards, so
+        # its featurize builds no graph — and shares the no-grad
+        # evaluation the write hooks of the same pass use (featurizer_cache);
+        # a grad-enabled executor's read inherits the ambient mode rather
+        # than forcing grad on as the write hooks do: a read never trains
+        with contextlib.nullcontext() if grad_enabled else torch.no_grad():
+            value, _errs = stack.featurize(value, routing=routing)
+    if isinstance(dims, tuple):
+        index = torch.tensor(list(dims), dtype=torch.long, device=value.device)
+        value = value.index_select(-1, index)
+    return value
+
+
+def read_operand(
+    value: str,
+    stored: "torch.Tensor | RaggedValue",
+    *,
+    device: Any,
+    rows: "RowWindow | None" = None,
+    ragged: Sequence[int] | None = None,
+    positioned: bool = True,
+) -> torch.Tensor:
+    """A read's stored value as one write's operand, on ``device``: sliced
+    to ``rows`` (dim 0 is the example), and under a landing policy
+    (``ragged``, the write's per-row widths) re-nested or width-checked row
+    by row. ``positioned`` says the read has a position axis at dim 1 — a
+    whole-tensor read or a state read has none and pairs by broadcast."""
+    if isinstance(stored, RaggedValue):
+        if ragged is None:
+            raise _ragged_operand_error(value)
+        return nest_ragged_operand(value, stored, rows, ragged, device)
+    operand = stored.to(device)
+    if rows is not None and not rows.whole:
+        operand = operand[rows.index]
+    if ragged is not None and positioned:
+        check_dense_operand(value, operand, rows, ragged)
+    return operand
+
+
+def check_dense_operand(
+    value: str,
+    operand: torch.Tensor,
+    rows: "RowWindow | None",
+    widths: Sequence[int],
+) -> None:
+    """A dense, positioned read as a write operand under a landing policy
+    (§5 rule 19): ``operand`` is ``(rows, width, …)`` already sliced to
+    ``rows``, and its one ``width`` must be every row's own landed width in
+    ``widths``, or one (a single position broadcasts over a row, as it
+    always has). Any other row is :func:`_operand_width_error`, naming the
+    row and both widths — the refusal a :class:`RaggedValue` operand's
+    disagreeing row gets, so the two landing policies refuse one document
+    identically."""
+    if operand.dim() < 2:
+        return
+    got = int(operand.shape[1])
+    if got == 1:
+        return
+    examples = list(range(len(widths))) if rows is None else rows.examples
+    mismatches = [
+        (row, got, int(width))
+        for row, width in zip(examples, widths)
+        if got != int(width)
+    ]
+    if mismatches:
+        raise _operand_width_error(value, mismatches)
+
+
+def nest_ragged_operand(
+    value: str,
+    stored: RaggedValue,
+    rows: "RowWindow | None",
+    widths: Sequence[int],
+    device: Any,
+) -> torch.Tensor:
+    """A ragged read as a write operand under a landing policy (§5 rule
+    19): its rows over ``rows``, each checked to be exactly as wide as the
+    write's window on that row, stacked into ``(rows, max width, …)`` with
+    zero padding past a row's width — the same frame the write's
+    ``padded_masked`` gather uses, and a bucket's frame when every width
+    is the same. Padding is never written back: the landing masks it."""
+    chunks = torch.split(stored.flat.to(device), list(stored.widths))
+    examples = list(range(len(chunks))) if rows is None else rows.examples
+    picked = [chunks[i] for i in examples]
+    want = [int(width) for width in widths]
+    mismatches = [
+        (row, int(chunk.shape[0]), width)
+        for row, chunk, width in zip(examples, picked, want)
+        if int(chunk.shape[0]) != width
+    ]
+    if mismatches:
+        raise _operand_width_error(value, mismatches)
+    out = stored.flat.new_zeros((len(picked), max(want), *stored.flat.shape[1:]))
+    for i, chunk in enumerate(picked):
+        out[i, : chunk.shape[0]] = chunk
+    return out
+
+
+def _class_rank(entry: tuple[str, WriteSpec, ResolvedSite]) -> int:
+    do = entry[1].do
+    if str(do.mechanism) == "renormalize":
+        return 2  # after the deltas — the only order where it acts (§2.8 note)
+    return 1 if is_additive(do) else 0  # absolute first, then additive
+
+
+def apply_writes_to_contract(
+    entries: Sequence[tuple[str, WriteSpec, ResolvedSite]],
+    tensor: torch.Tensor,
+    services: WriteServices,
+    *,
+    per_row: list[list[int]] | None = None,
+    rows: "RowWindow | None" = None,
+    routing: torch.Tensor | None = None,
+) -> None:
+    """Apply every write at one address, in class order, mutating the
+    contract-shaped ``tensor`` in place — absolute first, additive deltas
+    summed, renormalize last against the pre-write norm (§2.8).
+
+    ``per_row`` overrides position resolution, the same override
+    :meth:`ExecutorBase._finalize_read` takes: a caller whose position axis
+    is not the token axis (a per-chunk state) has already worked the indices
+    out.
+
+    ``rows`` is the window of the role's rows ``tensor`` holds — the
+    microbatch. Positions resolve against the whole padded frame (a
+    window is a row slice of it, so the indices coincide), then both they
+    and any tensor operand are sliced to the window; ``None`` is the whole
+    batch.
+
+    ``routing`` is the routing table of a routed-interior address,
+    ``(batch, position, top_k)`` over the same rows as ``tensor`` — the
+    expert ids an expert-keyed gate keys its parameters by, gathered at
+    the write's positions alongside the value."""
+    if rows is None:
+        rows = RowWindow(0, tensor.shape[0], tensor.shape[0])
+    lookup = functools.partial(services.lookup, rows=rows)
+
+    for ename, write, site in sorted(entries, key=_class_rank):
+        if not site.shape.has_contract_form:
+            # Symmetric with the read (see whole_native_tensor): this
+            # tensor's feature axis is a position axis, so the position
+            # gather below would index heads with positions and `dims`
+            # would slice key positions as features. Both are refused
+            # there; what is left is the whole tensor, edited whole.
+            whole_native_tensor(ename, write, tensor, site)
+            mechanism = str(write.do.mechanism)
+            if mechanism == "swap":
+                replacement = lookup(write.do.payload)
+                if not isinstance(replacement, torch.Tensor):
+                    raise ProtocolError(
+                        "P2",
+                        f"write {ename!r} swaps {site.component!r} with "
+                        "a scalar; a whole-tensor interchange needs a "
+                        "tensor operand read from elsewhere",
+                    )
+                if replacement.shape != tensor.shape:
+                    raise ProtocolError(
+                        "P2",
+                        f"write {ename!r} replaces the whole "
+                        f"{site.component!r} tensor, but its operand has "
+                        f"shape {tuple(replacement.shape)} and the tap is "
+                        f"{tuple(tensor.shape)} — an interchange needs "
+                        "both inputs to have the same number of positions",
+                    )
+                tensor.copy_(replacement.to(tensor.dtype))
+            elif mechanism == "gaussian":
+                # 📐 The noise is drawn as (batch, position, feature) and
+                # its `axis` names the feature axis' tensor-parallel
+                # semantics. This tap has no feature axis — its last axis
+                # is key positions — so there is nothing for either to
+                # mean, and the draw does not even fit (measured: "shape
+                # '[1, 8, 5, 5]' is invalid for input of size 40").
+                # Refused by name rather than reshaped into something that
+                # would run.
+                raise ProtocolError(
+                    "P4",
+                    f"write {ename!r} applies 'gaussian' to "
+                    f"{site.component!r}, whose shape is "
+                    f"{site.shape.describe()}: the noise is drawn per "
+                    "(batch, position, feature) and its 'axis' names how "
+                    "the feature axis is sharded, and this tap has no "
+                    "feature axis at all. Swap in a noise tensor of the "
+                    "tap's own shape instead.",
+                )
+            else:
+                # 📐 Arithmetic on the whole tensor, with no gather: for
+                # `attention_scores` this is the point of the component.
+                # `written_value` broadcasts a scalar operand over any
+                # rank, and `dims` and featurizers are already refused
+                # above, so there is no feature axis for it to mis-slice.
+                tensor.copy_(
+                    written_value(
+                        ename, write, site, tensor, services, lookup=lookup, rows=rows
+                    ).to(tensor.dtype)
+                )
+            continue
+        if per_row is not None:
+            positions = per_row
+            pad_to = max((len(row) for row in positions), default=0)
+        else:
+            # resolved against the whole padded frame, then sliced to the
+            # window; the widest row of the *whole* batch is what a masked
+            # landing pads to, so the `gaussian` draw a row receives does
+            # not depend on how the batch was cut (§8)
+            every = services.positions_of(ename, write)
+            positions = every[rows.slice]
+            pad_to = max((len(row) for row in every), default=0)
+        widths = {len(row) for row in positions}
+        policy = write.ragged or "refuse"
+        if len(widths) != 1:
+            if policy == "refuse":
+                raise _ragged_write_error(ename, sorted(widths))
+            land_ragged(
+                ename,
+                write,
+                site,
+                tensor,
+                positions,
+                services,
+                policy=policy,
+                pad_to=pad_to,
+                rows=rows,
+                routing=routing,
+            )
+            continue
+        (width,) = widths
+        # this write's lookup alone: the ragged binding below must not
+        # leak into a later write of the same landing call, whose operands
+        # would then be held to *this* write's width (or, under `refuse`,
+        # refused with the width message instead of the operand one)
+        write_lookup = lookup
+        if policy != "refuse":
+            # uniform on this window (or on the whole batch): the dense
+            # landing below, with a ragged operand welcome at this width
+            write_lookup = functools.partial(
+                services.lookup, rows=rows, ragged=[width] * len(positions)
+            )
+        index = dense_index(positions, tensor.device)
+        fslice = site.feature_slice or slice(None)
+        # one gather of the landed positions, sort-free backward when the
+        # table repeats no element (gather.py); the write-back splices
+        # the new features into it rather than gathering again
+        landed = gather_positions(tensor, index)
+        v_new = written_value(
+            ename,
+            write,
+            site,
+            landed[..., fslice],
+            services,
+            lookup=write_lookup,
+            rows=rows,
+            routing=None if routing is None else routing[index.pair],
+        )
+        tensor[index.pair] = splice_features(landed, fslice, v_new.to(tensor.dtype))
+
+
+def land_ragged(
+    ename: str,
+    write: WriteSpec,
+    site: ResolvedSite,
+    tensor: torch.Tensor,
+    positions: list[list[int]],
+    services: WriteServices,
+    *,
+    policy: str,
+    pad_to: int,
+    rows: "RowWindow",
+    routing: torch.Tensor | None,
+) -> None:
+    """Land one write whose rows address different numbers of positions,
+    under its declared ``ragged`` policy (§2.8, §5 rule 19) — every row at
+    its own width, inside the forward the window already runs, so nothing
+    about batch geometry, fire counts or prefix keys changes:
+
+    * ``exact_length_buckets`` groups the window's rows by width and lands
+      one dense gather per width — a :meth:`RowWindow.bucket`, so a tensor
+      operand, a routing table and the ``gaussian`` draw are indexed by
+      the bucket's rows exactly as a window slices them;
+    * ``padded_masked`` pads every row's positions to ``pad_to`` (the
+      widest row of the batch) with its own last position, lands one
+      gather over the padded frame, and scatters back **only** the real
+      slots — the pad slot is read (a duplicate of a real activation) and
+      never written.
+
+    Every per-position mechanism writes the same values under either
+    policy; only a ``gaussian`` draw, shaped by the landed slice, differs
+    between a bucket's width and the padded width. The pre-flight
+    (:meth:`ExecutorBase.check_write_widths`) has already recorded the
+    geometry.
+    """
+    fslice = site.feature_slice or slice(None)
+    widths = [len(row) for row in positions]
+    # every operand that is a read is paired to the whole window first,
+    # whichever policy lands it: an operand whose widths disagree with the
+    # write's on any row is rule 19 here, naming the same rows under both
+    # policies — not the first bucket's alone, and never `_coerce`'s P2
+    for name in operand_names(write.do.payload):
+        if name in services.reads:
+            services.lookup(name, rows=rows, ragged=widths)
+    if policy == "exact_length_buckets":
+        for width in sorted(set(widths)):
+            members = [i for i, w in enumerate(widths) if w == width]
+            bucket = rows.bucket(members)
+            index = dense_index(
+                [positions[i] for i in members], tensor.device, rows=members
+            )
+            landed = gather_positions(tensor, index)
+            v_new = written_value(
+                ename,
+                write,
+                site,
+                landed[..., fslice],
+                services,
+                lookup=functools.partial(
+                    services.lookup, rows=bucket, ragged=[width] * len(members)
+                ),
+                rows=bucket,
+                routing=None if routing is None else routing[index.pair],
+            )
+            tensor[index.pair] = splice_features(landed, fslice, v_new.to(tensor.dtype))
+        return
+    if policy != "padded_masked":
+        raise AssertionError(f"unknown ragged policy {policy!r} reached the landing")
+    pad_to = max(pad_to, max(widths))
+    padded = [
+        [*row, *([row[-1] if row else 0] * (pad_to - len(row)))] for row in positions
+    ]
+    # a pad slot duplicates a real position, so where any row is short
+    # this table is not distinct and the gather keeps autograd's
+    # accumulating backward; the index decides that itself (gather.py)
+    index = dense_index(padded, tensor.device)
+    landed = gather_positions(tensor, index)
+    v_new = written_value(
+        ename,
+        write,
+        site,
+        landed[..., fslice],
+        services,
+        lookup=functools.partial(services.lookup, rows=rows, ragged=widths),
+        rows=rows,
+        routing=None if routing is None else routing[index.pair],
+    )
+    spliced = splice_features(landed, fslice, v_new.to(tensor.dtype))
+    # only the real slots go back: a pad slot duplicates a real index, and
+    # an advanced-index assignment with duplicates lands one of the two
+    # values arbitrarily — so padding is never written, by construction.
+    # The real (row, slot) pairs are known on the host, so selecting them
+    # is a distinct gather rather than a boolean mask (which would need
+    # the device to count its hits)
+    real_slots = flat_index([list(range(width)) for width in widths], tensor.device)
+    real_positions = flat_index(positions, tensor.device)
+    tensor[real_positions.pair] = gather_positions(spliced, real_slots)
+
+
+def written_value(
+    ename: str,
+    write: WriteSpec,
+    site: ResolvedSite,
+    v_pre: torch.Tensor,
+    services: WriteServices,
+    *,
+    lookup: "Callable[[Any], torch.Tensor | float] | None" = None,
+    rows: "RowWindow | None" = None,
+    routing: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """featurize → class-ordered do → inverse, honoring dims and the
+    error-term contract.
+
+    ``lookup`` overrides operand resolution — the state-write path slices
+    tensor operands to one (row, step) so the same mechanism math applies
+    per step; everything else uses ``services.lookup`` unchanged.
+
+    ``rows`` is the window ``v_pre`` covers, which only a ``gaussian``
+    write needs: its draw is made over the whole batch and sliced, so the
+    noise a row receives does not depend on how the batch was cut.
+
+    ``routing`` is the routing table at ``v_pre``'s rows and positions,
+    ``(batch, position, top_k)``, when the address is the routed interior.
+    A write through an expert-keyed gate featurizes with it and joins
+    every tensor operand to it by expert id (:func:`align_by_expert`), so
+    a slot receives the operand's value for the *same expert* and a slot
+    whose expert the operand never activated is left unchanged.
+    """
+    if lookup is None:
+        lookup = services.lookup
+    stack = services.stack_of(ename, write, site)
+    f0, errs = stack.featurize(v_pre, routing=routing)
+    dims = None
+    if isinstance(write.dims, tuple):
+        if stack.needs_routing:
+            raise ProtocolError(
+                "P4",
+                f"write {ename!r} slices 'dims' through an expert-keyed gate: "
+                "the token-major axis is joined to experts per token, so a "
+                "fixed coordinate subset names different neurons on "
+                "different tokens. Select neurons with the gate instead.",
+            )
+        dims = torch.tensor(list(write.dims), dtype=torch.long, device=f0.device)
+
+    def select(f: torch.Tensor) -> torch.Tensor:
+        return f if dims is None else f.index_select(-1, dims)
+
+    def aligned(fill: torch.Tensor) -> "Callable[[Any], torch.Tensor | float]":
+        """Operand resolution that joins a tensor operand's slots to
+        ``v_pre``'s by expert; ``fill`` is what a slot with no source
+        receives, chosen so the mechanism leaves it unchanged."""
+        assert lookup is not None and routing is not None
+
+        def resolve(value: Any) -> torch.Tensor | float:
+            operand = lookup(value)
+            if not isinstance(operand, torch.Tensor):
+                return operand
+            joined, key, counts = align_by_expert(
+                ename,
+                value,
+                operand,
+                routing,
+                fill,
+                source_routing=services.routing_of(value, rows),
+                layer=site.layer,
+                rows=rows,
+            )
+            # re-inserted at the end so a flush lands the calls in order (the
+            # last write of a row wins)
+            services.mismatches.pop(key, None)
+            services.mismatches[key] = counts
+            return joined
+
+        return resolve
+
+    # `f` is written into in place only where a `dims` slice lands in it
+    # (the three `index_copy_` below), and then into its own copy: `f0` is
+    # the featurizer's output, which its error term saved for backward (a
+    # subspace's `x - f @ Qᵀ`), and through the identity stack the gathered
+    # slice itself. A whole-axis result is a fresh tensor already (the sum,
+    # the broadcast operand, the renormalized product), and every consumer
+    # copies it into the model's tensor rather than mutating it — so no
+    # defensive clone there
+    f = f0 if dims is None else f0.clone()
+    do = write.do
+    batch_size, n_pos = v_pre.shape[0], v_pre.shape[1]
+    if str(do.mechanism) == "renormalize":
+        pass  # applied last, below
+    elif is_additive(do):
+        delta = apply_delta(
+            do,
+            select(f0),
+            aligned(torch.zeros_like(f0)) if stack.needs_routing else lookup,
+            batch=batch_size if rows is None else rows.total,
+            n_pos=n_pos,
+            rows=None if rows is None else rows.index,
+        )
+        if dims is None:
+            f = f0 + delta
+        else:
+            f.index_copy_(-1, dims, select(f0) + delta)
+    else:
+        written = apply_absolute(
+            do,
+            select(f0),
+            aligned(f0) if stack.needs_routing else lookup,
+            code=services.code,
+        )
+        written = written.broadcast_to(select(f0).shape).to(f0.dtype)
+        if dims is None:
+            f = written
+        else:
+            f.index_copy_(-1, dims, written)
+    if str(do.mechanism) == "renormalize":
+        if dims is None:
+            f = apply_renormalize(f, f0)
+        else:
+            f.index_copy_(-1, dims, apply_renormalize(select(f), select(f0)))
+    return stack.inverse(f, errs)
+
+
+def align_by_expert(
+    ename: str,
+    operand_name: Any,
+    operand: torch.Tensor,
+    routing: torch.Tensor,
+    fill: torch.Tensor,
+    *,
+    source_routing: torch.Tensor | None,
+    layer: int | None,
+    rows: "RowWindow | None" = None,
+) -> "tuple[torch.Tensor, tuple[str, int, tuple[int, ...]], tuple[torch.Tensor, int]]":
+    """Join a tensor operand's routed slots to the written slots by expert
+    id (§2.5 ``expert_neuron``).
+
+    Slot *k* of a token holds its *k*-th ranked expert, so the same slot
+    on the operand's side may hold a different expert. For every written
+    slot holding expert ``e``, the source is the operand's slot holding
+    ``e`` at the same row and position when ``e`` is active there, and
+    ``fill`` otherwise — the pre-write feature value for an absolute
+    write, zero for an additive one, so a slot with no source keeps its
+    base value.
+
+    Returns the joined operand, and the count of written slots with no
+    source per example — ``(write, layer, examples)`` and ``(missing,
+    slots per example)`` — for the caller to record
+    (:attr:`ExecutorBase.routing_mismatch`). The key names the role's rows,
+    not the window's (nor the bucket's), so a microbatched layout names the
+    same examples as a whole-batch one; the counts stay on the device — a
+    host read inside a layer hook would stall the launch stream once per
+    layer, for a record only the point's full-data pass is ever asked for.
+
+    ``source_routing`` is the routing table the operand was read beside
+    (``services.routing_of``): the operand must have been read at a
+    routed-interior site (it carries expert ids) over the same rows and
+    positions as the write — a broadcast operand has no slot-to-expert map
+    to join on, and is refused rather than landed slot for slot.
+    """
+    if source_routing is None:
+        raise ProtocolError(
+            "P2",
+            f"write {ename!r} hands {operand_name!r} to an expert-keyed gate, "
+            "but that operand carries no routing table — the source of a "
+            "write through group 'expert_neuron' is a read at the routed "
+            "interior, whose expert ids say which of its slots matches which "
+            "of the written ones",
+        )
+    operand = operand.to(device=fill.device, dtype=fill.dtype)
+    if operand.shape != fill.shape or source_routing.shape != routing.shape:
+        raise ProtocolError(
+            "P2",
+            f"write {ename!r}: operand {operand_name!r} covers "
+            f"{tuple(operand.shape)} with routing {tuple(source_routing.shape)}, "
+            f"but the write addresses {tuple(fill.shape)} with routing "
+            f"{tuple(routing.shape)} — slots are joined by expert per (example, "
+            "position), so both sides must address the same positions",
+        )
+    top_k = routing.shape[-1]
+    per_slot = operand.shape[-1] // top_k
+    # (…, written slot, operand slot): does the operand's slot hold the
+    # written slot's expert? An expert appears at most once per token, so
+    # at most one operand slot matches
+    match = routing.unsqueeze(-1) == source_routing.unsqueeze(-2)
+    found = match.any(-1)
+    source_slot = match.to(torch.int8).argmax(-1)
+    slots = operand.reshape(*operand.shape[:-1], top_k, per_slot)
+    picked = slots.gather(
+        -2, source_slot.unsqueeze(-1).expand(*source_slot.shape, per_slot)
+    )
+    aligned = torch.where(found.unsqueeze(-1), picked, fill.reshape(slots.shape))
+    assert layer is not None  # the routed interior is a layered component
+    missing = (~found).reshape(found.shape[0], -1).sum(-1)
+    per_example = found[0].numel()
+    examples = list(range(len(missing))) if rows is None else rows.examples
+    key = (ename, layer, tuple(examples))
+    return aligned.reshape(operand.shape), key, (missing, per_example)
+
+
 class ExecutorBase:
     """Execute one concrete document against one loaded model.
 
@@ -711,7 +1340,7 @@ class ExecutorBase:
     #: of moving to the CPU (``_finalize_read``) — detached either way, only
     #: the placement is the flag's: a fit's eval executor when a metric
     #: selects from the read on the device and its scorer copies the columns
-    #: rather than the vocabulary (``train._score``), and a CUDA evaluation
+    #: rather than the vocabulary (``training.loop.score``), and a CUDA evaluation
     #: capture (``graph_cohort.EvaluationGraphs``). Off by default: a point's
     #: own passes hand CPU values to the writers.
     device_reads = False
@@ -782,7 +1411,7 @@ class ExecutorBase:
         #: per dense read at a routed-interior site, the routing table
         #: gathered at the read's own rows and positions, ``(batch, position,
         #: top_k)`` — what lets a write through an expert-keyed gate align that
-        #: read's slots to its own by expert id (:meth:`_align_by_expert`)
+        #: read's slots to its own by expert id (:func:`align_by_expert`)
         self._read_routing: dict[str, torch.Tensor] = {}
         #: ``(write, layer, example) -> (mismatched, slots)``: per write through
         #: an expert-keyed gate, how many of the example's base slots held an
@@ -861,10 +1490,7 @@ class ExecutorBase:
         """The (featurized, dims-selected) value of one read; runs its
         group (and, transitively, operand groups) on first use."""
         if name not in self._read_values:
-            self.check_write_widths()
-            self.check_answer_forms()
-            self.check_scoring()
-            self.check_edit_groups()
+            self._preflight()
             read = self.doc.reads[name]
             self._run_group(str(read.model), str(read.input))
         value = self._read_values[name]
@@ -1055,7 +1681,7 @@ class ExecutorBase:
         What a ragged write meets here is its declared ``ragged`` policy
         (§2.8): ``refuse`` — and an absent field — is the refusal above;
         ``exact_length_buckets`` and ``padded_masked`` land every row at its
-        own width instead (:meth:`_land_ragged`), and this check records what
+        own width instead (:func:`land_ragged`), and this check records what
         they will land under (:attr:`ragged_geometry`) for the run receipt.
         The policy is authored in the pure layer and *resolved* here, on the
         encoded batch — rule 19's encode-time boundary is unchanged.
@@ -1295,12 +1921,17 @@ class ExecutorBase:
             for row, row_steps in enumerate(steps)
         ]
 
-    def run_all(self) -> None:
-        """Run every group the document implies (all reads materialize)."""
+    def _preflight(self) -> None:
+        """The document-level checks every run makes before its first
+        forward, whichever door it came in by."""
         self.check_write_widths()
         self.check_answer_forms()
         self.check_scoring()
         self.check_edit_groups()
+
+    def run_all(self) -> None:
+        """Run every group the document implies (all reads materialize)."""
+        self._preflight()
         for read in self.doc.reads.values():
             self._run_group(str(read.model), str(read.input))
 
@@ -1962,14 +2593,7 @@ class ExecutorBase:
     def _gather(
         tensor: torch.Tensor, per_row: list[list[int]], what: str
     ) -> "torch.Tensor | RaggedValue":
-        widths = {len(row) for row in per_row}
-        if len(widths) == 1:
-            return gather_positions(tensor, dense_index(per_row, tensor.device))
-        # ragged: one flat advanced index, (total_positions, ...) + widths
-        return RaggedValue(
-            flat=gather_positions(tensor, flat_index(per_row, tensor.device)),
-            widths=tuple(len(row) for row in per_row),
-        )
+        return gather_rows(tensor, per_row)
 
     def _read_stack(
         self, read: ReadSpec | WriteSpec, site: ResolvedSite
@@ -2023,6 +2647,7 @@ class ExecutorBase:
         project: Callable[[torch.Tensor], torch.Tensor] | None = None,
         expert_idx: torch.Tensor | None = None,
         to_cpu: bool | None = None,
+        pregathered: bool = False,
     ) -> "torch.Tensor | RaggedValue":
         """One read's value: gather at its positions, then featurize.
 
@@ -2035,6 +2660,15 @@ class ExecutorBase:
         ``to_cpu`` defaults to ``not self.device_reads``: an eval executor and
         a CUDA evaluation capture keep their read values on the device, and
         their scorer copies out only what a metric selects.
+
+        ``pregathered`` says the engine reduced inside its forward: ``raw``
+        (and ``expert_idx``) arrive already gathered at ``per_row`` — a dense
+        ``(rows, width, …)`` tensor or a :class:`RaggedValue` — and already
+        projected and derived, which need the model's own modules. What is
+        left is the part that needs only the document: the head's slice, the
+        featurizer stack, ``dims``. An engine whose forward runs in another
+        process (the nnterp engine on NDIF) downloads the slice this way
+        rather than the contract tensor.
         """
         if to_cpu is None:
             to_cpu = not self.device_reads
@@ -2043,8 +2677,10 @@ class ExecutorBase:
         if per_row is None:
             per_row = self._positions(read.pos, batch, input_role, cell=rname)
         if site.expert is not None:
-            return self._expert_selected(rname, read, site, raw, expert_idx, per_row)
-        gathered = self._gather(raw, per_row, f"read {rname!r}")
+            return self._expert_selected(
+                rname, read, site, raw, expert_idx, per_row, pregathered=pregathered
+            )
+        gathered = raw if pregathered else self._gather(raw, per_row, f"read {rname!r}")
         if project is not None:
             if isinstance(gathered, RaggedValue):
                 gathered = RaggedValue(
@@ -2056,37 +2692,35 @@ class ExecutorBase:
         value = gathered.flat if isinstance(gathered, RaggedValue) else gathered
         if site.shape.state_axes:
             return self._state_read(rname, read, site, value, gathered)
-        if site.derivation is not None:
+        if site.derivation is not None and not pregathered:
             # After the gather, deliberately: the value is `heads` times wider
             # than the tensor it comes from, so deriving it before the gather
             # would cost `seq · H · hidden` where this costs
             # `n_positions · H · hidden`.
             value = _derive(site, value, rname)
-        if site.feature_slice is not None:
-            value = value[..., site.feature_slice]
         routing = None
         if expert_idx is not None:
             # the routing table at the same rows and positions as the value —
             # what an expert-keyed gate keys its parameters by, and what a
             # later write through one aligns this read's slots to its own by
-            idx_gathered = self._gather(expert_idx, per_row, f"read {rname!r}")
+            idx_gathered = (
+                expert_idx
+                if pregathered
+                else self._gather(expert_idx, per_row, f"read {rname!r}")
+            )
             if isinstance(idx_gathered, RaggedValue):
                 routing = idx_gathered.flat
             else:
                 routing = idx_gathered
                 self._read_routing[rname] = routing.detach()
-        stack = self._read_stack(read, site)
-        if not stack.is_identity:
-            # a read whose executor keeps no gradients is detached below, so
-            # its featurize builds no graph — and shares the no-grad
-            # evaluation the write hooks of the same pass use (featurizer_cache);
-            # a grad-enabled executor's read inherits the ambient mode rather
-            # than forcing grad on as the write hooks do: a read never trains
-            with contextlib.nullcontext() if self.grad_enabled else torch.no_grad():
-                value, _errs = stack.featurize(value, routing=routing)
-        if isinstance(read.dims, tuple):
-            dims = torch.tensor(list(read.dims), dtype=torch.long, device=value.device)
-            value = value.index_select(-1, dims)
+        value = read_features(
+            value,
+            site,
+            self._read_stack(read, site),
+            read.dims,
+            routing=routing,
+            grad_enabled=self.grad_enabled,
+        )
         if not self.grad_enabled:
             value = value.detach()
             if to_cpu:
@@ -2104,6 +2738,8 @@ class ExecutorBase:
         raw: torch.Tensor,
         expert_idx: torch.Tensor | None,
         per_row: list[list[int]],
+        *,
+        pregathered: bool = False,
     ) -> RaggedValue:
         """The ragged face of the routed interior: the (position, slot) pairs
         the router sent to ``site.expert``, as flat ``(selected, d)`` rows plus
@@ -2148,8 +2784,11 @@ class ExecutorBase:
                 "top_k·d axis, and these rows are d-wide. Drop 'expert' or "
                 "drop 'dims'.",
             )
-        gathered = self._gather(raw, per_row, f"read {rname!r}")
-        idx_gathered = self._gather(expert_idx, per_row, f"read {rname!r}")
+        if pregathered:
+            gathered, idx_gathered = raw, expert_idx
+        else:
+            gathered = self._gather(raw, per_row, f"read {rname!r}")
+            idx_gathered = self._gather(expert_idx, per_row, f"read {rname!r}")
         if isinstance(gathered, RaggedValue):
             assert isinstance(idx_gathered, RaggedValue)
             flat_value, pos_widths = gathered.flat, gathered.widths
@@ -2368,7 +3007,7 @@ class ExecutorBase:
         widths — refused when any row's widths disagree
         (:func:`_operand_width_error`) — and padded to the widest with zeros,
         which the landing never writes back; a **dense** read (one width for
-        every row) is held to the same rule (:meth:`_check_dense_operand`):
+        every row) is held to the same rule (:func:`check_dense_operand`):
         its width must be each row's own, or one — a uniform operand as wide
         as the widest row would otherwise satisfy the padded frame's broadcast
         and land truncated into every narrower row. Without ``ragged`` (a
@@ -2377,17 +3016,23 @@ class ExecutorBase:
         if not isinstance(value, str):
             return float(value)
         if value in self.doc.reads:
-            stored = self._read_values[value]
-            if isinstance(stored, RaggedValue):
-                if ragged is None:
-                    raise _ragged_operand_error(value)
-                return self._nest_ragged_operand(value, stored, rows, ragged)
-            operand = stored.to(self.bundle.device)
-            if rows is not None and not rows.whole:
-                operand = operand[rows.index]
-            if ragged is not None:
-                self._check_dense_operand(value, operand, rows, ragged)
-            return operand
+            return read_operand(
+                value,
+                self._read_values[value],
+                device=self.bundle.device,
+                rows=rows,
+                ragged=ragged,
+                # asked only under a landing policy, the one place it is used
+                positioned=ragged is not None and self._positioned(value),
+            )
+        resolved = self._artifact_operand(value)
+        if resolved is None:
+            raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
+        return resolved
+
+    def _artifact_operand(self, value: str) -> torch.Tensor | None:
+        """An operand the document's artifacts hold — a featurizer slot or a
+        ``params`` entry — or ``None`` when ``value`` names neither."""
         if "." in value:
             fname, slot = value.split(".", 1)
             if fname in self.doc.featurizers:
@@ -2407,7 +3052,7 @@ class ExecutorBase:
             raise NotImplementedError(
                 f"trainable free params ({value!r}) arrive with the train loop"
             )
-        raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
+        return None
 
     def _operand_routing(
         self, value: Any, rows: RowWindow | None = None
@@ -2421,71 +3066,6 @@ class ExecutorBase:
         # sliced to the consuming forward's window — or width bucket — like
         # the operand itself (§8 microbatching): the two are joined row by row
         return routing if rows is None or rows.whole else routing[rows.index]
-
-    def _check_dense_operand(
-        self,
-        value: str,
-        operand: torch.Tensor,
-        rows: RowWindow | None,
-        widths: Sequence[int],
-    ) -> None:
-        """A dense read as a write operand under a landing policy (§5 rule
-        19): ``operand`` is ``(rows, width, …)`` already sliced to ``rows``,
-        and its one ``width`` must be every row's own landed width in
-        ``widths``, or one (a single position broadcasts over a row, as it
-        always has). Any other row is :func:`_operand_width_error`, naming the
-        row and both widths — the refusal a :class:`RaggedValue` operand's
-        disagreeing row gets, so the two landing policies refuse one document
-        identically. Only a positioned read is held to it: a whole-tensor
-        read (a tap with no contract form) or a state read has no position
-        axis at dim 1, and pairs into a positioned write by broadcast alone."""
-        if operand.dim() < 2:
-            return
-        site = resolve_site(
-            self.bundle, self.doc.sites[str(self.doc.reads[value].site)]
-        )
-        if not site.shape.has_contract_form or site.shape.state_axes:
-            return
-        got = int(operand.shape[1])
-        if got == 1:
-            return
-        examples = list(range(len(widths))) if rows is None else rows.examples
-        mismatches = [
-            (row, got, int(width))
-            for row, width in zip(examples, widths)
-            if got != int(width)
-        ]
-        if mismatches:
-            raise _operand_width_error(value, mismatches)
-
-    def _nest_ragged_operand(
-        self,
-        value: str,
-        stored: RaggedValue,
-        rows: RowWindow | None,
-        widths: Sequence[int],
-    ) -> torch.Tensor:
-        """A ragged read as a write operand under a landing policy (§5 rule
-        19): its rows over ``rows``, each checked to be exactly as wide as the
-        write's window on that row, stacked into ``(rows, max width, …)`` with
-        zero padding past a row's width — the same frame the write's
-        ``padded_masked`` gather uses, and a bucket's frame when every width
-        is the same. Padding is never written back: the landing masks it."""
-        chunks = torch.split(stored.flat.to(self.bundle.device), list(stored.widths))
-        examples = list(range(len(chunks))) if rows is None else rows.examples
-        picked = [chunks[i] for i in examples]
-        want = [int(width) for width in widths]
-        mismatches = [
-            (row, int(chunk.shape[0]), width)
-            for row, chunk, width in zip(examples, picked, want)
-            if int(chunk.shape[0]) != width
-        ]
-        if mismatches:
-            raise _operand_width_error(value, mismatches)
-        out = stored.flat.new_zeros((len(picked), max(want), *stored.flat.shape[1:]))
-        for i, chunk in enumerate(picked):
-            out[i, : chunk.shape[0]] = chunk
-        return out
 
     def _resolve_write_addresses(
         self, write_names: tuple[str, ...]
@@ -2518,6 +3098,37 @@ class ExecutorBase:
             by_address[key][1].append((ename, write, site))
         return by_address
 
+    def _positioned(self, value: str) -> bool:
+        """Whether read ``value`` has a position axis at dim 1 — what a
+        landing policy's width check holds a dense operand to. A whole-tensor
+        read (a tap with no contract form) or a state read has none, and
+        pairs into a positioned write by broadcast alone."""
+        site = resolve_site(
+            self.bundle, self.doc.sites[str(self.doc.reads[value].site)]
+        )
+        return site.shape.has_contract_form and not site.shape.state_axes
+
+    def _write_services(
+        self,
+        positions_of: "Callable[[str, WriteSpec], list[list[int]]] | None" = None,
+    ) -> WriteServices:
+        """The write math's services, bound to this executor: its position
+        resolution, operand lookup, featurizer stacks and routing tables, and
+        the pending mismatch record the expert alignment's counts land in."""
+
+        def unresolved(ename: str, _write: WriteSpec) -> "list[list[int]]":
+            raise AssertionError(f"write {ename!r}: no position frame was bound")
+
+        return WriteServices(
+            positions_of=positions_of or unresolved,
+            lookup=self._operand_lookup,
+            stack_of=lambda _ename, write, site: self._read_stack(write, site),
+            routing_of=self._operand_routing,
+            reads=self.doc.reads,
+            code=self.doc.code,
+            mismatches=self._routing_mismatch_pending,
+        )
+
     def _apply_writes_to_contract(
         self,
         entries: list[tuple[str, WriteSpec, ResolvedSite]],
@@ -2529,248 +3140,18 @@ class ExecutorBase:
         rows: RowWindow | None = None,
         routing: torch.Tensor | None = None,
     ) -> None:
-        """Apply every write at one address, in class order, mutating the
-        contract-shaped ``tensor`` in place — absolute first, additive deltas
-        summed, renormalize last against the pre-write norm (§2.8).
-
-        ``per_row`` overrides position resolution, the same override
-        :meth:`_finalize_read` takes: a caller whose position axis is not the
-        token axis (a per-chunk state) has already worked the indices out.
-
-        ``rows`` is the window of the role's rows ``tensor`` holds — the
-        microbatch. Positions resolve against the whole padded frame (a
-        window is a row slice of it, so the indices coincide), then both they
-        and any tensor operand are sliced to the window; ``None`` is the whole
-        batch.
-
-        ``routing`` is the routing table of a routed-interior address,
-        ``(batch, position, top_k)`` over the same rows as ``tensor`` — the
-        expert ids an expert-keyed gate keys its parameters by, gathered at
-        the write's positions alongside the value."""
-        if rows is None:
-            rows = RowWindow(0, tensor.shape[0], tensor.shape[0])
-        lookup = functools.partial(self._operand_lookup, rows=rows)
-
-        def class_rank(entry: tuple[str, WriteSpec, ResolvedSite]) -> int:
-            do = entry[1].do
-            if str(do.mechanism) == "renormalize":
-                return 2  # after the deltas — the only order where it acts (§2.8 note)
-            return 1 if is_additive(do) else 0  # absolute first, then additive
-
-        for ename, write, site in sorted(entries, key=class_rank):
-            if not site.shape.has_contract_form:
-                # Symmetric with the read (see whole_native_tensor): this
-                # tensor's feature axis is a position axis, so the position
-                # gather below would index heads with positions and `dims`
-                # would slice key positions as features. Both are refused
-                # there; what is left is the whole tensor, edited whole.
-                whole_native_tensor(ename, write, tensor, site)
-                mechanism = str(write.do.mechanism)
-                if mechanism == "swap":
-                    replacement = lookup(write.do.payload)
-                    if not isinstance(replacement, torch.Tensor):
-                        raise ProtocolError(
-                            "P2",
-                            f"write {ename!r} swaps {site.component!r} with "
-                            "a scalar; a whole-tensor interchange needs a "
-                            "tensor operand read from elsewhere",
-                        )
-                    if replacement.shape != tensor.shape:
-                        raise ProtocolError(
-                            "P2",
-                            f"write {ename!r} replaces the whole "
-                            f"{site.component!r} tensor, but its operand has "
-                            f"shape {tuple(replacement.shape)} and the tap is "
-                            f"{tuple(tensor.shape)} — an interchange needs "
-                            "both inputs to have the same number of positions",
-                        )
-                    tensor.copy_(replacement.to(tensor.dtype))
-                elif mechanism == "gaussian":
-                    # 📐 The noise is drawn as (batch, position, feature) and
-                    # its `axis` names the feature axis' tensor-parallel
-                    # semantics. This tap has no feature axis — its last axis
-                    # is key positions — so there is nothing for either to
-                    # mean, and the draw does not even fit (measured: "shape
-                    # '[1, 8, 5, 5]' is invalid for input of size 40").
-                    # Refused by name rather than reshaped into something that
-                    # would run.
-                    raise ProtocolError(
-                        "P4",
-                        f"write {ename!r} applies 'gaussian' to "
-                        f"{site.component!r}, whose shape is "
-                        f"{site.shape.describe()}: the noise is drawn per "
-                        "(batch, position, feature) and its 'axis' names how "
-                        "the feature axis is sharded, and this tap has no "
-                        "feature axis at all. Swap in a noise tensor of the "
-                        "tap's own shape instead.",
-                    )
-                else:
-                    # 📐 Arithmetic on the whole tensor, with no gather: for
-                    # `attention_scores` this is the point of the component.
-                    # `_written_value` broadcasts a scalar operand over any
-                    # rank, and `dims` and featurizers are already refused
-                    # above, so there is no feature axis for it to mis-slice.
-                    tensor.copy_(
-                        self._written_value(
-                            ename, write, site, tensor, lookup=lookup, rows=rows
-                        ).to(tensor.dtype)
-                    )
-                continue
-            if per_row is not None:
-                positions = per_row
-                pad_to = max((len(row) for row in positions), default=0)
-            else:
-                # resolved against the whole padded frame, then sliced to the
-                # window; the widest row of the *whole* batch is what a masked
-                # landing pads to, so the `gaussian` draw a row receives does
-                # not depend on how the batch was cut (§8)
-                every = self._positions(write.pos, batch, input_role)
-                positions = every[rows.slice]
-                pad_to = max((len(row) for row in every), default=0)
-            widths = {len(row) for row in positions}
-            policy = write.ragged or "refuse"
-            if len(widths) != 1:
-                if policy == "refuse":
-                    raise _ragged_write_error(ename, sorted(widths))
-                self._land_ragged(
-                    ename,
-                    write,
-                    site,
-                    tensor,
-                    positions,
-                    policy=policy,
-                    pad_to=pad_to,
-                    rows=rows,
-                    routing=routing,
-                )
-                continue
-            (width,) = widths
-            # this write's lookup alone: the ragged binding below must not
-            # leak into a later write of the same landing call, whose operands
-            # would then be held to *this* write's width (or, under `refuse`,
-            # refused with the width message instead of the operand one)
-            write_lookup = lookup
-            if policy != "refuse":
-                # uniform on this window (or on the whole batch): the dense
-                # landing below, with a ragged operand welcome at this width
-                write_lookup = functools.partial(
-                    self._operand_lookup, rows=rows, ragged=[width] * len(positions)
-                )
-            index = dense_index(positions, tensor.device)
-            fslice = site.feature_slice or slice(None)
-            # one gather of the landed positions, sort-free backward when the
-            # table repeats no element (gather.py); the write-back splices
-            # the new features into it rather than gathering again
-            landed = gather_positions(tensor, index)
-            v_new = self._written_value(
-                ename,
-                write,
-                site,
-                landed[..., fslice],
-                lookup=write_lookup,
-                rows=rows,
-                routing=None if routing is None else routing[index.pair],
+        """Apply every write at one address to the contract-shaped
+        ``tensor``, in place (:func:`apply_writes_to_contract`), with this
+        executor's services: positions resolved on ``batch``, operands,
+        stacks and routing tables looked up on ``self``."""
+        services = self._write_services(
+            positions_of=lambda _ename, write: self._positions(
+                write.pos, batch, input_role
             )
-            tensor[index.pair] = splice_features(landed, fslice, v_new.to(tensor.dtype))
-
-    def _land_ragged(
-        self,
-        ename: str,
-        write: WriteSpec,
-        site: ResolvedSite,
-        tensor: torch.Tensor,
-        positions: list[list[int]],
-        *,
-        policy: str,
-        pad_to: int,
-        rows: RowWindow,
-        routing: torch.Tensor | None,
-    ) -> None:
-        """Land one write whose rows address different numbers of positions,
-        under its declared ``ragged`` policy (§2.8, §5 rule 19) — every row at
-        its own width, inside the forward the window already runs, so nothing
-        about batch geometry, fire counts or prefix keys changes:
-
-        * ``exact_length_buckets`` groups the window's rows by width and lands
-          one dense gather per width — a :meth:`RowWindow.bucket`, so a tensor
-          operand, a routing table and the ``gaussian`` draw are indexed by
-          the bucket's rows exactly as a window slices them;
-        * ``padded_masked`` pads every row's positions to ``pad_to`` (the
-          widest row of the batch) with its own last position, lands one
-          gather over the padded frame, and scatters back **only** the real
-          slots — the pad slot is read (a duplicate of a real activation) and
-          never written.
-
-        Every per-position mechanism writes the same values under either
-        policy; only a ``gaussian`` draw, shaped by the landed slice, differs
-        between a bucket's width and the padded width. The pre-flight
-        (:meth:`check_write_widths`) has already recorded the geometry.
-        """
-        fslice = site.feature_slice or slice(None)
-        widths = [len(row) for row in positions]
-        # every operand that is a read is paired to the whole window first,
-        # whichever policy lands it: an operand whose widths disagree with the
-        # write's on any row is rule 19 here, naming the same rows under both
-        # policies — not the first bucket's alone, and never `_coerce`'s P2
-        for name in operand_names(write.do.payload):
-            if name in self.doc.reads:
-                self._operand_lookup(name, rows=rows, ragged=widths)
-        if policy == "exact_length_buckets":
-            for width in sorted(set(widths)):
-                members = [i for i, w in enumerate(widths) if w == width]
-                bucket = rows.bucket(members)
-                index = dense_index(
-                    [positions[i] for i in members], tensor.device, rows=members
-                )
-                landed = gather_positions(tensor, index)
-                v_new = self._written_value(
-                    ename,
-                    write,
-                    site,
-                    landed[..., fslice],
-                    lookup=functools.partial(
-                        self._operand_lookup, rows=bucket, ragged=[width] * len(members)
-                    ),
-                    rows=bucket,
-                    routing=None if routing is None else routing[index.pair],
-                )
-                tensor[index.pair] = splice_features(
-                    landed, fslice, v_new.to(tensor.dtype)
-                )
-            return
-        if policy != "padded_masked":
-            raise AssertionError(
-                f"unknown ragged policy {policy!r} reached the landing"
-            )
-        pad_to = max(pad_to, max(widths))
-        padded = [
-            [*row, *([row[-1] if row else 0] * (pad_to - len(row)))]
-            for row in positions
-        ]
-        # a pad slot duplicates a real position, so where any row is short
-        # this table is not distinct and the gather keeps autograd's
-        # accumulating backward; the index decides that itself (gather.py)
-        index = dense_index(padded, tensor.device)
-        landed = gather_positions(tensor, index)
-        v_new = self._written_value(
-            ename,
-            write,
-            site,
-            landed[..., fslice],
-            lookup=functools.partial(self._operand_lookup, rows=rows, ragged=widths),
-            rows=rows,
-            routing=None if routing is None else routing[index.pair],
         )
-        spliced = splice_features(landed, fslice, v_new.to(tensor.dtype))
-        # only the real slots go back: a pad slot duplicates a real index, and
-        # an advanced-index assignment with duplicates lands one of the two
-        # values arbitrarily — so padding is never written, by construction.
-        # The real (row, slot) pairs are known on the host, so selecting them
-        # is a distinct gather rather than a boolean mask (which would need
-        # the device to count its hits)
-        real_slots = flat_index([list(range(width)) for width in widths], tensor.device)
-        real_positions = flat_index(positions, tensor.device)
-        tensor[real_positions.pair] = gather_positions(spliced, real_slots)
+        apply_writes_to_contract(
+            entries, tensor, services, per_row=per_row, rows=rows, routing=routing
+        )
 
     def _written_value(
         self,
@@ -2783,110 +3164,25 @@ class ExecutorBase:
         rows: RowWindow | None = None,
         routing: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """featurize → class-ordered do → inverse, honoring dims and the
-        error-term contract.
-
-        ``lookup`` overrides operand resolution — the state-write path slices
-        tensor operands to one (row, step) so the same mechanism math applies
-        per step; everything else uses :meth:`_operand_lookup` unchanged.
-
-        ``rows`` is the window ``v_pre`` covers, which only a ``gaussian``
-        write needs: its draw is made over the whole batch and sliced, so the
-        noise a row receives does not depend on how the batch was cut.
-
-        ``routing`` is the routing table at ``v_pre``'s rows and positions,
-        ``(batch, position, top_k)``, when the address is the routed interior.
-        A write through an expert-keyed gate featurizes with it and joins
-        every tensor operand to it by expert id (:meth:`_align_by_expert`), so
-        a slot receives the operand's value for the *same expert* and a slot
-        whose expert the operand never activated is left unchanged.
-        """
-        if lookup is None:
-            lookup = self._operand_lookup
-        stack = self._read_stack(write, site)
-        f0, errs = stack.featurize(v_pre, routing=routing)
-        dims = None
-        if isinstance(write.dims, tuple):
-            if stack.needs_routing:
-                raise ProtocolError(
-                    "P4",
-                    f"write {ename!r} slices 'dims' through an expert-keyed gate: "
-                    "the token-major axis is joined to experts per token, so a "
-                    "fixed coordinate subset names different neurons on "
-                    "different tokens. Select neurons with the gate instead.",
-                )
-            dims = torch.tensor(list(write.dims), dtype=torch.long, device=f0.device)
-
-        def select(f: torch.Tensor) -> torch.Tensor:
-            return f if dims is None else f.index_select(-1, dims)
-
-        def aligned(fill: torch.Tensor) -> "Callable[[Any], torch.Tensor | float]":
-            """Operand resolution that joins a tensor operand's slots to
-            ``v_pre``'s by expert; ``fill`` is what a slot with no source
-            receives, chosen so the mechanism leaves it unchanged."""
-            assert lookup is not None and routing is not None
-
-            def resolve(value: Any) -> torch.Tensor | float:
-                operand = lookup(value)
-                if not isinstance(operand, torch.Tensor):
-                    return operand
-                return self._align_by_expert(
-                    ename, value, operand, routing, fill, layer=site.layer, rows=rows
-                )
-
-            return resolve
-
-        # `f` is written into in place only where a `dims` slice lands in it
-        # (the three `index_copy_` below), and then into its own copy: `f0` is
-        # the featurizer's output, which its error term saved for backward (a
-        # subspace's `x - f @ Qᵀ`), and through the identity stack the gathered
-        # slice itself. A whole-axis result is a fresh tensor already (the sum,
-        # the broadcast operand, the renormalized product), and every consumer
-        # copies it into the model's tensor rather than mutating it — so no
-        # defensive clone there
-        f = f0 if dims is None else f0.clone()
-        do = write.do
-        batch_size, n_pos = v_pre.shape[0], v_pre.shape[1]
-        if str(do.mechanism) == "renormalize":
-            pass  # applied last, below
-        elif is_additive(do):
-            delta = apply_delta(
-                do,
-                select(f0),
-                aligned(torch.zeros_like(f0)) if stack.needs_routing else lookup,
-                batch=batch_size if rows is None else rows.total,
-                n_pos=n_pos,
-                rows=None if rows is None else rows.index,
-            )
-            if dims is None:
-                f = f0 + delta
-            else:
-                f.index_copy_(-1, dims, select(f0) + delta)
-        else:
-            written = apply_absolute(
-                do,
-                select(f0),
-                aligned(f0) if stack.needs_routing else lookup,
-                code=self.doc.code,
-            )
-            written = written.broadcast_to(select(f0).shape).to(f0.dtype)
-            if dims is None:
-                f = written
-            else:
-                f.index_copy_(-1, dims, written)
-        if str(do.mechanism) == "renormalize":
-            if dims is None:
-                f = apply_renormalize(f, f0)
-            else:
-                f.index_copy_(-1, dims, apply_renormalize(select(f), select(f0)))
-        return stack.inverse(f, errs)
+        """featurize → class-ordered do → inverse
+        (:func:`written_value`), with this executor's services."""
+        return written_value(
+            ename,
+            write,
+            site,
+            v_pre,
+            self._write_services(),
+            lookup=lookup,
+            rows=rows,
+            routing=routing,
+        )
 
     @property
     def routing_mismatch(self) -> dict[tuple[str, int, int], tuple[int, int]]:
         """Per (write, layer, example), how many of the example's written
         slots found no source slot holding their expert, of how many slots —
         what ``routing_mismatch.json`` records (§2.5 ``expert_neuron``). The
-        writes leave their counts on the device (:meth:`_align_by_expert`);
+        writes leave their counts on the device (:func:`align_by_expert`);
         reading this brings every pending count over in one host read."""
         pending, self._routing_mismatch_pending = self._routing_mismatch_pending, {}
         if pending:
@@ -2903,82 +3199,6 @@ class ExecutorBase:
                         per_example,
                     )
         return self._routing_mismatch
-
-    def _align_by_expert(
-        self,
-        ename: str,
-        operand_name: Any,
-        operand: torch.Tensor,
-        routing: torch.Tensor,
-        fill: torch.Tensor,
-        *,
-        layer: int | None,
-        rows: RowWindow | None = None,
-    ) -> torch.Tensor:
-        """Join a tensor operand's routed slots to the written slots by expert
-        id (§2.5 ``expert_neuron``).
-
-        Slot *k* of a token holds its *k*-th ranked expert, so the same slot
-        on the operand's side may hold a different expert. For every written
-        slot holding expert ``e``, the source is the operand's slot holding
-        ``e`` at the same row and position when ``e`` is active there, and
-        ``fill`` otherwise — the pre-write feature value for an absolute
-        write, zero for an additive one, so a slot with no source keeps its
-        base value. The count of such slots per example is recorded in
-        :attr:`routing_mismatch`, keyed by write, layer and example.
-
-        The operand must have been read at a routed-interior site (it carries
-        expert ids) over the same rows and positions as the write: a
-        broadcast operand has no slot-to-expert map to join on, and is
-        refused rather than landed slot for slot.
-        """
-        source_routing = self._operand_routing(operand_name, rows)
-        if source_routing is None:
-            raise ProtocolError(
-                "P2",
-                f"write {ename!r} hands {operand_name!r} to an expert-keyed gate, "
-                "but that operand carries no routing table — the source of a "
-                "write through group 'expert_neuron' is a read at the routed "
-                "interior, whose expert ids say which of its slots matches which "
-                "of the written ones",
-            )
-        operand = operand.to(device=fill.device, dtype=fill.dtype)
-        if operand.shape != fill.shape or source_routing.shape != routing.shape:
-            raise ProtocolError(
-                "P2",
-                f"write {ename!r}: operand {operand_name!r} covers "
-                f"{tuple(operand.shape)} with routing {tuple(source_routing.shape)}, "
-                f"but the write addresses {tuple(fill.shape)} with routing "
-                f"{tuple(routing.shape)} — slots are joined by expert per (example, "
-                "position), so both sides must address the same positions",
-            )
-        top_k = routing.shape[-1]
-        per_slot = operand.shape[-1] // top_k
-        # (…, written slot, operand slot): does the operand's slot hold the
-        # written slot's expert? An expert appears at most once per token, so
-        # at most one operand slot matches
-        match = routing.unsqueeze(-1) == source_routing.unsqueeze(-2)
-        found = match.any(-1)
-        source_slot = match.to(torch.int8).argmax(-1)
-        slots = operand.reshape(*operand.shape[:-1], top_k, per_slot)
-        picked = slots.gather(
-            -2, source_slot.unsqueeze(-1).expand(*source_slot.shape, per_slot)
-        )
-        aligned = torch.where(found.unsqueeze(-1), picked, fill.reshape(slots.shape))
-        assert layer is not None  # the routed interior is a layered component
-        missing = (~found).reshape(found.shape[0], -1).sum(-1)
-        per_example = found[0].numel()
-        examples = list(range(len(missing))) if rows is None else rows.examples
-        # keyed by the role's rows, not the window's (nor the bucket's), so a
-        # microbatched layout names the same examples as a whole-batch one;
-        # the counts stay on the device — a host read inside a layer hook
-        # would stall the launch stream once per layer, for a record only the
-        # point's full-data pass is ever asked for. Re-inserted at the end so
-        # a flush lands the calls in order (the last write of a row wins).
-        key = (ename, layer, tuple(examples))
-        self._routing_mismatch_pending.pop(key, None)
-        self._routing_mismatch_pending[key] = (missing, per_example)
-        return aligned.reshape(operand.shape)
 
 
 def refuse_unstackable(name: str, site: ResolvedSite) -> None:

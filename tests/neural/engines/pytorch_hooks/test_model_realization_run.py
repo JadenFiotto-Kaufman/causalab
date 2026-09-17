@@ -178,20 +178,19 @@ def test_a_quantized_document_names_what_it_needs(roots, tmp_path, capsys):
     assert "nf4" in refusal
 
 
-@pytest.mark.parametrize("engine", ["pytorch_hooks", "nnsight"])
+@pytest.mark.parametrize("engine", ["pytorch_hooks", "nnterp"])
 @pytest.mark.parametrize("workflow", [False, True])
 def test_json_attention_backend_reaches_loading_and_artifacts(
     roots, tmp_path, monkeypatch, engine, workflow
 ):
     import importlib
-    import torch
 
-    if engine == "nnsight":
+    if engine == "nnterp":
         pytest.importorskip("nnsight")
-        monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
+        pytest.importorskip("nnterp")
     module = importlib.import_module(
         "causalab.neural.engines."
-        + ("nnsight_tracing" if engine == "nnsight" else engine)
+        + ("nnterp_engine" if engine == "nnterp" else engine)
         + ".engine"
     )
     real_load = module.load_model

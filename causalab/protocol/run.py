@@ -120,10 +120,10 @@ def execution_record(engine: Any, request: Any = None) -> dict[str, Any]:
     Execution provenance has exactly one recorder, and this is it.
     ``batch_rows`` is the engine's microbatch bound — ``None`` when the engine
     runs every forward group whole, and for an engine that has no such bound
-    at all (the nnsight engine). ``fit_rows`` is its rows-per-grad-forward
+    at all (the nnterp engine). ``fit_rows`` is its rows-per-grad-forward
     bound for a fit — the members of a fit cohort are packed into forwards
     under it — ``None`` when the engine measures it, and for an engine with
-    no grad path. With a ``request``, an engine that reads the request's
+    no such bound (the nnterp engine runs each minibatch's forward whole). With a ``request``, an engine that reads the request's
     ``execution`` block (a workflow step's overrides) reports the value it
     will run under through its ``effective_<bound>`` methods; an engine that
     never reads the block keeps its own value, so the record never claims an

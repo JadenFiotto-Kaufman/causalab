@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from causalab.neural.engines.nnsight_tracing.engine import NnsightEngine
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 from causalab.protocol.registry import CAPABILITIES
 
@@ -74,7 +74,7 @@ BOXES: dict[str, str | None] = {
     "result": "attention_result",
     "attn_out3": "attention_output",
     # Gated DeltaNet mixer — `delta_*` on the reference engine, `deltanet_*` on
-    # the nnsight engine; the box is the tensor, which both of them name
+    # the nnterp engine; the box is the tensor, which both of them name
     "d_norm": "attention_input_norm",
     "qkv": "delta_qkv",
     "qkv_conv": "delta_conv",
@@ -136,7 +136,7 @@ def _drawn() -> dict[str, str]:
 
 def _served(component: str) -> bool:
     return component in (
-        set(PytorchHooksEngine().components) | set(NnsightEngine().components)
+        set(PytorchHooksEngine().components) | set(NnterpEngine().components)
     )
 
 

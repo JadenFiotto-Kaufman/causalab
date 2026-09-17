@@ -316,7 +316,7 @@ class TestPolicy:
         drift past the second, or tightening one would silently retune the
         other. Outside those regimes nothing static bounds the deviation, which
         is why the fit *records* it
-        (:func:`~causalab.neural.engines.pytorch_hooks.train.fit_diagnostics`;
+        (:func:`~causalab.neural.shared.training.diagnostics.fit_diagnostics`;
         the runtime check is ``test_train.py``'s subspace-diagnostic test)."""
         assert FP32_STIEFEL_BOUND <= ORTHONORMAL_TOLERANCE
 

@@ -12,20 +12,21 @@ the same rows the engines' own declarations are generated from:
 
 * **shared** — both engines serve it, so the agreement claim is the ordinary
   one: same document, same numbers;
-* **hooks-only** — ``delta_query`` / ``delta_key`` (post GVA tiling) and the
-  per-step ``delta_state``, which the reference engine reaches by swapping the
-  modeling file's kernel globals and the nnsight engine serves in another
-  shape or at another time;
-* **nnsight-only** — their pre-tiling / per-chunk faces ``deltanet_query`` /
-  ``deltanet_key`` / ``deltanet_state`` and ``expert_permutation``, ``.source``
+* **hooks-only** — the per-token DeltaNet faces ``delta_kv_mem`` /
+  ``delta_state_update`` / ``delta_state``, which the reference engine reaches
+  by stepping the recurrent kernel and the chunked prefill kernel the nnterp
+  engine traces never materializes;
+* **nnterp-only** — the pre-tiling q/k ``deltanet_query`` / ``deltanet_key``,
+  the per-chunk ``deltanet_state`` and ``expert_permutation``, ``.source``
   lines inside a fused forward that no hook can reach.
 
-📐 The two single-engine sets are not two blind spots: measured on the fixture,
-they name the *same physical tensors* through the two different mechanisms, and
+📐 The ``deltanet_*`` faces are not a blind spot of the reference engine:
+measured on the fixture, each names the *same physical tensor* as a ``delta_*``
+component the reference engine serves, in another shape or at another time, and
 the registry declares how each pair lines up (``registry.BACKEND_PAIRS``, read
-here as :data:`DELTA_FAMILY_PAIRS`). The other eight DeltaNet tensors carry one
-name served by both engines (:data:`SHARED_LINEAR_ONLY`), which is
-ordinary cross-engine agreement for 30 of the target's 40 layers.
+here as :data:`DELTA_FAMILY_PAIRS`). The other DeltaNet tensors carry one name
+served by both engines (:data:`SHARED_LINEAR_ONLY`), which is ordinary
+cross-engine agreement for 30 of the target's 40 layers.
 
 ``mlp_activation`` and ``mlp_neuron_output`` are absent from the A3B.
 Each MLP is a sparse MoE block. ``expert_neuron_output`` exposes its routed
@@ -54,7 +55,7 @@ __all__ = [
     "ATOL",
     "DELTA_FAMILY_PAIRS",
     "HOOKS_ONLY",
-    "NNSIGHT_ONLY",
+    "NNTERP_ONLY",
     "SHARED_ANY_STREAM",
     "SHARED_FULL_ONLY",
     "SHARED_LAYERLESS",
@@ -90,7 +91,7 @@ ATOL = 1e-5
 # engines' declarations — which are themselves generated from the rows.
 
 _A3B = get_model_info(DOCS_TABLE_MODEL)
-_BOTH = frozenset({"pytorch_hooks", "nnsight"})
+_BOTH = frozenset({"pytorch_hooks", "nnterp"})
 
 
 def _exists_on_a3b(component: str) -> bool:
@@ -131,15 +132,15 @@ SHARED_FULL_ONLY: tuple[str, ...] = _rows(served=_BOTH, stream="full_attention")
 #: Both engines, but only at a Gated DeltaNet layer — 30 of the target's 40:
 #: the DeltaNet module boundaries and kernel boundary under their one name
 #: which the reference engine reaches by hooks and kernel-global swaps and the
-#: nnsight engine by envoys and `.source` lines. Same document, same numbers —
+#: nnterp engine by envoys and `.source` lines. Same document, same numbers —
 #: a black-box test, run as ordinary parity.
 SHARED_LINEAR_ONLY: tuple[str, ...] = _rows(served=_BOTH, stream="linear_attention")
 
 #: The reference engine's Gated DeltaNet interior — linear-attention layers only.
 HOOKS_ONLY: tuple[str, ...] = _rows(served=frozenset({"pytorch_hooks"}))
 
-#: The nnsight engine's fused-forward interiors.
-NNSIGHT_ONLY: tuple[str, ...] = _rows(served=frozenset({"nnsight"}))
+#: The nnterp engine's fused-forward interiors.
+NNTERP_ONLY: tuple[str, ...] = _rows(served=frozenset({"nnterp"}))
 
 #: In the vocabulary, absent from this architecture — see the module docstring.
 ABSENT_ON_A3B: tuple[str, ...] = tuple(c for c in COMPONENTS if not _exists_on_a3b(c))
@@ -176,13 +177,13 @@ def default_pos(component: str) -> object:
 
 #: The DeltaNet tensors the two engines reach by **different** captures — the
 #: typed backend pairs of the registry (``registry.BACKEND_PAIRS``), read here
-#: rather than declared: ``(hooks spelling, nnsight spelling, relation)`` for
+#: rather than declared: ``(hooks spelling, nnterp spelling, relation)`` for
 #: every pair that is *not* an alias. 📐 Measured on ``tiny-random/qwen3.5-moe``;
 #: the relations and the chunk length are the registry's rows.
 #: The eight ``identical`` pairs are one name each and are
 #: exercised as ordinary shared components (:data:`SHARED_LINEAR_ONLY`).
 DELTA_FAMILY_PAIRS: tuple[tuple[str, str, str], ...] = tuple(
-    (pair.hooks, pair.nnsight, pair.relation)
+    (pair.hooks, pair.nnterp, pair.relation)
     for pair in BACKEND_PAIRS
     if not pair.aliased
 )
@@ -275,8 +276,10 @@ def interchange_doc(
     }
 
 
-def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool):
-    """The same document driven through either engine's executor."""
+def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool, **kwargs):
+    """The same document driven through either engine's executor; ``kwargs``
+    are the executor's own (``grad_enabled``, the nnterp engine's
+    ``remote``)."""
     from causalab.protocol.schema import parse_document
     from causalab.protocol.validate import validate_document
 
@@ -295,6 +298,7 @@ def make_executor(executor_cls, doc_raw, bundle, *, rows, with_cf: bool):
         role_rows=role_rows,
         role_fields=role_fields,
         load_tensors=lambda path: (_ for _ in ()).throw(KeyError(path)),
+        **kwargs,
     )
 
 
@@ -382,7 +386,7 @@ def coverage_partition() -> dict[str, tuple[str, ...]]:
         "shared_full_only": SHARED_FULL_ONLY,
         "shared_linear_only": SHARED_LINEAR_ONLY,
         "hooks_only": HOOKS_ONLY,
-        "nnsight_only": NNSIGHT_ONLY,
+        "nnterp_only": NNTERP_ONLY,
         "absent_on_a3b": ABSENT_ON_A3B,
     }
 

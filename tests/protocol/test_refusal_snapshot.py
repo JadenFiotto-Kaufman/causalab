@@ -7,7 +7,7 @@ rule**: the old message must appear inside the new one, and the exception
 class must be the same — or one of the upgrades ``ALLOWED_UPGRADES`` lists by
 entry, each of which is a recorded decision, not a
 tolerance. The run-time half lives beside the engine tests
-(``tests/neural/engines/nnsight_tracing/test_refusal_snapshot.py``), because
+(``tests/neural/engines/nnterp_engine/test_refusal_snapshot.py``), because
 it loads models; the shared trigger table and the rule are the same.
 """
 
@@ -70,7 +70,7 @@ ALLOWED_UPGRADES: dict[str, dict[str, Any]] = {
     # 'delta_qkv' at parse, so the full-attention-layer refusal it meets is the
     # one every component both engines serve on a DeltaNet mixer meets
     # (`_LINEAR_ATTENTION_ONLY`: "computes no delta-rule state") rather than
-    # the nnsight-only interior's ("computes no recurrent state and runs no
+    # the nnterp-only interior's ("computes no recurrent state and runs no
     # delta kernel"). Same class, same code, same reason, same layer and tower
     # named; the component in the text is the canonical spelling.
     "17": {
@@ -120,8 +120,9 @@ def test_the_snapshot_covers_the_census() -> None:
     for entry_id in table.RETIRED:
         assert ENTRIES[entry_id]["reason"] == table.RETIRED[entry_id]
     # 30 at the snapshot; entry 23 retired by the per-family tap table, entry 30
-    # by the DeltaNet alias fold
-    assert len(captured) >= 28
+    # by the DeltaNet alias fold, entry 31 by the nnterp engine serving the
+    # ragged `expert:` face
+    assert len(captured) >= 27
 
 
 def check_entry(entry: dict[str, Any], exc: BaseException) -> None:

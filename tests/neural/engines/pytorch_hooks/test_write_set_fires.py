@@ -59,7 +59,7 @@ from tests.neural.engines.pytorch_hooks.test_prefix_resume import (
     _campaign,
     _engine_bundle,
 )
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

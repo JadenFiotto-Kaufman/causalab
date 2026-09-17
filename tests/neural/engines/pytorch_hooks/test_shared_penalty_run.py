@@ -24,7 +24,7 @@ import torch
 from safetensors.torch import load_file
 
 from causalab.cli import load_engines, register_model_key
-from causalab.neural.engines.pytorch_hooks.train import _regularizer
+from causalab.neural.shared.training.objective import regularizer
 from causalab.neural.shared.featurizers import Gate
 from causalab.protocol import run_protocol
 from causalab.protocol.loader import load
@@ -54,7 +54,7 @@ def _two_gates() -> dict[str, Gate]:
 class TestSharedPenaltyTerm:
     def test_l1_over_two_gates_is_the_mean_over_all_their_units(self) -> None:
         stages = _two_gates()
-        term = _regularizer("l1", ["heads", "plain"], stages)
+        term = regularizer("l1", ["heads", "plain"], stages)
         soft = torch.cat(
             [torch.sigmoid(g.theta / g.temperature).flatten() for g in stages.values()]
         )
@@ -65,9 +65,9 @@ class TestSharedPenaltyTerm:
         """4 and 12 units: the concatenation weighs the larger gate three
         times as much, which is the point — the penalty counts units."""
         stages = _two_gates()
-        term = _regularizer("l1", ["heads", "plain"], stages)
+        term = regularizer("l1", ["heads", "plain"], stages)
         per_gate = torch.stack(
-            [_regularizer("l1", [name], stages) for name in ("heads", "plain")]
+            [regularizer("l1", [name], stages) for name in ("heads", "plain")]
         )
         assert not torch.isclose(term, per_gate.mean())
         counts = torch.tensor([4.0, 12.0])
@@ -77,21 +77,21 @@ class TestSharedPenaltyTerm:
         stages = _two_gates()
         heads = stages["heads"]
         assert torch.equal(
-            _regularizer("l1", ["heads"], stages),
+            regularizer("l1", ["heads"], stages),
             torch.sigmoid(heads.theta / heads.temperature).mean(),
         )
 
     def test_l2_concatenates_the_parameters_themselves(self) -> None:
         stages = _two_gates()
-        term = _regularizer("l2", ["plain", "heads"], stages)
+        term = regularizer("l2", ["plain", "heads"], stages)
         squares = torch.cat([g.theta.pow(2).flatten() for g in stages.values()])
         assert torch.isclose(term, squares.mean())
 
     def test_order_does_not_matter(self) -> None:
         stages = _two_gates()
         assert torch.equal(
-            _regularizer("l1", ["heads", "plain"], stages),
-            _regularizer("l1", ["plain", "heads"], stages),
+            regularizer("l1", ["heads", "plain"], stages),
+            regularizer("l1", ["plain", "heads"], stages),
         )
 
 

@@ -220,7 +220,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "(§8); name one to pin it. Routing is §8's own answer, and "
                 "list order is preference, so anything the reference serves "
                 "behaves exactly as a pinned 'pytorch_hooks' would — while a "
-                "document only the nnsight engine can serve now runs instead "
+                "document only the nnterp engine can serve now runs instead "
                 "of refusing by name",
             )
             p.add_argument(
@@ -299,13 +299,15 @@ def load_engines(
 
     ``auto`` is every installed engine with the reference first — list order
     is routing preference (§8), so pytorch_hooks serves what it can and the
-    nnsight engine picks up what it refuses. A missing optional engine is
+    nnterp engine picks up what it refuses. A missing optional engine is
     only an error when named explicitly.
 
     ``batch_rows`` is the reference engine's microbatch bound (``--batch-rows``)
     and ``fit_rows`` its rows-per-grad-forward bound for a fit (``--fit-rows``);
-    the nnsight engine runs each group as one batch, has no grad path, and is
-    built without either."""
+    the nnterp engine runs each group — a fit's minibatch included — as one
+    batch, and is built without either. Its remote mode (forwards on NDIF) is
+    the Python API's (``NnterpEngine(remote=...)``): it needs a deployment
+    this command line knows nothing of."""
     import importlib
 
     engines: list[Any] = []
@@ -327,18 +329,18 @@ def load_engines(
         engines.append(
             hooks.PytorchHooksEngine(device=device, batch_rows=batch_rows, **extra)
         )
-    if choice in ("nnsight", "auto"):
+    if choice in ("nnterp", "auto"):
         try:
-            tracing = importlib.import_module("causalab.neural.engines.nnsight_tracing")
+            nnterp = importlib.import_module("causalab.neural.engines.nnterp_engine")
         except ModuleNotFoundError as err:
-            if choice == "nnsight":
+            if choice == "nnterp":
                 raise ProtocolError(
                     "P2",
-                    f"the nnsight engine is not installed ({err}) — install "
-                    "the 'nnsight' extra (pip install 'causalab[nnsight]')",
+                    f"the nnterp engine is not installed ({err}) — install "
+                    "the 'nnterp' extra (pip install 'causalab[nnterp]')",
                 ) from err
         else:
-            engines.append(tracing.NnsightEngine(device=device))
+            engines.append(nnterp.NnterpEngine(device=device))
     return engines
 
 
@@ -406,20 +408,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         from causalab.protocol.migrate import main as migrate_main
 
         return migrate_main(args)
-    if getattr(args, "engine", None) == "nnsight":
+    if getattr(args, "engine", None) == "nnterp":
         # fail closed: both bounds are the reference engine's, and a pinned
-        # nnsight run would drop them silently while the receipt said null
+        # nnterp run would drop them silently while the receipt said null
         if getattr(args, "batch_rows", None) is not None:
             parser.error(
                 "--batch-rows bounds only the reference engine, and --engine "
-                "nnsight pins an engine that runs every group as one batch, so "
+                "nnterp pins an engine that runs every group as one batch, so "
                 "the two flags cannot be combined"
             )
         if getattr(args, "fit_rows", None) is not None:
             parser.error(
                 "--fit-rows bounds only the reference engine's grad forwards, "
-                "and --engine nnsight pins an engine with no grad path, so the "
-                "two flags cannot be combined"
+                "and --engine nnterp pins an engine that runs each minibatch's "
+                "grad forward whole, so the two flags cannot be combined"
             )
     args.parsed_set = _overrides(args)
     env = _env(args)

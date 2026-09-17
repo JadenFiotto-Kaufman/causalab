@@ -148,12 +148,12 @@ def _hooks_stub(capabilities: frozenset[str]) -> type:
     return _Hooks
 
 
-def _nnsight_stub(capabilities: frozenset[str]) -> type:
-    class _Nnsight(_Stub):
+def _nnterp_stub(capabilities: frozenset[str]) -> type:
+    class _Nnterp(_Stub):
         def __init__(self, *, device: str = "cpu"):
-            super().__init__("nnsight", capabilities)
+            super().__init__("nnterp", capabilities)
 
-    return _Nnsight
+    return _Nnterp
 
 
 def _compile(raw: dict[str, Any], env: ResolutionEnv) -> Any:
@@ -371,7 +371,7 @@ def test_b_the_api_report_answers_the_twelve_facts(
     target = next(site for site in report.sites if site.name == "target")
     assert target.layers == tuple(range(32)) and target.width == 4096
     assert target.shape == "(batch, position, feature)" and target.head_space is None
-    assert target.reads == ("nnsight", "pytorch_hooks") and target.writes is not None
+    assert target.reads == ("nnterp", "pytorch_hooks") and target.writes is not None
     assert report.inventory is None
     assert {read.name: read.metrics for read in report.readouts} == {
         "v_cf": (),
@@ -463,7 +463,7 @@ def test_b_a_pinned_engines_shortfall_is_reported_and_exits_1(
 def test_b_under_auto_another_candidate_serving_is_exit_0(
     artifacts_root: Path, capsys: pytest.CaptureFixture[str], monkeypatch
 ) -> None:
-    """`auto` is routing: the reference stub falls short and the nnsight stub
+    """`auto` is routing: the reference stub falls short and the nnterp stub
     serves, so the report carries one shortfall and one `serves`, and exits 0
     — the shortfall is information, not a refusal, until no candidate is
     left."""
@@ -475,14 +475,14 @@ def test_b_under_auto_another_candidate_serving_is_exit_0(
     )
     _install(
         monkeypatch,
-        "causalab.neural.engines.nnsight_tracing",
-        "NnsightEngine",
-        _nnsight_stub(FULL),
+        "causalab.neural.engines.nnterp_engine",
+        "NnterpEngine",
+        _nnterp_stub(FULL),
     )
     assert main(_argv(SCAN, artifacts_root, "--engine", "auto")) == 0
     out = capsys.readouterr().out
     assert "engine    pytorch_hooks: capability_shortfall" in out
-    assert "engine    nnsight: serves" in out
+    assert "engine    nnterp: serves" in out
 
 
 def test_b_the_api_reports_per_candidate_and_refuses_only_when_none_serves(

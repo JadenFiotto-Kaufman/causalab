@@ -149,7 +149,7 @@ def test_execution_record_shows_the_requests_override(tmp_path):
 
 
 def test_execution_record_tolerates_an_engine_without_the_knob(tmp_path):
-    """The nnsight engine declares no ``fit_rows``; the receipt says ``null``
+    """The nnterp engine declares no ``fit_rows``; the receipt says ``null``
     under the same key so two receipts compare on one field."""
 
     class Bare:

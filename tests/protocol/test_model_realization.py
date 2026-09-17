@@ -251,12 +251,11 @@ def test_the_identity_schema_covers_every_key_the_engine_stamps():
 
     Not hypothetical: `neural/shared/execution.py` splices ``implementations``
     into ``identity_base`` whenever an executor reports applied requirements,
-    and only the **nnsight** engine ever does (``attn_eager``, forcing eager
-    attention to reach the pattern interior). No nnsight test drives a full
-    ``run_protocol``/``write_outputs``, so every green run took a path where
-    the extra key was absent, and an nnsight run that wrote a tensor file
-    raised ``unknown ArtifactIdentity fields ['implementations']`` on its own
-    stamp.
+    and only the **nnterp** engine does (``attn_eager``, forcing eager
+    attention to reach the pattern interior). A closed key set without
+    ``implementations`` lets every run that applies none pass and refuses the
+    one that does — ``unknown ArtifactIdentity fields ['implementations']``
+    — on its own stamp.
 
     The writer's keys are read out of its source rather than restated here:
     the point is to notice a key added by someone who never opens this file.
@@ -334,7 +333,7 @@ def test_every_key_a_stage_stamps_is_an_artifact_identity_key() -> None:
 def test_applied_implementations_are_stampable():
     """The specific key that was missing, through the real function."""
     stamped = build_artifact_identity(
-        produced_by="d", engine="nnsight", implementations="attn_eager"
+        produced_by="d", engine="nnterp", implementations="attn_eager"
     )
     assert stamped["implementations"] == "attn_eager"
 
