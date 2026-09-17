@@ -1,7 +1,7 @@
 """The version guard of a remote run (``nnterp_engine/versions.py``): before
-any job is submitted, the server's ``causalab`` and ``nnterp`` are this
-client's, by strict string equality — or the run is refused (P4) naming the
-host, the package and both versions.
+any job is submitted, every package the server's code is made of
+(``versions.GUARDED``) is this client's, by strict string equality — or the
+run is refused (P4) naming the host, the package and both versions.
 
 The server's ``/env`` is what nnsight caches per host, seeded here through
 ``nnsight.ndif.set_remote_env`` (``FaithfulServer.serve_env``); "no job" is
@@ -67,6 +67,24 @@ def test_a_server_without_the_package_is_refused(remote_llama, ndif_llama):
     with pytest.raises(ProtocolError, match="does not have 'nnterp' installed") as err:
         _point(remote_llama).run_all()
     assert err.value.code == "P4"
+    assert not ndif_llama.jobs
+
+
+def test_a_server_that_will_not_say_what_it_runs_is_refused(
+    remote_llama, ndif_llama, monkeypatch
+):
+    """nnsight raises a plain ``RuntimeError`` when the ``/env`` fetch fails
+    — an unreachable host, or one too old to serve it. Every other refusal on
+    this path is a ``ProtocolError`` naming the host; so is this one, and it
+    costs no job either."""
+    import nnsight.ndif as ndif
+
+    def unanswered(host: str) -> dict:
+        raise RuntimeError("404 Not Found")
+
+    monkeypatch.setattr(ndif, "get_remote_env", unanswered)
+    with pytest.raises(ProtocolError, match="did not answer for its environment"):
+        _point(remote_llama).run_all()
     assert not ndif_llama.jobs
 
 

@@ -13,6 +13,12 @@ package by package.
 Once per ``(process, host)``: a host that matched is remembered here and not
 asked again. ``remote="local"`` — nnsight's in-process dry run — has no
 server, and ``remote=False`` no submission; neither is checked.
+
+``causalab``'s own version is **static** in ``pyproject.toml`` (``0.0.1``):
+it does not move with the code, so its half of the guard passes between two
+installs at any two commits. Making it dynamic is a repository-wide decision
+and is not taken here; what catches a skew today is the other three
+(``nnterp``, ``nnsight``, ``torch``).
 """
 
 from __future__ import annotations
@@ -23,18 +29,22 @@ from causalab.protocol.errors import ProtocolError
 
 __all__ = ["GUARDED", "ensure_server_matches"]
 
-#: The packages whose code a block imports where it runs, by import name —
-#: how a server's ``/env`` keys its packages.
-GUARDED = ("causalab", "nnterp")
+#: The packages whose code decides what a block does where it runs, by import
+#: name — how a server's ``/env`` keys its packages. ``causalab`` and
+#: ``nnterp`` are what the block imports; ``nnsight`` is what compiles and
+#: runs it; ``torch`` is what its arithmetic is, and a fit's claim to be the
+#: local fit **to the bit** rests on the two sides agreeing on it —
+#: ``randperm``'s stream and ``manual_seed``'s algorithm are its.
+GUARDED = ("causalab", "nnterp", "nnsight", "torch")
 
 #: The resolved hosts whose environment matched, this process.
 _MATCHED: set[str] = set()
 
 
 def ensure_server_matches(remote: bool | str) -> None:
-    """Refuse (P4) a remote submission to a server whose ``causalab`` or
-    ``nnterp`` is not this client's, or is absent; nothing is submitted
-    first. ``remote`` is what the run method takes: ``True`` for the
+    """Refuse (P4) a remote submission to a server one of whose
+    :data:`GUARDED` packages is not this client's, or is absent, or which
+    does not answer for its environment at all; nothing is submitted first. ``remote`` is what the run method takes: ``True`` for the
     configured host, a host URL, or ``False`` / ``"local"`` (no server)."""
     if not remote or remote == "local":
         return
@@ -43,7 +53,18 @@ def ensure_server_matches(remote: bool | str) -> None:
     host = ndif.resolve_host(remote if isinstance(remote, str) else None)
     if host in _MATCHED:
         return
-    served = ndif.get_remote_env(host)["packages"]
+    try:
+        served = ndif.get_remote_env(host)["packages"]
+    except RuntimeError as err:
+        raise ProtocolError(
+            "P4",
+            f"remote run refused before any job was submitted: the NDIF "
+            f"server at {host} did not answer for its environment ({err}). "
+            "Every remote run of this engine compares the server's installed "
+            "packages with this client's first (module docstring), so a host "
+            "that is unreachable, or too old to serve /env, is refused here "
+            "rather than at the first job.",
+        ) from err
     for name in GUARDED:
         here = importlib.metadata.version(name)
         there = served.get(name)

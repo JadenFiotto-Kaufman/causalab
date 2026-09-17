@@ -4603,8 +4603,8 @@ The contract both sides keep:
 Both engines take `bundle=` (the nnterp engine an `NnterpBundle`); `from_model`
 is the reference engine's constructor. The nnterp engine's `remote=` — its
 forwards on NDIF, against a weight-free bundle — is a Python caller's option
-too: it needs a trusted deployment with the same `causalab` and `nnterp`
-installed server-side, which no command-line flag can state — the engine
+too: it needs a trusted deployment with the same `causalab`, `nnterp`,
+`nnsight` and `torch` installed server-side, which no command-line flag can state — the engine
 compares the two installs against the server's reported environment before
 it submits anything, and refuses (`P4`) on any difference. The CLI has no bundle flag: a
 caller-owned model is a Python caller's situation.
