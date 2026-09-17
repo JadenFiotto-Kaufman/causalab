@@ -9,15 +9,14 @@ Semantics implemented exactly as declared:
   Init reaches the featurizer as an explicit argument (``executor.seed`` →
   ``build_stack(seed=…)``, a *local* generator) rather than through the
   global RNG, because the same construction runs on apply paths where no
-  loop entry ever executes; the batch order has its own local ``order_rng``;
-  ``torch.manual_seed`` as each fit's stages are built — the one deliberate
-  use of the global RNG — seeds what the init draws beyond the local
-  generator (``matrix_exp``/``stiefel`` complete torch's own
-  orthogonal-parametrization basis from it; the ``cayley`` parametrization
-  draws nothing). Nothing draws from the *global* RNG during the loop itself
-  — the model is in eval mode — which is what lets several fits share one
-  loop: at loop entry the global RNG belongs to the last member prepared, and
-  no member's numbers depend on it. The one draw the loop does make is a
+  loop entry ever executes; the batch order has its own local ``order_rng``.
+  Nothing a fit does draws from the *global* RNG — not building its stages
+  (``matrix_exp``/``stiefel`` complete torch's own orthogonal-parametrization
+  basis from the stage's generator, and the ``cayley`` parametrization draws
+  nothing), not the loop, whose model is in eval mode. That is what lets
+  several fits share one loop, and what lets a fit run in a process it shares
+  with other callers: a served model on NDIF. The one draw the loop does make
+  is a
   ``hard_concrete`` gate's training mask, once per optimizer step from the
   member's own ``mask_rng`` (``Gate.resample``), so a member's samples are a
   function of its own document and seed whatever fits beside it;

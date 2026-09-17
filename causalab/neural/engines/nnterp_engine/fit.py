@@ -332,15 +332,12 @@ def fit_body(
     module = model._module
     refuse_meta(module, plan.train[0])
     device = next(module.parameters()).device
-    with torch.random.fork_rng(devices=[]):
-        # `build_stages` seeds the global RNG for the draws torch's orthogonal
-        # parametrization takes from it; a served model's process keeps its own
-        stages = build_stages(
-            spec,
-            device=device,
-            load_tensors=plan.artifacts.load_tensors,
-            load_table=plan.artifacts.load_table,
-        )
+    stages = build_stages(
+        spec,
+        device=device,
+        load_tensors=plan.artifacts.load_tensors,
+        load_table=plan.artifacts.load_table,
+    )
     init_digest = {name: stage_digest(stage) for name, stage in stages.items()}
     state = build_fit_state(spec, stages=stages, device=device)
     train = [plan.train]

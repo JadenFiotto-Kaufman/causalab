@@ -245,7 +245,8 @@ def _matrix_exp_doc() -> dict[str, Any]:
 def _untrained_member_doc() -> dict[str, Any]:
     """The chain with only the gate trained: ``rot`` is a stage the programs
     name and nobody trains, built on the server from its recipe all the same
-    — and a ``stiefel`` one, whose base torch completes from the global RNG."""
+    — and a ``stiefel`` one, whose base is a completion torch would draw from
+    the global RNG and the stage draws from its own."""
     doc = chain_doc(0.05)
     doc["method"]["featurizers"]["rot"]["parametrization"] = "stiefel"
     doc["method"]["train"]["params"] = ["gate"]
@@ -270,9 +271,10 @@ def test_server_built_stages_are_the_client_s_to_the_bit(
     name, remote_llama, ndif_llama
 ):
     """The fit builds its stages from the plan's spec, in the session; the
-    client built its own from the same spec on its executor. With the
-    client's global RNG left elsewhere before it plans, the two agree to the
-    bit — the digests match and nothing warns."""
+    client built its own from the same spec on its executor. With each side's
+    global RNG left somewhere different, the two agree to the bit — the
+    digests match and nothing warns — and the server's process keeps the RNG
+    it had."""
     executor = _executor(remote_llama, BUILT[name]())
     torch.manual_seed(1234)
     planned = plan_fit(executor.doc, executor, _request())

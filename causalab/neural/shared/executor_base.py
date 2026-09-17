@@ -126,9 +126,9 @@ def document_seed(doc: Document) -> int:
     """The one seed a document implies: ``train.seed``, or **0** when it
     declares no fit.
 
-    Read in one place so the three consumers cannot drift apart: the
-    ``subspace`` featurizer's initial rotation (:func:`build_stack`),
-    ``torch.manual_seed`` at train-loop entry, and the batch-order RNG.
+    Read in one place so the consumers cannot drift apart: the ``subspace``
+    featurizer's initial rotation (:func:`build_stack`) and the batch-order
+    RNG.
 
     The 0 for a document with no ``train`` block is deliberate rather than
     accidental: an apply/inference document has no seed to name, and pinning
