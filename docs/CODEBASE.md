@@ -13,6 +13,7 @@ export and the CPU comparison of saved neural outputs with symbolic predictions.
 | `neural/shared/` | the engine-neutral half of the neural layer: the component→tap map and the predicate probes (`sites.py`; the write policy is the registry's), tokenization and position frames (`encoding.py`), the closed `do` set (`mechanisms.py`), featurizer application (`featurizers.py`), metric lowering (`metrics.py`), output writing (`outputs.py`), tensor layouts (`layout.py`), write-set fire counts (`fires.py`), the torch-path binding for a model off CUDA (`kernels.py`), the shared compiler-cache root (`compile_cache.py`), the bound-argument LRU cache both loaders wear (`normalized_cache.py`), plus `execution.py`, `executor_base.py`, `services.py`, `streams.py` |
 | `neural/engines/pytorch_hooks/` | the reference execution engine — raw forward hooks (§3) |
 | `neural/engines/nnsight_tracing/` | the second execution engine — one nnsight trace over an envoy tree (§3) |
+| `neural/engines/nnsight_nnterp/` | the nnsight + nnterp engine — one trace per forward group over nnterp's standardized envoy tree, interiors through `.source` (§3) |
 | `neural/token_positions.py` | the legacy declarative char→token position vocabulary the task packages encode against — the protocol-native position service is `neural/shared/encoding.py` |
 | `analysis/` | numerical analysis a workflow `script` step runs: fits, statistics, intervention operands |
 | `workflow/` | the workflow document model, runner, and CLI verbs |
@@ -198,6 +199,16 @@ to the runner, which calls `choose_engine` per protocol step against that list.
 Routing is therefore per step, while the pin is per run — so two steps may land
 on different engines under `auto`, but a workflow cannot ask for one engine at
 `fit` and another at `apply`.
+
+### The nnsight + nnterp engine (`causalab/neural/engines/nnsight_nnterp/`)
+
+| module | service |
+|---|---|
+| `loading.py` | builds one `nnterp.StandardizedTransformer` per realization and wraps it in an `NnterpBundle` exposing the surface the shared site map and executor base consume, so `resolve_site` addresses the standardized envoy tree exactly as it addresses the reference engine's module tree; four bundles stay resident |
+| `adapter.py` | `standard_adapter`: the per-model `FamilyAdapter` over nnterp's standard tree (`layers` / `embed_tokens` / `ln_final` / `lm_head`, mixers `self_attn` / `linear_attn`) with the taps of the registry family whose predicate recognizes the *raw* module tree — a tree no family detects gets the shared block taps alone |
+| `sources.py` | the interior address table over nnsight `.source`, keyed `(family tree, component)` — op path from the anchor, handle, tuple/argument selection, fire count, the expert-row sort alignment and the `argsort` derivation of the permutation — plus `GENERATED_ADDRESSES`, the decode table for what decode dispatches differently (the DeltaNet state through the recurrent kernel), and `match_op`, the substring matcher with call-op disambiguation and an inventory-bearing refusal; imports nothing from `causalab` (pinned), so it can move upstream as a file |
+| `executor.py` | `NnterpExecutor`: one trace per forward group in the rank table's forward order, module boundaries landed on the envoys' `input` / `output` and interiors on the addressed op's `output` / `inputs` (containers rebuilt, never filled in place) through a per-trace memo; per-chunk DeltaNet state through `tracer.iter` with the trip count read off the kernel's own loop; the ragged `expert:` face from the routing table captured at the experts anchor; the generated frame as one `model.generate` trace per group — prefill operations bind occurrence 0, decode steps are walked with `tracer.iter` pinned to the forward by the embedding's input, an `lm_head` continuation read is projected from kept `ln_final` steps, the DeltaNet state is read per step through the recurrent kernel's address; the per-token DeltaNet faces and the other interiors in the generated frame refused by name |
+| `engine.py` | `NnterpEngine`: components computed from the family taps at module boundaries plus the address table, not read from a capability row; not in the closed registry — routing to it is a caller's explicit choice |
 
 ## 4. The workflow runner (`causalab/workflow/`)
 
