@@ -14,6 +14,7 @@ ignored at dispatch).
 from __future__ import annotations
 
 import dataclasses
+import os
 from typing import Any
 
 import pytest
@@ -76,6 +77,18 @@ GPT2_ROWS = [
     {"input": base, "counterfactual_inputs": [cf]}
     for base, cf in zip(BASE_TEXTS, GPT2_CF_TEXTS)
 ]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _pinned_torch_threads():
+    """Under xdist, give each worker its share of the cores. torch's intra-op
+    pool defaults to every core, so N workers run N × cores threads over
+    matmuls a few rows wide and spend the run contending. Both engines of a
+    comparison run in one worker under one pin, so exact parity holds at any
+    thread count."""
+    workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "0"))
+    if workers:
+        torch.set_num_threads(max(1, min(4, (os.cpu_count() or 1) // workers)))
 
 
 #: What two *different formulations* of one tensor agree to in fp32 — the only
