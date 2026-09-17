@@ -453,6 +453,7 @@ flash-linear-attention = [
 ]
 nnsight = [
     { name = "nnsight" },
+    { name = "nnterp" },
 ]
 notebook = [
     { name = "dash" },
@@ -472,6 +473,7 @@ dev = [
     { name = "hypothesis" },
     { name = "ipdb" },
     { name = "nnsight" },
+    { name = "nnterp" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -503,7 +505,8 @@ requires-dist = [
     { name = "jupyterlab", marker = "extra == 'notebook'" },
     { name = "matplotlib" },
     { name = "networkx" },
-    { name = "nnsight", marker = "extra == 'nnsight'", git = "https://github.com/ndif-team/nnsight.git?rev=8c480727" },
+    { name = "nnsight", marker = "extra == 'nnsight'", editable = "/home/localjadenfk/wd/nnsight" },
+    { name = "nnterp", marker = "extra == 'nnsight'", editable = "/home/localjadenfk/wd/nnterp" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "plotly", specifier = ">=5.0" },
@@ -528,7 +531,8 @@ dev = [
     { name = "dash-cytoscape" },
     { name = "hypothesis", specifier = ">=6.0" },
     { name = "ipdb", specifier = ">=0.13.13" },
-    { name = "nnsight", git = "https://github.com/ndif-team/nnsight.git?rev=8c480727" },
+    { name = "nnsight", editable = "/home/localjadenfk/wd/nnsight" },
+    { name = "nnterp", editable = "/home/localjadenfk/wd/nnterp" },
     { name = "pandas-stubs" },
     { name = "pre-commit", specifier = ">=4.4.0" },
     { name = "pytest", specifier = ">=8.4.2" },
@@ -2836,8 +2840,7 @@ wheels = [
 
 [[package]]
 name = "nnsight"
-version = "0.7.1.dev118+g8c480727c"
-source = { git = "https://github.com/ndif-team/nnsight.git?rev=8c480727#8c480727c754d2e4f51f5844e089c0fe20f9aadd" }
+source = { editable = "/home/localjadenfk/wd/nnsight" }
 dependencies = [
     { name = "cloudpickle" },
     { name = "greenlet" },
@@ -2850,6 +2853,90 @@ dependencies = [
     { name = "transformers" },
     { name = "websocket-client" },
     { name = "zstandard" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'dev'" },
+    { name = "cloudpickle" },
+    { name = "diffusers", marker = "extra == 'dev'" },
+    { name = "fastapi", marker = "extra == 'serve'" },
+    { name = "greenlet" },
+    { name = "httpx" },
+    { name = "huggingface-hub" },
+    { name = "nnsight", extras = ["vllm"], marker = "extra == 'serve'" },
+    { name = "pandas", marker = "extra == 'dev'" },
+    { name = "pillow", marker = "extra == 'dev'" },
+    { name = "pydantic" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pyyaml" },
+    { name = "timm", marker = "extra == 'dev'" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "transformers" },
+    { name = "triton", marker = "extra == 'vllm'" },
+    { name = "uvicorn", marker = "extra == 'serve'" },
+    { name = "vllm", marker = "extra == 'vllm'" },
+    { name = "websocket-client" },
+    { name = "zstandard" },
+]
+provides-extras = ["dev", "vllm", "serve"]
+
+[[package]]
+name = "nnterp"
+source = { editable = "/home/localjadenfk/wd/nnterp" }
+dependencies = [
+    { name = "nnsight" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "flash-attn", marker = "sys_platform != 'win32' and extra == 'llms'" },
+    { name = "hf-xet", marker = "extra == 'llms'" },
+    { name = "nnsight", specifier = ">=0.8" },
+    { name = "nnsight", extras = ["vllm"], marker = "extra == 'vllm'" },
+    { name = "pandas", marker = "extra == 'display'" },
+    { name = "pillow", marker = "extra == 'llms'" },
+    { name = "plotly", marker = "extra == 'display'" },
+    { name = "sentencepiece", marker = "extra == 'llms'" },
+    { name = "timm", marker = "extra == 'llms'" },
+    { name = "transformers" },
+]
+provides-extras = ["display", "llms", "vllm"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black", extras = ["jupyter"] },
+    { name = "build" },
+    { name = "filelock", specifier = ">=3.19.1" },
+    { name = "ipykernel" },
+    { name = "ipywidgets" },
+    { name = "jupyter" },
+    { name = "jupytext" },
+    { name = "myst-parser", specifier = ">=2.0.0" },
+    { name = "nbsphinx" },
+    { name = "pre-commit" },
+    { name = "pydata-sphinx-theme" },
+    { name = "pytest", specifier = ">=7.0" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff" },
+    { name = "sphinx", specifier = ">=7.2.0" },
+    { name = "sphinx-autodoc-typehints", specifier = ">=1.25.0" },
+    { name = "sphinx-copybutton" },
+    { name = "sphinx-design" },
+    { name = "sphinx-rtd-theme", specifier = ">=2.0.0" },
+]
+docs = [
+    { name = "myst-parser", specifier = ">=2.0.0" },
+    { name = "nbsphinx" },
+    { name = "pydata-sphinx-theme" },
+    { name = "sphinx", specifier = ">=7.2.0" },
+    { name = "sphinx-autodoc-typehints", specifier = ">=1.25.0" },
+    { name = "sphinx-copybutton" },
+    { name = "sphinx-design" },
+    { name = "sphinx-rtd-theme", specifier = ">=2.0.0" },
 ]
 
 [[package]]
