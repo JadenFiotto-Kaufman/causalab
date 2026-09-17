@@ -34,15 +34,23 @@ Tiering, as built:
   every other interior in the generated frame (the decode dispatches
   different kernels, so a prefill address is no evidence the tensor exists
   per step). The reference engine serves all of it;
-* **trained locally** — a ``train`` document (§2.11) is fitted by
-  :mod:`.train` on the shared loop (:mod:`causalab.neural.shared.training`):
-  each minibatch a gradient-enabled executor whose groups run under
-  ``torch.enable_grad()`` — cacheless, as every prompt forward is — and keep
-  their reads on the device with their graph, the backward run once the traces have exited, every fit
-  a cohort of one. Featurizer slots only, fp32 losses, evals on epoch
+* **trained, locally or on NDIF** — a ``train`` document (§2.11) is fitted
+  on the shared loop (:mod:`causalab.neural.shared.training`) by one body,
+  wherever it runs (:mod:`.fit`): :mod:`.train` plans the fit as data — the
+  ``FitSpec``, one gradient-enabled template program per forward group over
+  the point's whole frame with its featurizer stacks *by name*, the eval
+  split's programs — and ``fit_body`` builds the stages, the optimizer and
+  the controllers from it where the model is, runs each step's groups as
+  traces (cacheless, as every prompt forward is) whose reads flow between
+  them on the device with their graph, and runs the backward once the traces
+  have exited. Locally that body runs in this process; with ``remote`` it is
+  the body of **one** session — one job per fit — and the fitted state comes
+  home as plain data, loaded into the client's own stages. Every fit is a
+  cohort of one. Featurizer slots only, fp32 losses, evals on epoch
   boundaries — the reference engine's tier, and on CPU fp32 its weights to
-  the bit. A ``remote`` engine drops ``grad`` and refuses the document: a
-  remote forward returns detached saves;
+  the bit, remote as local. A fit whose objective, eval or operand read the
+  block cannot finish (ragged, routed, per-fire, generated) is refused by
+  name, and a §2.2 ``draw`` — re-planned each epoch — fits locally only;
 * **unclaimed** — cross-point interning (§3): the engine takes the
   campaign's handle and drops it, so every point runs its own forwards — a
   fit's source forward included, on every step.
@@ -66,17 +74,26 @@ client-side config change. The structure follows from those rules:
   server — against a weight-free bundle (:mod:`.loading`), whose ``remote``
   the executor and the engine inherit.
 
+* a whole fit is one ``model.session`` too, whose body is the saved
+  container and one call (:func:`.fit.run_fit`): everything the fit moves is
+  created in that call, server-side.
+
 Remote mode needs a **trusted, in-process NDIF deployment with the same
-``causalab`` installed server-side**: the block is ``causalab``'s functions
-working on the served model itself, and it refuses a ``meta`` copy by name.
-:mod:`.executor` states the rest — the eager switch a hard kill can strand,
-featurizer stages shipping by value, where bit-identity holds.
+``causalab`` and ``nnterp`` installed server-side**: the block is
+``causalab``'s functions working on the served model itself, and it refuses
+a ``meta`` copy by name. The **version guard** (:mod:`.versions`) holds the
+server to that before any job is submitted: the server's ``/env`` must
+report this client's ``causalab`` and ``nnterp`` versions exactly, checked
+once per host per process. :mod:`.executor` states the rest — the eager
+switch a hard kill can strand, an inference point's featurizer stages
+shipping by value, where bit-identity holds.
 
 ``tests/neural/engines/nnterp_engine/test_ndif_shape.py`` pins the
-structure, and ``test_faithful_server.py`` runs the deserialized program
-against a separately loaded model, results through a ``torch.save`` round
-trip — nnsight's ``remote="local"`` dry run executes against the caller's
-own frame and so hides all three failure classes.
+structure, and ``test_faithful_server.py`` / ``test_remote_fit.py`` run the
+deserialized program — a point's, a whole fit's — against a separately
+loaded model, results through a ``torch.save`` round trip — nnsight's
+``remote="local"`` dry run executes against the caller's own frame and so
+hides all three failure classes.
 
 Requires the ``nnterp`` extra (``pip install 'causalab[nnterp]'``), which
 carries both packages.
