@@ -4,8 +4,8 @@ Implements the spec §8 services on the two supported architecture families.
 All **seven** capabilities in :data:`~causalab.protocol.engine.CAPABILITIES`
 — this engine is the only one declaring the full set:
 
-* ``grad`` (the train loop, train.py) — the reason a ``train`` document
-  routes here;
+* ``grad`` (the train runner, train.py, under ``shared/training``'s loop) —
+  the reason a ``train`` document routes here;
 * ``paired_forward`` (cross-input operand flow via the lazy group executor);
 * ``full_logits`` (lm_head is an ordinary tap wherever the document needs
   the whole projection — a read of every position, a write at the head, a
@@ -80,10 +80,11 @@ class PytorchHooksEngine(Engine):
     # (`registry.CAPABILITIES`, the `reads` cell), not a literal here: the
     # module-boundary and attention-interface vocabulary, writes included, and
     # the routed-expert interior reached by wrapping the grouped
-    # experts dispatch. What the rows leave to the nnsight engine:
+    # experts dispatch. What the rows leave to the nnterp engine:
     # `expert_permutation` (the serving kernel's own bookkeeping, a `.source`
-    # line with no dispatch-slot face) and the Gated DeltaNet interior —
-    # tensors inside a fused forward where no hook can reach. Read-only /
+    # line with no dispatch-slot face) and the three `deltanet_*` faces of the
+    # Gated DeltaNet interior — tensors inside a fused forward where no hook
+    # can reach. Read-only /
     # swap-only components and stream constraints are *protocol policy* (the
     # rows' `writes` and `stream` cells, applied by the shared executor and
     # `validate`), not capability gaps: declaring router_logits unwritable

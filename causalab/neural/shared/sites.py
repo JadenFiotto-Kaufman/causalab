@@ -3,7 +3,7 @@
 Each site record resolves to ``(module, io side, feature-axis slice)``.
 The map is engine-shared: both engines tap the same modules —
 pytorch_hooks with ``register_forward_hook`` / ``register_forward_pre_hook``,
-the nnsight engine by handing the same tree access to envoys whose
+the nnterp engine by handing the same tree access to envoys whose
 ``.input`` / ``.output`` it reads and assigns in-trace. Writes replace the
 same tensor either way. The table mirrors the hook-oracle reference
 (``tests/neural/activations/hook_oracle.py``) for the two supported
@@ -53,11 +53,11 @@ read-only, swap-only and normalized-tap dicts, the three stream sets, the MoE
 and attention-interior sets — were restatements of those rows and are gone.
 In particular ``attention_probs`` is **served**, by both engines
 — the reference one taps inside the eager attention call
-(``engines/pytorch_hooks/attention_interface.py``), the nnsight one through
+(``engines/pytorch_hooks/attention_interface.py``), the nnterp one through
 ``.source``, and both declare ``writable_attention_probs``. Its write is
 swap-only by its row's ``writes`` cell, not by any engine's absence. The MoE
 interior is served too (``engines/pytorch_hooks/experts_interface.py``), with
-``expert_permutation`` routing to the nnsight engine.
+``expert_permutation`` routing to the nnterp engine.
 """
 
 from __future__ import annotations
@@ -607,7 +607,7 @@ _FULL_ATTENTION_ONLY: frozenset[str] = frozenset(
 # globals for the dynamic extent of the tapped mixer's forward; the per-step
 # interior is produced by stepping the library's own recurrent
 # kernel in the chunked call's shadow. See
-# :mod:`causalab.neural.engines.pytorch_hooks.delta_interface`. The nnsight
+# :mod:`causalab.neural.engines.pytorch_hooks.delta_interface`. The nnterp
 # engine lands the same names as ``.source`` lines of the fused forward.
 
 #: The mirror set: the Gated DeltaNet interior only exists on a
@@ -888,7 +888,7 @@ _MOE_COMPONENTS: frozenset[str] = frozenset(
 # shared ``act_fn``, which the wrapper hooks for the duration of that call).
 # The reference engine taps them by wrapping that dispatch
 # (:mod:`causalab.neural.engines.pytorch_hooks.experts_interface`); the
-# nnsight engine lands the same components through its `.source` address
+# nnterp engine lands the same components through its `.source` address
 # table — both consume the ``kind="experts"`` resolution below.
 
 
@@ -973,7 +973,7 @@ def _moe_site(
     if tap.kind == "interior":
         # the serving kernel's row bookkeeping, inside the fused experts
         # forward — no module boundary and no dispatch slot; only the
-        # nnsight engine's `.source` address table lands it, so it resolves
+        # nnterp engine's `.source` address table lands it, so it resolves
         # to the interior kind and the reference engine refuses by name.
         return ResolvedSite(
             module=module,

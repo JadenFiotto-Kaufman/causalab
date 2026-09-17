@@ -51,7 +51,7 @@ from tests.neural.engines.pytorch_hooks.test_fit_cohort import (
     _request,
     _train_doc,
 )
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

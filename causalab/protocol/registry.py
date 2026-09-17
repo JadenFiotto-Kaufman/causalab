@@ -74,7 +74,7 @@ component                            shape
                                      axes**, so no contract form. Every
                                      refusal the executor makes about it is
                                      derived from that
-``deltanet_query``, ``deltanet_key``,  the three DeltaNet faces only the nnsight
+``deltanet_query``, ``deltanet_key``,  the three DeltaNet faces only the nnterp
 ``deltanet_state``                   engine serves, from the same
                                      four ``linear_*`` dimensions — see
                                      :func:`_deltanet_shape`. q/k are
@@ -1231,11 +1231,11 @@ def gate_param_shape(
 #: The engines a row may name. ``engine.py`` derives ``ENGINE_CHOICES`` from
 #: this (plus ``"auto"``), so a third engine is a name here, a class that
 #: declares it, and nothing else.
-ENGINES: tuple[str, ...] = ("pytorch_hooks", "nnsight")
+ENGINES: tuple[str, ...] = ("pytorch_hooks", "nnterp")
 
 _BOTH: frozenset[str] = frozenset(ENGINES)
 _HOOKS: frozenset[str] = frozenset({"pytorch_hooks"})
-_NNSIGHT: frozenset[str] = frozenset({"nnsight"})
+_NNTERP: frozenset[str] = frozenset({"nnterp"})
 _NEITHER: frozenset[str] = frozenset()
 
 #: Every ``do`` mechanism — the ``writes`` cell of a row that accepts any.
@@ -1561,9 +1561,9 @@ _SPLIT: tuple[Predicate, ...] = ("split_qkv",)
 # The per-family tap table: the three families the attention interior has
 # been measured on, keyed by the HF ``model_type`` the adapter reads
 # (``GPT2Config.model_type == "gpt2"``, ``LlamaConfig.model_type == "llama"``,
-# ``Qwen3_5MoeTextConfig.model_type == "qwen3_5_moe_text"``). The nnsight
+# ``Qwen3_5MoeTextConfig.model_type == "qwen3_5_moe_text"``). The nnterp
 # engine's address table for the function interiors
-# (``nnsight_tracing/addresses.py``) has the same shape; this is the
+# (``nnterp_engine/sources.py``) has the same shape; this is the
 # module-boundary half, on the rows. 📐 Per family:
 #
 # ==========================  =====================  ================  ======================
@@ -1695,29 +1695,20 @@ _ROWS: tuple[Capability, ...] = (
     # --- the Gated DeltaNet mixer ------------------------------------------ #
     # One semantic name per tensor. The module boundaries and
     # the kernel boundary are served by BOTH engines: the reference engine by
-    # hooks and by swapping the modeling file's kernel globals, the nnsight
+    # hooks and by swapping the modeling file's kernel globals, the nnterp
     # engine by envoys and by its `.source` address table — each translating
     # the one name to its own mechanism (the eight retired `deltanet_*`
     # spellings fold onto these at parse). The `tap` cell names the reference
-    # engine's mechanism; the nnsight one is `.source` for the kernel boundary.
+    # engine's mechanism; the nnterp one is `.source` for the kernel boundary.
     _row("delta_qkv", tap="module output", stream="linear_attention"),
     _row("delta_gate", tap="module output", stream="linear_attention"),
     _row("delta_premix", tap="module input", stream="linear_attention"),
     _row("delta_conv", tap="delta-kernel boundary", stream="linear_attention"),
-    # post GVA `repeat_interleave` — value-head space; the nnsight engine's
-    # pre-tiling face is `deltanet_query` (BACKEND_PAIRS: `gva_tile`)
-    _row(
-        "delta_query",
-        tap="delta-kernel boundary",
-        stream="linear_attention",
-        reads=_HOOKS,
-    ),
-    _row(
-        "delta_key",
-        tap="delta-kernel boundary",
-        stream="linear_attention",
-        reads=_HOOKS,
-    ),
+    # post GVA `repeat_interleave` — value-head space, the kernel call's own
+    # arguments on both engines; the pre-tiling face is `deltanet_query`
+    # (BACKEND_PAIRS: `gva_tile`)
+    _row("delta_query", tap="delta-kernel boundary", stream="linear_attention"),
+    _row("delta_key", tap="delta-kernel boundary", stream="linear_attention"),
     _row("delta_value", tap="delta-kernel boundary", stream="linear_attention"),
     _row("delta_beta", tap="delta-kernel boundary", stream="linear_attention"),
     _row("delta_decay", tap="delta-kernel boundary", stream="linear_attention"),
@@ -1742,7 +1733,7 @@ _ROWS: tuple[Capability, ...] = (
         writes=None,
         why=_WHY_DELTA_STATE_UPDATE,
     ),
-    # per step — the nnsight engine's per-chunk face is `deltanet_state`
+    # per step — the nnterp engine's per-chunk face is `deltanet_state`
     # (BACKEND_PAIRS: `chunk_boundary`)
     _row(
         "delta_state",
@@ -1750,7 +1741,7 @@ _ROWS: tuple[Capability, ...] = (
         stream="linear_attention",
         reads=_HOOKS,
     ),
-    # --- the three DeltaNet faces only the nnsight engine serves ----------- #
+    # --- the three DeltaNet faces only the nnterp engine serves ------------ #
     # Two names stay two names where the tensors differ in shape or timing:
     # q/k before the GVA tiling (key-head space, where `delta_query`/`delta_key`
     # are tiled to value heads) and the state once per 64-token chunk (where
@@ -1762,7 +1753,7 @@ _ROWS: tuple[Capability, ...] = (
             name,
             tap="`.source` line (fused forward)",
             stream="linear_attention",
-            reads=_NNSIGHT,
+            reads=_NNTERP,
         )
         for name in ("deltanet_query", "deltanet_key", "deltanet_state")
     ),
@@ -1786,19 +1777,19 @@ _ROWS: tuple[Capability, ...] = (
         "expert_permutation",
         tap="`.source` line (fused forward)",
         requires=_MOE,
-        reads=_NNSIGHT,
+        reads=_NNTERP,
         writes=None,
         why=_WHY_EXPERT_PERMUTATION,
     ),
-    # the routed interior: the grouped experts dispatch is the reference
-    # engine's tap and the only ragged ``expert:`` face served today; the
-    # nnsight engine lands the token-major form through its ``.source`` table
+    # the routed interior, token-major and through the ragged ``expert:``
+    # face on both engines: the grouped experts dispatch is the reference
+    # engine's tap, the grouped kernel's ``.source`` lines the nnterp one's
     *(
         _row(
             name,
             tap="grouped-experts dispatch",
             requires=_ROUTED,
-            expert_selection=_HOOKS,
+            expert_selection=_BOTH,
         )
         for name in (
             "expert_gate_proj",
@@ -2764,7 +2755,7 @@ EXPERTS_FUNCTION_SLOTS: Mapping[str, str] = MappingProxyType(
 #: The taps every block-shaped tree shares: the block's own sides and the
 #: mixer's and MLP's outer boundaries, plus the function-boundary interiors
 #: whose module is only the anchor of the function tapped. A tree no family
-#: detects still serves these (the nnsight_nnterp engine's standard adapter).
+#: detects still serves these (the nnterp engine's standard adapter).
 BLOCK_TAPS: Mapping[str, Tap] = MappingProxyType(
     {
         "input_ids": Tap("embedding", kind="in"),
@@ -2939,17 +2930,18 @@ register_family(GPT2_TREE)
 
 # --- typed backend pairs: two spellings, one tensor, a declared relation ---- #
 
-#: How the reference engine's and the nnsight engine's captures of one
-#: DeltaNet tensor line up (📐 measured on ``tiny-random/qwen3.5-moe``; the
+#: How two spellings of one DeltaNet tensor line up — the reference engine's
+#: capture against the nnterp engine's (📐 measured on ``tiny-random/qwen3.5-moe``; the
 #: golden tier repeats it on the A3B):
 #:
 #: ``identical``
-#:     same shape, max abs diff 0.0 — **one name**: the nnsight spelling is an
+#:     same shape, max abs diff 0.0 — **one name**: the nnterp spelling is an
 #:     alias of the reference one (``schema.DEPRECATED_COMPONENTS``);
 #: ``gva_tile``
-#:     the reference engine's tensor is post ``repeat_interleave`` over the
-#:     head axis (value-head space), the nnsight one pre (key-head space);
-#:     exact after tiling — **two names**;
+#:     the ``delta_*`` tensor is post ``repeat_interleave`` over the head
+#:     axis (value-head space, the kernel's argument — both engines serve
+#:     it), the ``deltanet_*`` one pre (key-head space, the nnterp engine's
+#:     alone); exact after tiling — **two names**;
 #: ``chunk_boundary``
 #:     per step versus per 64-token chunk; the chunk's state is the step
 #:     state at the chunk's last position — **two names**.
@@ -2959,14 +2951,16 @@ RELATIONS: tuple[Relation, ...] = get_args(Relation)
 
 @dataclasses.dataclass(frozen=True)
 class BackendPair:
-    """One DeltaNet tensor as the two engines reach it, and the typed relation
+    """One DeltaNet tensor under its two spellings, and the typed relation
     between the two captures. An ``identical`` pair is an alias (one name,
     two mechanisms); any other relation is a **typed backend requirement**:
-    two names, each served by the engine named, related by the declared
-    transform — which the test helpers read from here rather than own."""
+    two names — ``nnterp`` a face the nnterp engine alone serves, ``hooks``
+    one the reference engine serves (alone, or with the nnterp engine where
+    that engine reaches the same tensor) — related by the declared transform,
+    which the test helpers read from here rather than own."""
 
     hooks: str
-    nnsight: str
+    nnterp: str
     relation: Relation
     why: str
     #: the kernel's chunk length, for ``chunk_boundary`` (📐 read off the
@@ -2987,13 +2981,13 @@ class BackendPair:
 
     @property
     def names(self) -> frozenset[str]:
-        return frozenset({self.hooks, self.nnsight})
+        return frozenset({self.hooks, self.nnterp})
 
 
 BACKEND_PAIRS: tuple[BackendPair, ...] = (
     *(
-        BackendPair(hooks, nnsight, "identical", "same shape, max abs diff 0.0")
-        for hooks, nnsight in (
+        BackendPair(hooks, nnterp, "identical", "same shape, max abs diff 0.0")
+        for hooks, nnterp in (
             ("delta_qkv", "deltanet_qkv"),
             ("delta_conv", "deltanet_qkv_conv"),
             ("delta_gate", "deltanet_gate"),
@@ -3420,8 +3414,9 @@ def _check_aliases(table: Mapping[str, str] | None = None) -> None:
     """Every retired spelling redirects: it is out of the vocabulary, its
     replacement is in, it has a deprecation version, and no declared backend
     relation or shape says it would rebind. Every backend pair agrees with the
-    alias table: an ``identical`` pair is an alias, any other pair is two
-    single-engine rows. Refused at import — a vocabulary defect is a bug in
+    alias table: an ``identical`` pair is an alias, any other pair is two rows
+    — the ``nnterp`` spelling served by that engine alone, the ``hooks``
+    spelling by the reference engine at least. Refused at import — a vocabulary defect is a bug in
     this module, never a document error. ``table`` is the alias table under
     test (the vocabulary's own by default; a test hands in a mutated one)."""
     table = DEPRECATED_COMPONENTS if table is None else table
@@ -3429,7 +3424,7 @@ def _check_aliases(table: Mapping[str, str] | None = None) -> None:
         if (
             alias in COMPONENTS
             and alias != target
-            and alias not in {p.nnsight for p in BACKEND_PAIRS}
+            and alias not in {p.nnterp for p in BACKEND_PAIRS}
         ):
             raise AssertionError(f"alias {alias!r} is still in the vocabulary")
         if target not in COMPONENTS:
@@ -3441,17 +3436,23 @@ def _check_aliases(table: Mapping[str, str] | None = None) -> None:
             raise AssertionError(reason)
     for pair in BACKEND_PAIRS:
         if pair.aliased:
-            if table.get(pair.nnsight) != pair.hooks:
+            if table.get(pair.nnterp) != pair.hooks:
                 raise AssertionError(
-                    f"identical pair {pair.hooks!r}/{pair.nnsight!r} is not an alias"
+                    f"identical pair {pair.hooks!r}/{pair.nnterp!r} is not an alias"
                 )
         else:
-            for name, engine in ((pair.hooks, _HOOKS), (pair.nnsight, _NNSIGHT)):
-                if name not in CAPABILITIES or CAPABILITIES[name].reads != engine:
-                    raise AssertionError(
-                        f"{name!r} of the {pair.relation!r} pair must be a row "
-                        f"served by exactly {sorted(engine)}"
-                    )
+            face = CAPABILITIES.get(pair.nnterp)
+            if face is None or face.reads != _NNTERP:
+                raise AssertionError(
+                    f"{pair.nnterp!r} of the {pair.relation!r} pair must be a "
+                    f"row served by exactly {sorted(_NNTERP)}"
+                )
+            reference = CAPABILITIES.get(pair.hooks)
+            if reference is None or not _HOOKS <= reference.reads:
+                raise AssertionError(
+                    f"{pair.hooks!r} of the {pair.relation!r} pair must be a "
+                    f"row the reference engine serves"
+                )
 
 
 _check_aliases()

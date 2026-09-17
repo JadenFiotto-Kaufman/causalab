@@ -116,7 +116,7 @@ SPLIT_PURPOSES: tuple[str, ...] = ("development", "reserve", "confirmation")
 #: ``DecisionRecord``.
 DECISION_TYPES: tuple[str, ...] = ("advance", "revise", "narrow")
 
-#: The engines whose decode can sample. The nnsight engine decodes greedily
+#: The engines whose decode can sample. The nnterp engine decodes greedily
 #: (``model.generate(do_sample=False)``), so a ``sampled`` step routed there
 #: is refused before its model loads — by name, here; the capability table is
 #: unchanged (workflow spec §2.7).
@@ -790,7 +790,7 @@ def run_behavioral_step(
     engine = route_engine(inner, engines)
     decoding = dict(step.decoding)
     if decoding["mode"] == "sampled" and engine.name not in SAMPLING_ENGINES:
-        # before any weights load (§5's invariant): the nnsight engine's
+        # before any weights load (§5's invariant): the nnterp engine's
         # decode is greedy-only, and a sampled step is not silently greedy
         raise _refuse(
             f"engine {engine.name!r} decodes deterministically only — a sampled "

@@ -150,11 +150,11 @@ def test_fit_rows_refuses_a_non_positive_count(
     assert fit_engine.last is None
 
 
-def test_fit_rows_refuses_an_explicit_nnsight_pin(
+def test_fit_rows_refuses_an_explicit_nnterp_pin(
     fit_engine, artifacts_root, tmp_path, capsys
 ):
-    """Fail closed, like ``--batch-rows``: the nnsight engine has no grad
-    path, so nothing would honour the bound."""
+    """Fail closed, like ``--batch-rows``: the nnterp engine runs each
+    minibatch's grad forward whole, so nothing would honour the bound."""
     with pytest.raises(SystemExit) as exit_info:
         main(
             _run_argv(
@@ -162,14 +162,14 @@ def test_fit_rows_refuses_an_explicit_nnsight_pin(
                 artifacts_root,
                 tmp_path,
                 "--engine",
-                "nnsight",
+                "nnterp",
                 "--fit-rows",
                 "3",
             )
         )
     assert exit_info.value.code == 2
     err = capsys.readouterr().err
-    assert "--engine nnsight" in err and "--fit-rows" in err
+    assert "--engine nnterp" in err and "--fit-rows" in err
     assert fit_engine.last is None
 
 

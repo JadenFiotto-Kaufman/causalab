@@ -45,7 +45,7 @@ from causalab.protocol.schema import Document, parse_document
 
 from tests.neural.engines.pytorch_hooks._drive import base_data_section, executor_for
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA, TINY_QWEN35_MOE
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

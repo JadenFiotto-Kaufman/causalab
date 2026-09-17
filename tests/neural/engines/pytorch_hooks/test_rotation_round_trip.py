@@ -24,7 +24,7 @@ end, and a `Subspace`'s `weight` is *computed* from
 `parametrizations.weight.original`. A snapshot taken over `slot_params()` would
 save the materialized Q and restore nothing — the weight would silently stay
 wherever the last update left it, which is exactly a small drift between "the
-fit that was selected" and "the fit that was saved". `_snapshot` uses
+fit that was selected" and "the fit that was saved". `snapshot` uses
 `state_dict()` for that reason, and
 `test_a_snapshot_captures_the_parametrizations_own_parameter` is the guard that
 keeps it that way — the bug is re-introducible by a one-word edit.
@@ -515,12 +515,12 @@ def test_a_snapshot_captures_the_parametrizations_own_parameter(
     instead would capture the materialized Q and restore nothing — a silent
     drift between the fit `early_stop` selected and the fit that got saved.
     This asserts the state dict really does carry the underlying parameter, so
-    the reason `_snapshot` uses `state_dict()` is checked rather than
+    the reason `snapshot` uses `state_dict()` is checked rather than
     commented.
     """
-    from causalab.neural.engines.pytorch_hooks.train import _snapshot
+    from causalab.neural.shared.training.diagnostics import snapshot
 
-    keys = set(_snapshot({"rot": fitted})["rot"])
+    keys = set(snapshot({"rot": fitted})["rot"])
     assert any(
         "parametrizations" in key and key.endswith("original") for key in keys
     ), (
@@ -534,25 +534,25 @@ def test_restoring_a_snapshot_reproduces_the_materialized_rotation(
     fitted: Subspace,
 ) -> None:
     """Snapshot → perturb → restore, and the *materialized* Q must come back
-    bit-identical. Perturbing is what makes this a test: without it, `_restore`
+    bit-identical. Perturbing is what makes this a test: without it, `restore`
     could be a no-op and pass."""
     import copy
 
-    from causalab.neural.engines.pytorch_hooks.train import _restore, _snapshot
+    from causalab.neural.shared.training.diagnostics import restore, snapshot
 
     # A **copy**: `fitted` is module-scoped, so perturbing it in place and
-    # relying on `_restore` — the function under test — to undo the damage means
-    # that when `_restore` regresses, the real signal arrives buried in
+    # relying on `restore` — the function under test — to undo the damage means
+    # that when `restore` regresses, the real signal arrives buried in
     # unrelated failures in whichever tests run after this one. The isolation
     # should be structural, not a consequence of file order.
     stage = copy.deepcopy(fitted)
     before = stage.weight.detach().clone()
-    snapshot = _snapshot({"rot": stage})
+    taken = snapshot({"rot": stage})
     with torch.no_grad():
         for param in stage.parameters():
             param.add_(0.1)
     assert (stage.weight - before).abs().max().item() > HALF_ULP_DRIFT * 10
-    _restore({"rot": stage}, snapshot)
+    restore({"rot": stage}, taken)
     torch.testing.assert_close(stage.weight, before, atol=0.0, rtol=0.0)
     # and the shared fixture is untouched, which is the point of the copy
     torch.testing.assert_close(fitted.weight, before, atol=0.0, rtol=0.0)
@@ -576,26 +576,26 @@ def test_an_early_stopping_fit_returns_the_weights_it_selected(monkeypatch) -> N
     wrote garbage — it is a property of the map, not of the fit.
 
     Comparing the returned stage against the snapshot the loop took is not
-    enough either, on its own. `_snapshot` runs only on improvement, so if the
-    last eval is the best one the snapshot *is* the live state and `_restore`
+    enough either, on its own. `snapshot` runs only on improvement, so if the
+    last eval is the best one the snapshot *is* the live state and `restore`
     has nothing to move — and with ``mode: "min"`` on the very loss being
     minimised, scored on the training rows, the last eval is the best one
-    every time. That run distinguishes `_restore` from ``pass`` exactly never.
+    every time. That run distinguishes `restore` from ``pass`` exactly never.
 
     So this fit selects with ``mode: "max"`` on ``ce``: the selection mechanism
     does not know what a metric means, and asking it for the *worst* loss makes
     epoch 1 the selected fit and every later epoch a rejected one. ``patience:
     5`` outlasts the two stale evals, so the loop runs to the end and the
-    restore has to roll back two epochs of updates. A spy on `_restore`
+    restore has to roll back two epochs of updates. A spy on `restore`
     captures the state training actually ended on, and the guard asserts that
     state differs from the snapshot — that is what makes the final equality a
-    claim about `_restore` rather than about `_snapshot`, and it is what fails
+    claim about `restore` rather than about `snapshot`, and it is what fails
     if the fixture's dynamics ever drift back to best-is-last.
     """
-    from causalab.neural.engines.pytorch_hooks import train as train_module
+    from causalab.neural.shared.training import loop as loop_module
 
     taken: list[dict[str, dict[str, torch.Tensor]]] = []
-    real_snapshot = train_module._snapshot
+    real_snapshot = loop_module.snapshot
 
     def snapshot_spy(stages):
         captured = real_snapshot(stages)
@@ -603,7 +603,7 @@ def test_an_early_stopping_fit_returns_the_weights_it_selected(monkeypatch) -> N
         return captured
 
     ended_on: list[dict[str, dict[str, torch.Tensor]]] = []
-    real_restore = train_module._restore
+    real_restore = loop_module.restore
 
     def restore_spy(stages, snapshot):
         ended_on.append(
@@ -614,8 +614,8 @@ def test_an_early_stopping_fit_returns_the_weights_it_selected(monkeypatch) -> N
         )
         return real_restore(stages, snapshot)
 
-    monkeypatch.setattr(train_module, "_snapshot", snapshot_spy)
-    monkeypatch.setattr(train_module, "_restore", restore_spy)
+    monkeypatch.setattr(loop_module, "snapshot", snapshot_spy)
+    monkeypatch.setattr(loop_module, "restore", restore_spy)
     outcome = _fit(das_doc(epochs=3, early_stop_mode="max"))
 
     assert taken, "no snapshot was taken — the early-stop branch never ran"
@@ -628,14 +628,14 @@ def test_an_early_stopping_fit_returns_the_weights_it_selected(monkeypatch) -> N
 
     best = taken[-1]["rot"]
     assert ORIGINAL in best, (
-        f"the snapshot carries {sorted(best)} and not {ORIGINAL!r} — `_snapshot` "
+        f"the snapshot carries {sorted(best)} and not {ORIGINAL!r} — `snapshot` "
         "is no longer taking the state dict, so a restore would restore nothing"
     )
     last = ended_on[-1]["rot"][ORIGINAL]
     rolled_back = (last - best[ORIGINAL]).abs().max().item()
     assert rolled_back > HALF_ULP_DRIFT * 10, (
         f"training ended {rolled_back:.3e} from the snapshotted state — this "
-        "run never exercised a rollback, so it would pass with _restore as a "
+        "run never exercised a rollback, so it would pass with restore as a "
         "no-op and says nothing about it"
     )
 

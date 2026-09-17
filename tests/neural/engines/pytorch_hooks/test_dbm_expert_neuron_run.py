@@ -30,7 +30,8 @@ import torch
 from safetensors.torch import load_file, save_file
 
 from causalab.cli import main
-from causalab.neural.engines.pytorch_hooks.train import _regularizer, fit_diagnostics
+from causalab.neural.shared.training.diagnostics import fit_diagnostics
+from causalab.neural.shared.training.objective import regularizer
 from causalab.neural.shared.featurizers import Gate
 from causalab.protocol.errors import ValidationError
 from causalab.protocol.loader import load
@@ -190,7 +191,7 @@ class TestExpertNeuronTrainTerms:
         gate.temperature = 0.5
         with torch.no_grad():
             gate.theta.normal_(generator=torch.Generator().manual_seed(0))
-        term = _regularizer("l1", ["routed_gate"], {"routed_gate": gate})
+        term = regularizer("l1", ["routed_gate"], {"routed_gate": gate})
         assert torch.equal(term, torch.sigmoid(gate.theta / 0.5).mean())
         assert term.numel() == 1 and term.requires_grad
 

@@ -307,7 +307,7 @@ def _explain_engine(compiled: CompiledProtocol, choice: str | None) -> None:
 
     ``explain`` printed ``requires`` and stopped there, so routing could not be
     pre-flighted at all — and routing is exactly what is not obvious on a model
-    where one family of components is hooks-only and another is nnsight-only.
+    where one family of components is hooks-only and another is nnterp-only.
     The refusal is the *more* useful answer of the two, so it is printed rather
     than raised.
 

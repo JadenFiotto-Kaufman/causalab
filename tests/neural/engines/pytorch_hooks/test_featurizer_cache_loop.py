@@ -29,10 +29,12 @@ from tests.neural.engines.pytorch_hooks.test_rotation_round_trip import (
     _fit,  # pyright: ignore[reportPrivateUsage]
     das_doc,
 )
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     chain_doc,
     controlled_dbm_doc,
     dbm_doc,
+)
+from tests.neural.engines.pytorch_hooks.test_train import (
     hard_concrete_dbm_doc,
 )
 

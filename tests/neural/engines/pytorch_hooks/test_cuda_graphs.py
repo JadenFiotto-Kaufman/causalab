@@ -22,7 +22,7 @@ from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.shared.featurizers import Gate
 from causalab.protocol.schema import PositionSpec, parse_document
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     BASES,
     COUNTERFACTUALS,
     das_doc,

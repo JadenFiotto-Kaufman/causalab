@@ -291,10 +291,10 @@ ARTIFACT_IDENTITY_KEYS: tuple[str, ...] = (
     "trained_on_digest",
     "engine",
     # Which optional engine implementations a run actually applied — e.g.
-    # `attn_eager` when the nnsight engine forces eager attention to reach the
-    # pattern interior. Runtime provenance of the same kind as `engine`, and
-    # `neural/shared/execution.py` has always stamped it; it was missing here,
-    # so any nnsight run that wrote a tensor file raised on its own stamp.
+    # `attn_eager` when the nnterp engine forces eager attention to reach the
+    # pattern interior. Runtime provenance of the same kind as `engine`,
+    # stamped by `neural/shared/execution.py` on every tensor file such a run
+    # writes.
     "implementations",
     "loaded_attn_implementation",  # observed backend, inherited as runtime provenance
     "commit",

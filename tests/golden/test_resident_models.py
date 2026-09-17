@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from causalab.neural.engines.nnsight_tracing import loading as nnsight_loading
+from causalab.neural.engines.nnterp_engine import loading as nnterp_loading
 from causalab.neural.engines.pytorch_hooks import loading as hooks_loading
 from tests._helpers.resident_models import evict_resident_models
 
@@ -27,7 +27,7 @@ TINY_LLAMA = "hf-internal-testing/tiny-random-LlamaForCausalLM"
 def fresh_caches(monkeypatch: pytest.MonkeyPatch):
     """Empty loader caches for this test alone, the session's bundles untouched."""
     loaders = []
-    for module in (hooks_loading, nnsight_loading):
+    for module in (hooks_loading, nnterp_loading):
         fresh = module.load_model.renewed()
         monkeypatch.setattr(module, "load_model", fresh)
         loaders.append(fresh)
@@ -35,7 +35,7 @@ def fresh_caches(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_eviction_empties_both_loader_caches_and_the_next_load_is_fresh(fresh_caches):
-    hooks, nnsight = fresh_caches
+    hooks, nnterp = fresh_caches
     first = hooks(TINY_LLAMA)
     assert hooks(TINY_LLAMA) is first, (
         "the loader is cached; the test would prove nothing otherwise"
@@ -45,13 +45,13 @@ def test_eviction_empties_both_loader_caches_and_the_next_load_is_fresh(fresh_ca
     evict_resident_models()
 
     assert hooks.cache_info().currsize == 0
-    assert nnsight.cache_info().currsize == 0
+    assert nnterp.cache_info().currsize == 0
     assert hooks(TINY_LLAMA) is not first
 
 
 def test_eviction_is_idempotent_on_empty_caches(fresh_caches):
-    hooks, nnsight = fresh_caches
+    hooks, nnterp = fresh_caches
     evict_resident_models()
     evict_resident_models()
     assert hooks.cache_info().currsize == 0
-    assert nnsight.cache_info().currsize == 0
+    assert nnterp.cache_info().currsize == 0

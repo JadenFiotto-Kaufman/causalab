@@ -40,7 +40,7 @@ from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import FeaturizerSpec, parse_document
 
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

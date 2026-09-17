@@ -94,7 +94,7 @@ __all__ = ["FeaturizerStack", "Stage", "build_stack", "featurizer_cache"]
 #: one — is caught. The writer side records every fitted rotation's deviation
 #: and its verdict against this bar as ``orthonormality_deviation`` /
 #: ``within_tolerance`` in ``fit_diagnostics.json``
-#: (:func:`~causalab.neural.engines.pytorch_hooks.train.fit_diagnostics`),
+#: (:func:`~causalab.neural.shared.training.diagnostics.fit_diagnostics`),
 #: so a start refused here can be traced to the fit that produced it.
 ORTHONORMAL_TOLERANCE = 1e-4
 
@@ -141,7 +141,8 @@ def featurizer_cache(*, isolated: bool = False) -> Iterator[None]:
     a step loop that is host-bound. Profiled on the standard A3B workflow the
     ``cayley`` map issued more launches per DAS step than the whole MoE
     forward. The train loop opens one scope around a step's eager grad
-    forwards and loss, and one around an eval round (``train.py``); a CUDA
+    forwards and loss, and one around an eval round (an engine's ``train.py``,
+    ``shared/training/loop.py``); a CUDA
     graph capture opens one per captured pass (``cuda_graphs.Replay``).
 
     **What is shared, and why it is exact.** Under ``no_grad`` — the eval

@@ -83,7 +83,7 @@ COMPONENT_RANK: dict[str, int] = {
     "delta_qkv": 152,  # in_proj_qkv's fused [q|k|v] output, pre-conv
     "delta_gate": 154,  # in_proj_z's output — the output gate, produced early
     "delta_conv": 156,  # causal_conv1d_fn's return, channels-first
-    # The two pre-tiling faces only the nnsight engines serve (the typed
+    # The two pre-tiling faces only the nnterp engine serves (the typed
     # backend pairs), ranked where the forward computes them — the q/k
     # splits of the conv output, before the value split — because the
     # `.source` interiors refuse out-of-order requests and the one-name
@@ -110,7 +110,7 @@ COMPONENT_RANK: dict[str, int] = {
     "delta_kv_mem": 172,  # (S_{t-1}·exp(g_t) · k̂_t).sum — what the state recalls
     "delta_state_update": 174,  # (v_t − kv_mem_t)·β_t — the diagram's `delta`
     "delta_state": 176,  # S_t, one d_k × d_v matrix per head per step
-    # the per-chunk state the nnsight engine reads inside the chunked kernel,
+    # the per-chunk state the nnterp engine reads inside the chunked kernel,
     # before its return (the third typed pair)
     "deltanet_state": 177,
     "delta_kernel_output": 178,  # kernel return[0]: pre-norm, pre-gate
