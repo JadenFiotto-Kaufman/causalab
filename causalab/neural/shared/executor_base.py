@@ -563,9 +563,11 @@ def _attention_result(site: ResolvedSite, premix: torch.Tensor) -> torch.Tensor:
     module defines cannot be wrong about its own layout, and the bias — which is
     *not* attributable to any head — is subtracted back off explicitly.
 
-    ⚠️ Calls ``site.module`` directly, so it needs a real ``nn.Module``. That is
-    why the nnsight engine, whose ``site.module`` is an envoy, does not declare
-    this component.
+    ⚠️ Calls ``site.module`` directly, so it needs something that runs the
+    projection when called: a real ``nn.Module``, or an envoy inside a trace
+    body, where the call runs the module the envoy resolves to — which is how
+    the nnsight + nnterp engine derives it, in its block, over the gathered
+    rows.
     """
     module = site.module
     bias = getattr(module, "bias", None)
@@ -1488,10 +1490,7 @@ class ExecutorBase:
         """The (featurized, dims-selected) value of one read; runs its
         group (and, transitively, operand groups) on first use."""
         if name not in self._read_values:
-            self.check_write_widths()
-            self.check_answer_forms()
-            self.check_scoring()
-            self.check_edit_groups()
+            self._preflight()
             read = self.doc.reads[name]
             self._run_group(str(read.model), str(read.input))
         value = self._read_values[name]
@@ -1922,12 +1921,17 @@ class ExecutorBase:
             for row, row_steps in enumerate(steps)
         ]
 
-    def run_all(self) -> None:
-        """Run every group the document implies (all reads materialize)."""
+    def _preflight(self) -> None:
+        """The document-level checks every run makes before its first
+        forward, whichever door it came in by."""
         self.check_write_widths()
         self.check_answer_forms()
         self.check_scoring()
         self.check_edit_groups()
+
+    def run_all(self) -> None:
+        """Run every group the document implies (all reads materialize)."""
+        self._preflight()
         for read in self.doc.reads.values():
             self._run_group(str(read.model), str(read.input))
 
@@ -3021,6 +3025,14 @@ class ExecutorBase:
                 # asked only under a landing policy, the one place it is used
                 positioned=ragged is not None and self._positioned(value),
             )
+        resolved = self._artifact_operand(value)
+        if resolved is None:
+            raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
+        return resolved
+
+    def _artifact_operand(self, value: str) -> torch.Tensor | None:
+        """An operand the document's artifacts hold — a featurizer slot or a
+        ``params`` entry — or ``None`` when ``value`` names neither."""
         if "." in value:
             fname, slot = value.split(".", 1)
             if fname in self.doc.featurizers:
@@ -3040,7 +3052,7 @@ class ExecutorBase:
             raise NotImplementedError(
                 f"trainable free params ({value!r}) arrive with the train loop"
             )
-        raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
+        return None
 
     def _operand_routing(
         self, value: Any, rows: RowWindow | None = None
