@@ -20,7 +20,9 @@ payload:
   runs, so it stays importable);
 * run the **restored** tracer on its **restored** frame, bracketed in a trace
   scope, and collect the block variables marked by ``nnsight.save`` by
-  identity — NDIF's ``execute_traced_block``;
+  identity — NDIF's ``execute_traced_block`` — with what the block prints
+  kept per job, as NDIF sends each printed line to the waiting client as a
+  log;
 * send the saves home through ``torch.save`` / ``torch.load`` onto the CPU —
   the result blob.
 
@@ -37,6 +39,7 @@ fails here as it fails on NDIF.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib.metadata
 import io
@@ -53,11 +56,13 @@ __all__ = ["FaithfulServer", "Job"]
 @dataclasses.dataclass(frozen=True)
 class Job:
     """One request the server ran: the payload's size as pickled and as
-    NDIF's zstd level compresses it, and the names that came back."""
+    NDIF's zstd level compresses it, the names that came back, and the lines
+    the block printed."""
 
     raw_bytes: int
     zstd_bytes: int
     returned: tuple[str, ...]
+    logs: tuple[str, ...] = ()
 
 
 class FaithfulServer:
@@ -148,9 +153,11 @@ class FaithfulServer:
             else:
                 linecache.cache.pop(filename, None)
 
+        printed = io.StringIO()
         inc()
         try:
-            restored.execute(restored.info.code)
+            with contextlib.redirect_stdout(printed):
+                restored.execute(restored.info.code)
             saves = _saves()
             saved = {
                 name: value
@@ -169,6 +176,7 @@ class FaithfulServer:
                 raw_bytes=len(raw),
                 zstd_bytes=len(zstandard.ZstdCompressor(level=6).compress(raw)),
                 returned=tuple(sorted(result)),
+                logs=tuple(printed.getvalue().splitlines()),
             )
         )
         return result
