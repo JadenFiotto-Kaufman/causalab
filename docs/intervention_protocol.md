@@ -163,7 +163,8 @@ The smallest complete document — a harvest: one site, one read, one output:
   canonical forms, campaign digests, forward identities, and artifact metadata
   (`model_attn_implementation`). Workflow steps may set it through
   `set: {"model.attn_implementation": "flash_attention_2"}`. Omission keeps
-  the historical engine default (eager for hooks, model default for nnsight)
+  the historical engine default (eager for `pytorch_hooks`, the checkpoint's
+  default for `nnterp`)
   and adds no field to the canonical form. The chosen backend is the normal
   forward implementation; attention-interior operations can temporarily use
   eager and restore it afterward. See [attention backends](attention_backends.md).
@@ -865,12 +866,12 @@ them, and deliberately not the order:
   is still refused — those tensors have no per-expert axis.
   `expert_permutation` (integral, read-only) is the serving kernel's row
   bookkeeping for anyone aligning raw kernel-order tensors; it lives inside
-  the fused forward where no module boundary exists, so only the nnsight
+  the fused forward where no module boundary exists, so only the nnterp
   engine's `.source` address table serves it. The other interior components
   are served by both engines — the reference engine through the dispatch
-  wrapper above, the nnsight engine through its `.source` addresses — with
-  the same token-major presentation and the same pre-routing-weight
-  `expert_output`.
+  wrapper above, the nnterp engine through its `.source` addresses — with
+  the same token-major presentation, the same ragged `expert:` face and the
+  same pre-routing-weight `expert_output`.
 - **`expert_idx` is a routing table, not a feature space** — the same rule as
   `input_ids`: integer ids, no featurizer, no width. And `router_scores` has a
   width but its axis is a per-token **ranking**, not a basis: column *k* is the
@@ -894,9 +895,9 @@ them, and deliberately not the order:
   components below — the delta rule the tensor belongs to, not the modeling
   file's variable names — and **both engines serve every one of them**: the
   reference engine at module boundaries and by swapping the kernel globals,
-  the nnsight engine through envoys and its `.source` address table, each
+  the nnterp engine through envoys and its `.source` address table, each
   translating the one name to its own mechanism. Eight `deltanet_*` spellings
-  that used to name the same tensors for the nnsight engine
+  of the same tensors
   (`deltanet_qkv` → `delta_qkv`, `deltanet_qkv_conv` → `delta_conv`,
   `deltanet_gate` → `delta_gate`, `deltanet_value` → `delta_value`,
   `deltanet_beta` → `delta_beta`, `deltanet_decay` → `delta_decay`,
@@ -912,11 +913,12 @@ them, and deliberately not the order:
   the two captures relate. `deltanet_query` and `deltanet_key` are the q/k
   splits **before** the GVA `repeat_interleave` — *key-head* space, the
   linear-attention analogue of GQA — where `delta_query` / `delta_key` are the
-  kernel's arguments after it (`gva_tile`: exact after tiling); and
+  kernel's arguments after it, which both engines read off the kernel call
+  (`gva_tile`: exact after tiling); and
   **`deltanet_state`** is the recurrent state once per 64-token prefill
   chunk, its position axis the **kernel's chunk index**, where `delta_state`
   is per step (`chunk_boundary`: the chunk's state is the step-state at the
-  chunk's last position). Those three are served by the nnsight engine
+  chunk's last position). Those three are served by the nnterp engine
   alone; per-token prefill state does not exist there — the recurrent kernel
   runs only in single-token decode, by the modeling code's own dispatch — so
   it is refused by name rather than served at a granularity the kernel does
@@ -1038,7 +1040,7 @@ them, and deliberately not the order:
   delta-rule state"), and a family with no linear stream anywhere (llama,
   GPT-2) hits that refusal at every layer. The conv output and the kernel
   boundary are *function* taps on the reference engine — the
-  `conv1d` module never fires — and `.source` lines on the nnsight engine;
+  `conv1d` module never fires — and `.source` lines on the nnterp engine;
   both engines serve all three module boundaries as ordinary module taps.
 - **Seven more DeltaNet boxes live at the kernel boundary**, as
   arguments and returns of two module-global call sites the forward uses:
@@ -1060,7 +1062,7 @@ them, and deliberately not the order:
   run the recurrent kernel and `causal_conv1d_update`) are tapped identically
   to prefill — `delta_key` therefore reads in the generated frame on the
   reference engine, unlike `attention_key` (the kernel receives one step's k,
-  not the prefix); the nnsight engine serves the kernel boundary in the
+  not the prefix); the nnterp engine serves the kernel boundary in the
   prompt frame only, until a decode address is verified. A `kernelize()`d
   mixer (a hub-kernel class forward) is refused by name, as is a family whose
   modeling file does not export the four globals. The untiled q/k are
@@ -4364,9 +4366,9 @@ never name devices, hosts, or job systems. The division of labor:
   re-run pinned there packs its grad windows smaller than this one did. A
   grad budget that never resolved (off CUDA) stays `null` whatever its eval
   windows did.
-  Pinning `--engine nnsight` together with `--batch-rows N` is refused
+  Pinning `--engine nnterp` together with `--batch-rows N` is refused
   at the command line, since nothing would honour the bound; under `auto`
-  the receipt records `null` when the nnsight engine serves the document.
+  the receipt records `null` when the nnterp engine serves the document.
   It is *recorded, not gated*: a layout-dependent flip in a top-1
   token is something a reader of the two receipts can see and attribute,
   never something a run refuses over, and it stays out of the canonical
@@ -4416,9 +4418,9 @@ never name devices, hosts, or job systems. The division of labor:
   the CLI's `--fit-rows N`, and a workflow step's `execution` block (workflow
   spec §2.2), which overrides the engine's bound for that step — recorded in
   the receipt as `execution.fit_rows` (`null` for an unbounded fit and for an
-  engine with no grad path) and entering no canonical form, no digest and
-  no stamp. `--engine nnsight` with `--fit-rows N` is refused for the same
-  reason `--batch-rows` is. A later execution parameter adds its own key
+  engine with no such bound) and entering no canonical form, no digest and
+  no stamp. `--engine nnterp` with `--fit-rows N` is refused for the same
+  reason `--batch-rows` is: that engine runs each minibatch's forward whole. A later execution parameter adds its own key
   beside these; nothing else belongs in the block. What the run *observed*
   is recorded beside it, never in it: the `scoring` block (sec. 2.2) and
   the `fires` block (sec. 4) — both layout-invariant, so two layouts of one
@@ -4598,8 +4600,11 @@ The contract both sides keep:
   is `caller` for a bundle run and `loaded` otherwise (§8) — execution
   provenance, in no canonical form and no digest.
 
-Both engines take `bundle=` (the nnsight engine an `NnsightBundle`); `from_model`
-is the reference engine's constructor. The CLI has no bundle flag: a
+Both engines take `bundle=` (the nnterp engine an `NnterpBundle`); `from_model`
+is the reference engine's constructor. The nnterp engine's `remote=` — its
+forwards on NDIF, against a weight-free bundle — is a Python caller's option
+too: it needs a trusted deployment with the same `causalab` installed
+server-side, which no command-line flag can state. The CLI has no bundle flag: a
 caller-owned model is a Python caller's situation.
 
 The verbs dispatch on the document's shape: a **workflow** (it has `steps`)

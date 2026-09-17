@@ -1,7 +1,7 @@
 # Optional attention backends
 
 The base install needs neither FlashAttention nor Flash Linear Attention (FLA).
-The `pytorch_hooks` reference engine loads eager full attention; `nnsight`
+The `pytorch_hooks` reference engine loads eager full attention; `nnterp`
 keeps the model's Transformers default (normally SDPA). For supported linear
 attention models such as Qwen3.5/3.6, Transformers supplies PyTorch delta-rule
 and causal-convolution fallbacks when the optional packages are absent.
@@ -26,7 +26,7 @@ weights are not on CUDA (a CPU test model, a caller-owned CPU model) to
 Transformers' torch implementations for the duration of each forward
 (`causalab/neural/shared/kernels.py`). Installing the extra therefore leaves the
 CPU test tiers and CPU runs unchanged. The extras
-are independent of `nnsight`; a runtime install using that engine also needs
+are independent of the `nnterp` engine; a runtime install using that engine also needs
 `--extra nnsight` (the dev group already includes it).
 
 These extras are guarded by Linux package markers; selecting them on macOS or
@@ -131,12 +131,12 @@ caller-owned model must match the document's declared backend; the engine
 refuses a mismatch before running it.
 
 Omitting the field preserves the existing engine defaults: eager for hooks,
-and the Transformers model default for nnsight. An explicit eager choice is
+and the Transformers model default for `nnterp`. An explicit eager choice is
 distinct from omission, since omission leaves that choice to the engine. The
 engine constructor has no backend option: the JSON is the source of truth.
 
-The nnsight executor temporarily switches to eager attention for traces that
-need attention scores or probabilities, and restores the selected backend
+The nnterp executor temporarily switches to eager attention, inside the traced
+block, for traces that need attention scores or probabilities, and restores the selected backend
 afterward. The hooks executor similarly switches a forward to eager when it
 reads or writes `attention_query`, `attention_key`, `attention_scores`,
 `attention_probs`, or `attention_z`. Module-boundary interventions, including

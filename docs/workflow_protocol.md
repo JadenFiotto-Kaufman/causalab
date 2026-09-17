@@ -868,7 +868,7 @@ says so, or says how to sample:
 | mode | fields | meaning |
 |---|---|---|
 | `deterministic` | none | the argmax at every step — byte for byte the document's own decode, so the same document under this mode produces what it produces today |
-| `sampled` | `seed` ✓, `temperature` (default `1.0`, `> 0`), `top_p` (default `1.0`, in `(0, 1]`) | each token is one draw from `softmax(logits / temperature)` restricted to the smallest set whose mass reaches `top_p`, from a generator seeded once per decode window with `seed`. The same seed under the same batch geometry draws the same tokens; sampled decoding is **not** bit-reproducible across geometries on a GPU, so "same seed ⇒ same bytes" is a CPU-fixture claim and a differing-geometry run is recorded, not gated. Only the reference engine samples: a `sampled` step routed to the `nnsight` engine is refused before its model loads, naming the engine and `deterministic` |
+| `sampled` | `seed` ✓, `temperature` (default `1.0`, `> 0`), `top_p` (default `1.0`, in `(0, 1]`) | each token is one draw from `softmax(logits / temperature)` restricted to the smallest set whose mass reaches `top_p`, from a generator seeded once per decode window with `seed`. The same seed under the same batch geometry draws the same tokens; sampled decoding is **not** bit-reproducible across geometries on a GPU, so "same seed ⇒ same bytes" is a CPU-fixture claim and a differing-geometry run is recorded, not gated. Only the reference engine samples: a `sampled` step routed to the `nnterp` engine is refused before its model loads, naming the engine and `deterministic` |
 
 Both modes accept optional `eos_token_ids`, a nonempty list of distinct
 nonnegative token IDs. The PyTorch engine otherwise uses the model generation
@@ -1802,7 +1802,7 @@ validity stays with the IM loader, run in full.
     `min_correct_rate` (numbers in `[0, 1]`); every `decision` value is from
     the closed set; `retain.generations` is `"all"` or `{max_rows: n}` — an
     unbounded retention is never implicit. At run time, a `sampled` step
-    routed to an engine that only decodes greedily (`nnsight`) is refused
+    routed to an engine that only decodes greedily (`nnterp`) is refused
     under this rule before its model loads, naming the engine and
     `deterministic`. The refusal **names the field**.
 18. **A decision, a conditional and a receipt are typed and bound** (§2.8). A
@@ -2438,7 +2438,7 @@ tracked as future work.
 - **Two reference grammars** (§3): a `set` block is where the workflow grammar
   and the IM spec's meet. Options are to align the IM spec on the simpler form,
   or to let `set` accept the workflow grammar and translate.
-- **Per-step engine pinning**: the second engine exists (`nnsight`, beside the
+- **Per-step engine pinning**: the second engine exists (`nnterp`, beside the
   reference `pytorch_hooks`), so this is live work rather than a hypothetical.
   `--engine` is run-level: it hands the runner one engine list and every
   protocol step routes against it, which is enough for a step that *requires* a

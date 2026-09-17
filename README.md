@@ -4,7 +4,7 @@
 
 A framework for **mechanistic interpretability** — reverse-engineering the algorithms language models use internally using **causal abstraction**.
 
-You write a high-level causal model describing *how you think* an LM solves a task, then run experiments to test whether the LM's internal components actually implement that algorithm. Every experiment is a serializable **intervention protocol** — a JSON document naming sites, reads, edits, intervened models, and metrics — validated, digested, and executed by an engine. The document is the seam: engines (the pytorch-hooks reference engine and the nnsight tracing engine today; tensor-parallel engines tomorrow) implement against the same format.
+You write a high-level causal model describing *how you think* an LM solves a task, then run experiments to test whether the LM's internal components actually implement that algorithm. Every experiment is a serializable **intervention protocol** — a JSON document naming sites, reads, edits, intervened models, and metrics — validated, digested, and executed by an engine. The document is the seam: engines (the pytorch-hooks reference engine and the nnterp engine — nnsight traces over nnterp's standardized tree, locally or on NDIF — today; tensor-parallel engines tomorrow) implement against the same format.
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ You write a high-level causal model describing *how you think* an LM solves a ta
 | `explain <doc>` | models, forward plan, point count, derived `requires`, digest, save products |
 | `digest <doc>` | the campaign digest |
 
-Common flags: `--set path=value` (ad-hoc override — exploration only), `--data-root` / `--artifacts-root` (resolution roots; the tables the tasks ship under `causalab/tasks/<task>/data/` are always reachable behind them), `--max-points` (override the sweep point cap), `--register-from-hf` (resolve an unregistered model key from its HF config — `run` always does; the pure verbs need the flag, so a digest never depends on the network), `--device` (engine placement, `run` only), `--batch-rows N` (reference-engine microbatch bound, `run` only — execution, recorded in the receipt and in no digest), `--engine` (`pytorch_hooks` · `nnsight` · `auto` — pin one, or let §8 route; on `explain` it previews the routing).
+Common flags: `--set path=value` (ad-hoc override — exploration only), `--data-root` / `--artifacts-root` (resolution roots; the tables the tasks ship under `causalab/tasks/<task>/data/` are always reachable behind them), `--max-points` (override the sweep point cap), `--register-from-hf` (resolve an unregistered model key from its HF config — `run` always does; the pure verbs need the flag, so a digest never depends on the network), `--device` (engine placement, `run` only), `--batch-rows N` (reference-engine microbatch bound, `run` only — execution, recorded in the receipt and in no digest), `--engine` (`pytorch_hooks` · `nnterp` · `auto` — pin one, or let §8 route; on `explain` it previews the routing).
 
 `--dtype` (shorthand for `--set model.dtype=…`: precision is a document fact, so it enters the digest) and `--points START:STOP` (execute one shard of a swept campaign — the seam external schedulers dispatch on; digests are unaffected) are **intervention specifications only**; a workflow run refuses both. The same verbs dispatch on workflow documents (they carry a `steps` section), which take `--resume` (skip a step whose outputs carry a matching stamped digest) and `--reuse-nondeterministic` instead.
 
@@ -103,7 +103,7 @@ causalab/
 │   │                #   mechanisms, featurizers, metrics, outputs, executor base
 │   ├── engines/
 │   │   ├── pytorch_hooks/    # the reference engine: hooks, decode, train loop
-│   │   └── nnsight_tracing/  # the nnsight engine: traces (the 'nnsight' extra)
+│   │   └── nnterp_engine/    # the nnterp engine: nnsight traces (the 'nnsight' extra)
 │   └── token_positions.py
 ├── analysis/        # numerical analysis a script step runs (fits, statistics, operands)
 ├── workflow/        # the workflow runner: run-tree overlay, script invocation, manifest

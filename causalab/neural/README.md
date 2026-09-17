@@ -14,15 +14,16 @@ map, and `docs/running_experiments.md` §6 is the user-facing routing table.
   engine plugs its forward into).
 - `engines/pytorch_hooks/` — the **reference** engine: raw module hooks, plus
   the interior taps no hook can reach (the eager attention call, the Gated
-  DeltaNet kernel boundary, the routed-experts dispatch) and the `train`
-  runner — cohorts, row budgets, captured graphs — which is why it is the only
-  registered engine declaring `grad`.
-- `engines/nnsight_tracing/` — the second engine: one trace over an envoy tree,
-  with fused-forward interiors addressed through nnsight `.source`.
-- `engines/nnsight_nnterp/` — the nnterp engine, outside the closed
-  registry (a caller's explicit choice): one trace per forward group over
-  nnterp's standardized tree, locally or on NDIF. It declares `grad` too — its
-  `train.py` fits a document on the shared loop, locally.
+  DeltaNet kernel boundary, the routed-experts dispatch) and its `train`
+  runner — cohorts, row budgets, captured graphs.
+- `engines/nnterp_engine/` — the second engine, registry name `nnterp`: each
+  forward group planned into a frozen program and run as one nnsight trace
+  over nnterp's standardized tree — envoys for module boundaries, a `.source`
+  address table for fused-forward interiors, one `model.generate` trace for a
+  continuation read — in this process or, with `remote=`, on NDIF (one
+  session per point, against a weight-free bundle; it needs a trusted
+  deployment with the same `causalab` installed server-side). It declares
+  `grad` too — its `train.py` fits a document on the shared loop, locally.
 - `token_positions.py` — char→token position utilities (offset-mapping based,
   chat-prefix aware). Backbone-agnostic; the task packages' `token_positions.py`
   modules build on it. The protocol-native position service is
@@ -33,10 +34,9 @@ map, and `docs/running_experiments.md` §6 is the user-facing routing table.
 
 The two engines' answers are asserted to agree over the whole shared component
 vocabulary, read and written — on a tiny fixture in
-`tests/neural/engines/nnsight_tracing/test_parity_a3b_sweep.py` and on the real
+`tests/neural/engines/nnterp_engine/test_parity_a3b_sweep.py` and on the real
 Qwen3.6-35B-A3B in `tests/golden/test_a3b_engine_parity.py`.
 
-Everything else that used to live here — the Plan IR and its scheduler, the old
-nnsight *pipeline*, spec persistence — was replaced by the protocol layer
-(`causalab/protocol`) plus the engines above. The nnterp engine here is not
-that pipeline returning; it is a protocol engine like the reference one.
+Scheduling, planning and persistence are the protocol layer's
+(`causalab/protocol`); the nnterp engine is a protocol engine like the
+reference one, not a pipeline of its own.

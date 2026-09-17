@@ -20,7 +20,7 @@ the commit a result was produced from.
 ## Setup
 
 ```bash
-uv sync                       # the nnsight engine ships in the dev group
+uv sync                       # the nnterp engine ships in the dev group
 uv run causalab --help
 ```
 
@@ -383,7 +383,7 @@ uv run causalab dry-run patch.json --data-root data --artifacts-root . \
 # sites
 #   target: block_output layer 20: available
 #     shape (batch, position, feature), width 2560, no head axis
-#     reads nnsight, pytorch_hooks; writes add_scaled, affine, clamp, gaussian, lerp, pytorch_fn, renormalize, swap
+#     reads nnterp, pytorch_hooks; writes add_scaled, affine, clamp, gaussian, lerp, pytorch_fn, renormalize, swap
 #   lm_head: lm_head: available
 #     …
 # undecided (decided when the run encodes its inputs): engines, inventory, tokenization, pair_validity, controls
@@ -455,7 +455,7 @@ uv run causalab run patch.json --data-root data --artifacts-root . \
 | `--artifacts-root` | where a relative artifact `file_path` resolves. It merely *defaults* to `.`, so passing it is what keeps absolute machine paths out of a digest — pass it in every invocation |
 | `--engine` | `auto` (default: every installed engine, reference first, routed by `choose_engine`), or name one to pin it — see [§6](#6-engines-and-routing) |
 | `--points START:STOP` | execute one half-open slice of an expanded sweep; the seam to shard a campaign on |
-| `--batch-rows N` | reference engine: run a forward group over more than `N` rows as several forwards of at most `N` rows each, captures concatenated in row order. Execution only — the numbers equal the single-forward run up to dtype rounding, digests and stamps are unaffected, and the run receipt records the bound as `execution.batch_rows` — see [§6](#6-engines-and-routing). Refused together with `--engine nnsight`, which runs one batch per group and would honour no bound |
+| `--batch-rows N` | reference engine: run a forward group over more than `N` rows as several forwards of at most `N` rows each, captures concatenated in row order. Execution only — the numbers equal the single-forward run up to dtype rounding, digests and stamps are unaffected, and the run receipt records the bound as `execution.batch_rows` — see [§6](#6-engines-and-routing). Refused together with `--engine nnterp`, which runs one batch per group and would honour no bound |
 | `--resume` | reuse completed outputs whose inputs and code hash are unchanged. A **workflow** flag: refused on a single intervention specification, which has no step boundaries to resume at — wrap it in a workflow step. The first `run` of a workflow also stamps its `pins` section, the digests of everything it touches, which every later load is held to (`causalab pin` re-stamps after a meant change; workflow spec §7) |
 | `--register-from-hf` | resolve an unregistered `model.key` from its HF config instead of refusing `[V4]`; `run` always does this, the pure verbs only on request |
 
@@ -514,7 +514,7 @@ component→stream table the mixer check reads. The table sits between
 never edited by hand.
 
 ⚠️ **The engines column is information, not something to author.** It names
-engines the way `--engine` does — `pytorch_hooks`, `nnsight` — since those are
+engines the way `--engine` does — `pytorch_hooks`, `nnterp` — since those are
 the values the flag takes and the names the engines answer to. But a document
 never names an engine: it declares the components it addresses, `requires`
 derives the capabilities from those, and `choose_engine` picks (§8). So read a
@@ -524,7 +524,7 @@ and check the routing rather than copying the name:
 ```bash
 uv run causalab explain patch.json --data-root data --artifacts-root . \
     --engine auto
-# ... engine    nnsight
+# ... engine    nnterp
 ```
 
 
@@ -673,33 +673,36 @@ run makes from the module tree.
 
 ### `delta_*` and `deltanet_*`: one name per tensor, three typed pairs
 
-The DeltaNet interior used to appear twice in the table, because the two
-engines reach it by unrelated mechanisms — the reference engine swaps the
-modeling file's kernel globals for the extent of one mixer forward, the
-nnsight engine drills `.source` inside the fused forward — and each named
-what it could serve. 📐 Measured on the fixture and asserted at both test
-tiers, eight of the eleven pairs were the *same tensor*: same shape, same
-timing, max abs diff 0.0. Those eight carry **one name each**
+The two engines reach the DeltaNet interior by unrelated mechanisms — the
+reference engine swaps the modeling file's kernel globals for the extent of
+one mixer forward, the nnterp engine drills `.source` inside the fused
+forward. 📐 Measured on the fixture and asserted at both test tiers, eight of
+the eleven `delta_*` / `deltanet_*` pairs are the *same tensor*: same shape,
+same timing, max abs diff 0.0. Those eight carry **one name each**
 (`delta_qkv`, `delta_conv`, `delta_gate`, `delta_value`, `delta_beta`,
 `delta_decay`, `delta_kernel_output`, `delta_premix`), served by both engines,
-and the `deltanet_*` spellings that named them are aliases: a document that
-authors `deltanet_core_out` parses and digests as `delta_kernel_output`
+and their `deltanet_*` spellings are aliases: a document that authors
+`deltanet_core_out` parses and digests as `delta_kernel_output`
 (`schema.DEPRECATED_COMPONENTS`, spec §2.4). The three pairs whose tensors
-differ in shape or timing stay two names, each served by one engine, with the
-relation declared as a row (`registry.BACKEND_PAIRS`):
+differ in shape or timing stay two names, with the relation declared as a row
+(`registry.BACKEND_PAIRS`). The `deltanet_*` face is the nnterp engine's
+alone; the `delta_*` one is the reference engine's, and the nnterp engine's
+too where it reads the same tensor (the tiled q/k are the kernel call's
+arguments):
 
-| `pytorch_hooks` | `nnsight` | relation |
+| `delta_*` | `deltanet_*` (`nnterp` only) | relation |
 |---|---|---|
-| `delta_query` `delta_key` | `deltanet_query` `deltanet_key` | `gva_tile` — `delta_*` is **post** GVA `repeat_interleave` (32 value heads); `deltanet_*` is **pre** (16 key heads). Exact after tiling. |
-| `delta_state` | `deltanet_state` | `chunk_boundary` — per **step** vs per 64-token **chunk**; the chunk's state is the step-state at the chunk's last position |
+| `delta_query` `delta_key` (both engines) | `deltanet_query` `deltanet_key` | `gva_tile` — `delta_*` is **post** GVA `repeat_interleave` (32 value heads); `deltanet_*` is **pre** (16 key heads). Exact after tiling. |
+| `delta_state` (`pytorch_hooks` only) | `deltanet_state` | `chunk_boundary` — per **step** vs per 64-token **chunk**; the chunk's state is the step-state at the chunk's last position |
 
 An alias across one of these would *rebind* rather than redirect — hand one
-engine's tensor to the other engine's math — and `registry.alias_would_rebind`
+face's tensor to the other face's math — and `registry.alias_would_rebind`
 refuses it by the declared relation (a census holds the alias table to it). So
-name the tensor, not the engine: the eight one-name components route to
-whichever engine is listed first; if you need per-step state, that is
-`delta_state` on the reference engine, and the pre-tiling q/k are
-`deltanet_query` / `deltanet_key` on the nnsight engine.
+name the tensor, not the engine: the one-name components route to
+whichever engine is listed first; if you need per-step state (or
+`delta_kv_mem` / `delta_state_update`, which the chunked prefill kernel
+never materializes), that is the reference engine, and the pre-tiling q/k are
+`deltanet_query` / `deltanet_key` on the nnterp engine.
 
 ### Reading state and attention is expensive
 
@@ -720,7 +723,7 @@ declares what it needs, and `choose_engine` takes the first engine in the list
 whose capabilities cover it. **`--engine auto` is the default**: every installed
 engine with the reference first. List order is preference, so anything the
 reference serves behaves exactly as pinning `pytorch_hooks` would — while a
-document only the nnsight engine can serve runs instead of refusing by name.
+document only the nnterp engine can serve runs instead of refusing by name.
 Pinning one engine is then a deliberate act (a parity check, or reproducing a
 run that named one), not the thing you fall into by not passing a flag.
 
@@ -745,13 +748,29 @@ Both engines run **one device per run** (no `device_map` sharding). The
 reference engine runs a forward group as one batch unless `--batch-rows N`
 bounds it to row windows of at most `N` (§8, execution scale — the numbers are
 equal up to dtype rounding and digests are unaffected; the run receipt records
-the bound as `execution.batch_rows`); the nnsight engine always runs one batch
-per group. A `train` document routes to the reference engine because only it
-declares `grad`.
+the bound as `execution.batch_rows`); the nnterp engine always runs one batch
+per group. Both engines declare `grad` and fit a `train` document on the same
+shared loop (featurizer slots, fp32 losses, evals on epoch boundaries), so
+under `auto` a fit runs on the reference engine, listed first, unless it
+addresses a component only the nnterp engine serves.
+
+The nnterp engine plans each forward group into a frozen program and runs it
+as one nnsight trace over nnterp's standardized tree — the same block list,
+embedding, final norm and head under one set of names for every architecture
+nnterp standardizes; a tree no registered family detects still serves the
+block-shaped taps, and an interior its `.source` address table has no row for
+is refused by name. A continuation read runs the group as one
+`model.generate` trace. The same program runs **remotely on NDIF**
+(`NnterpEngine(remote=True)`, a Python-API option): a whole point is one
+session, operands flowing between its traces on the server, against a
+weight-free client bundle. Remote mode needs a trusted, in-process NDIF
+deployment with the same `causalab` installed server-side, and a remote
+engine neither declares `grad` nor fits a `train` document — a remote
+forward returns detached saves.
 
 The two engines' answers are asserted to agree over the whole shared vocabulary,
 read and written, at both test tiers —
-`tests/neural/engines/nnsight_tracing/test_parity_a3b_sweep.py` on the tiny
+`tests/neural/engines/nnterp_engine/test_parity_a3b_sweep.py` on the tiny
 fixture and `tests/golden/test_a3b_engine_parity.py` on the real checkpoint.
 
 ## 7. Running at scale
