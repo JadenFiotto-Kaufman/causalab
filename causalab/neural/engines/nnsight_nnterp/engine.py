@@ -6,17 +6,25 @@ orchestration. It is **not registered** in the closed engine registry
 (``registry.ENGINES``): its component set is computed from the family taps
 it can land rather than read from a capability row, and routing to it is a
 caller's explicit choice (``run_protocol(..., [NnterpEngine()])``).
+
+It declares ``grad``: a ``train`` document is fitted by ``train.run_training``
+on the shared loop — featurizer slots, fp32 losses, evals on epoch
+boundaries, so none of ``train_free_params``, ``train_loss_precision`` and
+``train_eval_updates``. Training needs the autograd graph of a forward in
+this process, so a ``remote`` engine drops ``grad`` and refuses a ``train``
+document that reaches it anyway.
 """
 
 from __future__ import annotations
 
 import functools
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
 from causalab.neural.engines.nnsight_nnterp.loading import NnterpBundle, load_model
 from causalab.neural.engines.nnsight_nnterp.sources import components_addressed
-from causalab.neural.shared.execution import execute_request
+from causalab.neural.engines.nnsight_nnterp.train import run_training
+from causalab.neural.shared.execution import TrainOutcome, execute_request
 from causalab.neural.shared.services import (
     check_caller_bundle,
     load_table,
@@ -72,7 +80,7 @@ class NnterpEngine(Engine):
     components = served_components()
     writable_components = served_components()
     capabilities = frozenset(
-        {"paired_forward", "full_logits", "pytorch_fn_local", "generate"}
+        {"grad", "paired_forward", "full_logits", "pytorch_fn_local", "generate"}
     ) | _write_verbs(served_components())
     is_local = True
 
@@ -91,6 +99,18 @@ class NnterpEngine(Engine):
         #: ``None`` inherits the bundle's own — here for a bundle this engine
         #: loads, on NDIF for a weight-free bundle the caller hands in.
         self.remote = remote
+        if self._runs_remotely:
+            # a remote forward returns detached saves: nothing to fit through
+            self.capabilities = type(self).capabilities - {"grad"}
+
+    @property
+    def _runs_remotely(self) -> bool:
+        """Whether the forwards leave this process — ``remote`` as given, or
+        as inherited from a weight-free bundle the caller handed in (the
+        executor's own rule)."""
+        if self.remote is None:
+            return bool(getattr(self.bundle, "remote", False))
+        return bool(self.remote)
 
     @property
     def model_source(self) -> str:
@@ -103,8 +123,25 @@ class NnterpEngine(Engine):
             executor_factory=lambda doc, req, coords, _interning: self._executor(
                 doc, req, coords=coords
             ),
-            train_runner=None,
+            train_runner=self._train,
         )
+
+    def _train(
+        self,
+        docs: Sequence[Document],
+        executors: Sequence[NnterpExecutor],
+        request: ExecutionRequest,
+    ) -> list[TrainOutcome]:
+        if self._runs_remotely:
+            raise ProtocolError(
+                "P4",
+                "this document declares a train section, which the "
+                f"{self.name!r} engine fits through the autograd graph of a "
+                "forward in this process — a remote forward returns detached "
+                "saves, so no gradient reaches a trained parameter; fit "
+                "against a locally loaded bundle (remote=False)",
+            )
+        return run_training(docs, executors, request)
 
     def _executor(
         self,

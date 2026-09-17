@@ -16,9 +16,13 @@ map, and `docs/running_experiments.md` §6 is the user-facing routing table.
   the interior taps no hook can reach (the eager attention call, the Gated
   DeltaNet kernel boundary, the routed-experts dispatch) and the `train`
   runner — cohorts, row budgets, captured graphs — which is why it is the only
-  engine declaring `grad`.
+  registered engine declaring `grad`.
 - `engines/nnsight_tracing/` — the second engine: one trace over an envoy tree,
   with fused-forward interiors addressed through nnsight `.source`.
+- `engines/nnsight_nnterp/` — the nnsight + nnterp engine, outside the closed
+  registry (a caller's explicit choice): one trace per forward group over
+  nnterp's standardized tree, locally or on NDIF. It declares `grad` too — its
+  `train.py` fits a document on the shared loop, locally.
 - `token_positions.py` — char→token position utilities (offset-mapping based,
   chat-prefix aware). Backbone-agnostic; the task packages' `token_positions.py`
   modules build on it. The protocol-native position service is

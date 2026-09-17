@@ -34,11 +34,18 @@ Tiering, as built:
   every other interior in the generated frame (the decode dispatches
   different kernels, so a prefill address is no evidence the tensor exists
   per step). The reference engine serves all of it;
+* **trained locally** — a ``train`` document (§2.11) is fitted by
+  :mod:`.train` on the shared loop (:mod:`causalab.neural.shared.training`):
+  each minibatch a gradient-enabled executor whose groups run under
+  ``torch.enable_grad()`` — cacheless, as every prompt forward is — and keep
+  their reads on the device with their graph, the backward run once the traces have exited, every fit
+  a cohort of one. Featurizer slots only, fp32 losses, evals on epoch
+  boundaries — the reference engine's tier, and on CPU fp32 its weights to
+  the bit. A ``remote`` engine drops ``grad`` and refuses the document: a
+  remote forward returns detached saves;
 * **unclaimed** — cross-point interning (§3): the engine takes the
-  campaign's handle and drops it, so every point runs its own forwards.
-
-Gradient-enabled groups run under ``torch.enable_grad()`` so the training
-tier can build on the same ``_run_group``; nothing here trains yet.
+  campaign's handle and drops it, so every point runs its own forwards — a
+  fit's source forward included, on every step.
 
 The engine is **NDIF-shaped**, with one code path for local and remote
 execution. nnsight ships a traced block as its source plus every name the
