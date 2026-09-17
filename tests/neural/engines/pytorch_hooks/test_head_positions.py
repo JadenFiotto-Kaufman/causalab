@@ -64,12 +64,14 @@ from tests.neural.engines.pytorch_hooks.test_fit_cohort import (
     _train_doc,
 )
 from tests.neural.engines.pytorch_hooks.test_rotation_round_trip import _fit, das_doc
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,
-    WRONG,
     dbm_doc,
+)
+from tests.neural.engines.pytorch_hooks.test_train import (
+    WRONG,
 )
 
 unit = pytest.mark.unit

@@ -38,7 +38,7 @@ from causalab.neural.engines.pytorch_hooks.train import TrainingObjective, _slot
 from causalab.neural.shared.encoding import EncodedBatch, first_real_indices
 
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

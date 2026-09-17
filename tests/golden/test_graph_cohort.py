@@ -34,7 +34,7 @@ from causalab.protocol.plan import plan_point
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
 from tests.golden.test_cuda_graphs import Datasets, document
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

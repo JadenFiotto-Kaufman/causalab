@@ -25,7 +25,7 @@ from causalab.protocol.resolve import ResolutionEnv
 from tests.neural.engines.pytorch_hooks._drive import executor_for
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
 from tests.neural.engines.pytorch_hooks.test_fit_cohort import _InlineDatasets
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

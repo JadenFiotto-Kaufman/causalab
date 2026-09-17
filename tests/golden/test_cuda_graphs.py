@@ -27,7 +27,7 @@ from causalab.neural.shared.training import fit as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,

@@ -40,13 +40,15 @@ from causalab.protocol.schema import Document, parse_document
 
 from tests.neural.engines.pytorch_hooks._drive import executor_for
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,
-    _drawn_executor,
     das_doc,
     dbm_doc,
+)
+from tests.neural.engines.pytorch_hooks.test_train import (
+    _drawn_executor,
 )
 from tests.protocol._docs import in_order
 

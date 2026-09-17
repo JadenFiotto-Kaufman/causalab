@@ -12,7 +12,7 @@ from causalab.neural.engines.pytorch_hooks.graph_reuse import (
     fit_signature,
 )
 from tests.neural.engines.pytorch_hooks._drive import executor_for
-from tests.neural.engines.pytorch_hooks.test_train import (
+from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,
