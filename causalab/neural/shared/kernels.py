@@ -22,7 +22,7 @@ the same decorator with a package that cannot import, and restores them on
 exit. The wrapper rather than the bare function, because the module global's
 *shape* is part of the nnterp engine's address table: its ``.source``
 interiors peel the hub wrapper's ``implementation_0`` call before descending
-into the torch body (``nnsight_tracing/addresses.py``), and a bare function
+into the torch body (``nnterp_engine/sources.py``), and a bare function
 has nothing to peel. A CUDA model is untouched, so an installed kernel keeps
 serving it; a machine without the extras is untouched too, because its module
 globals already dispatch to the torch functions (checked through the
@@ -39,10 +39,12 @@ For those, :func:`bind_kernel_path` binds a family's globals for the device a
 model was **loaded** on, and stays: the reference engine's loader calls it, so
 on a machine with the extras a CPU load leaves the family on the torch path and
 a later CUDA load puts the installed kernels back — the most recent load's
-device decides what a bare forward of that family runs. The nnsight loader
-calls it with the device it was asked for (its weights are placed on first
-trace, so at load nothing can be read off them); its executor's forwards go
-through the guard as well.
+device decides what a bare forward of that family runs. The nnterp engine's
+loader calls it with the device it was asked for; its executor's forwards go
+through the guard as well, and so does its first access of a mixer's
+``.source``: nnsight's instrumented forward runs over a snapshot of the
+modeling module's globals taken at that access, so the kernels bound then
+are the ones that forward calls from then on.
 
 Restore-on-exit for the guard rather than rebinding at load: module globals are process
 state, and a process may hold a CPU model and a CUDA model of the same family
@@ -172,7 +174,7 @@ def _on_cuda(model: torch.nn.Module) -> bool:
     """Whether the model's weights are on CUDA, read off its first parameter.
 
     A single-device placement is assumed — the reference engine's ``.to(device)``
-    and the nnsight bundle's requested device are both one device. A model
+    and the nnterp bundle's requested device are both one device. A model
     straddling devices (``device_map`` offload) is not handled: its DeltaNet
     blocks would run whatever the first parameter's device selects.
     """
@@ -189,9 +191,7 @@ def bind_kernel_path(model: torch.nn.Module, *, on_cuda: bool | None = None) -> 
     is.
 
     ``on_cuda`` overrides the inspection of the weights — for a loader that
-    knows the device it will place the model on before the weights are there
-    (nnsight dispatches on first trace, so at load they are still on
-    ``meta``)."""
+    states the device it placed the model on rather than have it read back."""
     if on_cuda is None:
         on_cuda = _on_cuda(model)
     for modeling in _kernel_modules(model):
