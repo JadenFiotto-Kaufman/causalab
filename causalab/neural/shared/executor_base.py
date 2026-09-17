@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Hashable, Iterable, Mapping, Sequence
 
 import torch
 
@@ -210,8 +210,12 @@ class RowWindow:
         return self.members is None and self.start == 0 and self.stop == self.total
 
 
-#: What identifies a tap for capture-sink sharing — see :func:`tap_key`.
-TapKey = tuple[int, str, FeatureShape, int | None, str | None, int | None, tuple | None]
+#: What identifies a tap for capture-sink sharing — see :func:`tap_key`. The
+#: last element is an engine's interior address: it must be hashable and
+#: value-equal (both engines key their capture sinks and write groups on it).
+TapKey = tuple[
+    int, str, FeatureShape, int | None, str | None, int | None, Hashable | None
+]
 
 
 def tap_key(site: ResolvedSite, source: Any = None) -> TapKey:
@@ -226,11 +230,11 @@ def tap_key(site: ResolvedSite, source: Any = None) -> TapKey:
     at the same interior slot naming *different* experts must land as two
     separately masked applications, and the address grouping keys on this.
 
-    ``source`` is an engine-specific *interior* address (the nnsight engine's
-    :class:`~causalab.neural.engines.nnsight_tracing.addresses.SourceAddress`):
-    two interior taps may share the module, side and even shape while meaning
-    different ops inside its forward, so its identity joins the key. It
-    defaults to ``None`` so a hook-engine tap's key is unchanged.
+    ``source`` is an engine-specific *interior* address (an nnsight engine's
+    ``SourceAddress``, a frozen dataclass): two interior taps may share the
+    module, side and even shape while meaning different ops inside its
+    forward — the DeltaNet q and k reshapes — so the address itself joins the
+    key. It defaults to ``None`` so a hook-engine tap's key is unchanged.
     """
     return (
         id(site.module),
@@ -239,15 +243,7 @@ def tap_key(site: ResolvedSite, source: Any = None) -> TapKey:
         site.tuple_index,
         site.interface_slot,
         site.expert,
-        None
-        if source is None
-        else (
-            source.op_pattern,
-            source.peel,
-            source.field,
-            source.arg,
-            source.tuple_index,
-        ),
+        source,
     )
 
 

@@ -93,6 +93,7 @@ __all__ = [
     "candidate_runs",
     "constituent_candidate_runs",
     "continuation_frame",
+    "continuation_widths",
     "encode",
     "first_real_indices",
     "resolve_position",
@@ -784,6 +785,24 @@ def resolve_position(
     if a < 0 or b <= a:
         raise ProtocolError("P2", f"span [{a}, {b}) is not a forward window")
     return check(list(range(start + a, start + b)))
+
+
+def continuation_widths(
+    generated: torch.Tensor, eos_ids: Sequence[int]
+) -> tuple[int, ...]:
+    """Each row's width in the continuation frame: the steps before its
+    first eos, or every step for a row that emitted none. A decode runs on
+    past an eos (every row of a batch gets its full depth), so the frame is
+    cut here, per row, rather than by the decoder."""
+    rows, steps = int(generated.shape[0]), int(generated.shape[1])
+    if not eos_ids:
+        return (steps,) * rows
+    terminal = torch.zeros_like(generated, dtype=torch.bool)
+    for eos in eos_ids:
+        terminal |= generated == eos
+    first = terminal.int().argmax(dim=1)
+    cut = torch.where(terminal.any(dim=1), first, torch.full_like(first, steps))
+    return tuple(int(w) for w in cut.tolist())
 
 
 def continuation_frame(

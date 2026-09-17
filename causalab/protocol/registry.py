@@ -113,6 +113,7 @@ from causalab.protocol.shapes import FeatureShape
 
 __all__ = [
     "BACKEND_PAIRS",
+    "BLOCK_TAPS",
     "CAPABILITIES",
     "COMPONENT_STREAMS",
     "DOCS_TABLE_MODEL",
@@ -2762,34 +2763,37 @@ EXPERTS_FUNCTION_SLOTS: Mapping[str, str] = MappingProxyType(
 
 #: The taps every block-shaped tree shares: the block's own sides and the
 #: mixer's and MLP's outer boundaries, plus the function-boundary interiors
-#: whose module is only the anchor of the function tapped.
-_BLOCK_TAPS: dict[str, Tap] = {
-    "input_ids": Tap("embedding", kind="in"),
-    "embeddings": Tap("embedding"),
-    "ln_final": Tap("final_norm"),
-    "lm_head": Tap("lm_head"),
-    "block_input": Tap("block", kind="in"),
-    "block_output": Tap("block"),
-    "attention_output": Tap("mixer"),
-    "mlp_input": Tap("mlp", kind="in"),
-    "mlp_output": Tap("mlp"),
-    # element 1 of the mixer's (attn_output, attn_weights); the write goes
-    # through the attention function (slot "probs")
-    "attention_probs": Tap("mixer", tuple_index=1, slot="probs"),
-    **{
-        c: Tap("mixer", kind="interface", slot=s)
-        for c, s in ATTENTION_FUNCTION_SLOTS.items()
-    },
-    # the module-boundary interior: the child is the row's per-family address
-    **{c: Tap("mixer", from_row=True) for c in INTERIOR_ROWS},
-}
+#: whose module is only the anchor of the function tapped. A tree no family
+#: detects still serves these (the nnsight_nnterp engine's standard adapter).
+BLOCK_TAPS: Mapping[str, Tap] = MappingProxyType(
+    {
+        "input_ids": Tap("embedding", kind="in"),
+        "embeddings": Tap("embedding"),
+        "ln_final": Tap("final_norm"),
+        "lm_head": Tap("lm_head"),
+        "block_input": Tap("block", kind="in"),
+        "block_output": Tap("block"),
+        "attention_output": Tap("mixer"),
+        "mlp_input": Tap("mlp", kind="in"),
+        "mlp_output": Tap("mlp"),
+        # element 1 of the mixer's (attn_output, attn_weights); the write goes
+        # through the attention function (slot "probs")
+        "attention_probs": Tap("mixer", tuple_index=1, slot="probs"),
+        **{
+            c: Tap("mixer", kind="interface", slot=s)
+            for c, s in ATTENTION_FUNCTION_SLOTS.items()
+        },
+        # the module-boundary interior: the child is the row's per-family address
+        **{c: Tap("mixer", from_row=True) for c in INTERIOR_ROWS},
+    }
+)
 
 #: The Llama tree (Llama / Qwen / Mistral / Gemma, and the Qwen3.5-MoE hybrid
 #: whose DeltaNet and MoE interiors are declared here because its blocks live
 #: in this tree): ``model.layers``, ``input_layernorm`` /
 #: ``post_attention_layernorm``, ``self_attn.o_proj``, a SwiGLU ``mlp.act_fn``.
 _LLAMA_TAPS: dict[str, Tap] = {
-    **_BLOCK_TAPS,
+    **BLOCK_TAPS,
     "attention_input_norm": Tap("block", "input_layernorm"),
     "block_mid": Tap(
         "block", "post_attention_layernorm", "in", writeback="block_output"
@@ -2843,7 +2847,7 @@ _LLAMA_TAPS: dict[str, Tap] = {
 #: tree, so none is declared: the stream check and the ``moe`` probe refuse
 #: those first, by architecture, exactly as before.
 _GPT2_TAPS: dict[str, Tap] = {
-    **_BLOCK_TAPS,
+    **BLOCK_TAPS,
     "attention_input_norm": Tap("block", "ln_1"),
     "block_mid": Tap("block", "ln_2", "in", writeback="block_output"),
     "mlp_input_norm": Tap("block", "ln_2"),
