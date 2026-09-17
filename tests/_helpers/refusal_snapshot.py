@@ -19,22 +19,27 @@ stable entry points — ``resolve_site``, an executor, ``canonicalize``,
 ``component_width`` — never through the tables the consolidation deletes, so the same
 trigger runs identically before and after.
 
-Four census rows have no fixture family that can reach them
+Three census rows have no fixture family that can reach them
 (a gated q-projection without ``q_norm``, a q-projection of neither width, a
-MoE block without a shared expert, an nnsight interior address absent from the
-tables). They are recorded as ``captured: false`` with the reason, so the
-snapshot says what it does not cover rather than silently covering less.
+MoE block without a shared expert). They are recorded as ``captured: false``
+with the reason, so the snapshot says what it does not cover rather than
+silently covering less.
 
-Two rows are **retired** (``RETIRED``): refusals a later change turned into a
-pass on purpose. Row 23 — GPT-2's fused ``c_attn`` refusing the interior
+Four rows are **retired** (``RETIRED``): refusals a later change turned into a
+pass on purpose, or whose refusing code is gone. Row 23 — GPT-2's fused ``c_attn`` refusing the interior
 q/k/v — became the per-family tap table's logical slices;
 the refusal itself survives for a fused family *without* a row and is pinned
 there (``tests/neural/engines/pytorch_hooks/test_family_tap_table.py``). Row
 30 — the reference engine refusing ``deltanet_qkv`` by name — became an alias
 fold (one name per DeltaNet tensor, both engines serve it); the
-refusal survives for the three nnsight-only faces and is pinned in
-``test_deltanet_interior.py``. Each entry records why it is gone rather than
-pretending it never was.
+refusal survives for the three faces only the nnterp engine serves and is
+pinned in ``test_deltanet_interior.py``. Row 31 — the ragged ``expert:`` face
+refused on the engine beside the reference one — is served by the nnterp
+engine; its trigger stays (``RETIRED_TRIGGERS``) and the engine's suite runs
+it to a value. Row 32 — an interior with no address, never reachable on the
+executor it was written for — names an executor that is gone; the nnterp
+engine's own no-address refusal is reachable and pinned in its suite. Each
+entry records why it is gone rather than pretending it never was.
 """
 
 from __future__ import annotations
@@ -236,8 +241,8 @@ class Fixtures:
         return dataclasses.replace(self.hooks_qwen, model=model)
 
     @functools.cached_property
-    def trace_qwen(self) -> Any:
-        from causalab.neural.engines.nnsight_tracing.loading import load_model
+    def nnterp_qwen(self) -> Any:
+        from causalab.neural.engines.nnsight_nnterp.loading import load_model
 
         return load_model(TINY_QWEN35_MOE, attn_implementation="eager")
 
@@ -250,15 +255,15 @@ def _sweep() -> Any:
     return a3b_sweep
 
 
-def _executor(doc_raw: dict[str, Any], bundle: Any, *, trace: bool = False) -> Any:
+def _executor(doc_raw: dict[str, Any], bundle: Any, *, nnterp: bool = False) -> Any:
     """An executor over ``doc_raw`` that *parses but does not validate*.
 
     The run-time refusals are for documents arriving unvalidated; a trigger
     that validated first would, after the consolidation, hit the load-time twin of two of
     them and never reach the run-time path this snapshot pins."""
-    if trace:
-        from causalab.neural.engines.nnsight_tracing.executor import (
-            TracePointExecutor as cls,
+    if nnterp:
+        from causalab.neural.engines.nnsight_nnterp.executor import (
+            NnterpExecutor as cls,
         )
     else:
         from causalab.neural.engines.pytorch_hooks.executor import (
@@ -374,7 +379,7 @@ def _trigger_29(fx: Fixtures) -> None:
 def _trigger_31(fx: Fixtures) -> None:
     doc = _sweep().read_doc("expert_activation", LINEAR_ATTENTION_LAYER)
     doc["method"]["sites"]["tap"]["expert"] = 0
-    _executor(doc, fx.trace_qwen, trace=True).read_value("r")
+    _executor(doc, fx.nnterp_qwen, nnterp=True).read_value("r")
 
 
 def _trigger_33(fx: Fixtures) -> None:
@@ -405,24 +410,50 @@ RUN_TRIGGERS: dict[str, Callable[[Fixtures], None]] = {
     "24": _trigger_24,
     "27": _trigger_27,
     "29": _trigger_29,
-    "31": _trigger_31,
     "33": _trigger_33,
     "34": _trigger_34,
 }
 
-#: Census rows whose refusal a later change deliberately turned into a pass. The
-#: entry stays in the snapshot as ``captured: false`` with the reason, so the
-#: census stays complete (rows 1–34) and the decision is on record.
+#: The triggers of retired rows that run to a value today — kept so the suite
+#: of the engine that serves them pins the decision by running it.
+RETIRED_TRIGGERS: dict[str, Callable[[Fixtures], None]] = {"31": _trigger_31}
+
+#: Census rows whose refusal a later change deliberately turned into a pass, or
+#: whose refusing code a later change removed. The entry stays in the snapshot
+#: as ``captured: false`` with the reason, so the census stays complete (rows
+#: 1–34) and the decision is on record.
 RETIRED: dict[str, str] = {
+    "31": (
+        "Retired: the ragged 'expert:' face of the routed interior is served "
+        "by both engines (registry.Capability.expert_selection). The nnterp "
+        "engine captures the experts module's routing table beside its "
+        "`.source` interior and hands it to the shared `_expert_selected`, "
+        "the same landing the reference engine's dispatch wrapper feeds. The "
+        "trigger runs to a value and is pinned in "
+        "tests/neural/engines/nnsight_nnterp/test_refusal_snapshot.py; parity "
+        "on the face is tests/neural/engines/nnsight_nnterp/"
+        "test_expert_interior.py."
+    ),
+    "32": (
+        "Retired: the executor this row named is removed with its address "
+        "tables, and the row was never captured (no fixture reached the "
+        "branch). The nnterp engine's refusal of an interior its address "
+        "table has no row for is reachable — the three per-token DeltaNet "
+        "faces, and any interior on a tree the table does not cover — and is "
+        "pinned in tests/neural/engines/nnsight_nnterp/"
+        "test_parity_a3b_sweep.py::test_a_per_token_face_is_refused_by_name "
+        "and test_standard_adapter.py."
+    ),
     "30": (
         "The alias fold: 'deltanet_qkv' is an alias of "
         "'delta_qkv' — the eight DeltaNet tensors the two engines reached under "
         "two spellings carry one name each (schema.DEPRECATED_COMPONENTS), and "
         "the reference engine serves the name through in_proj_qkv's output. The "
-        "refusal survives for the three faces only the nnsight engine serves "
+        "refusal survives for the three faces only the nnterp engine serves "
         "('deltanet_query', 'deltanet_key', 'deltanet_state' — registry."
-        "BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_tracing/"
-        "test_deltanet_interior.py::test_the_reference_engine_refuses_by_name."
+        "BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_nnterp/"
+        "test_deltanet_interior.py::"
+        "test_the_reference_engine_refuses_the_fused_faces_by_name."
     ),
     "23": (
         "Retired: GPT-2's fused c_attn no longer refuses the interior "
@@ -449,10 +480,5 @@ NOT_RUNNABLE: dict[str, str] = {
     "28": (
         "sites._moe_site: a sparse-MoE block without a shared expert — the "
         "only MoE fixture (tiny-random/qwen3.5-moe) has one at every layer"
-    ),
-    "32": (
-        "nnsight executor: an interior component with no address in its "
-        "tables — every interior component in the vocabulary has one today, so "
-        "the branch is reachable only by editing the address table"
     ),
 }

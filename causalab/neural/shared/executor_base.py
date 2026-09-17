@@ -5,7 +5,7 @@ feature)`` and the document: position resolution, gathers, featurizer stacks,
 operand lookup, and the class-ordered write math. What an engine adds is one
 method — :meth:`ExecutorBase._run_group` — that produces contract tensors for
 this group's taps and lands its writes (hooks in the reference engine, traces
-in the nnsight engine). The public surface consumed by
+in the nnterp engine). The public surface consumed by
 :mod:`causalab.neural.shared.execution` lives here so the two engines cannot
 drift apart on what a read means.
 """
@@ -238,7 +238,7 @@ def tap_key(site: ResolvedSite, source: Any = None) -> TapKey:
     at the same interior slot naming *different* experts must land as two
     separately masked applications, and the address grouping keys on this.
 
-    ``source`` is an engine-specific *interior* address (an nnsight engine's
+    ``source`` is an engine-specific *interior* address (the nnterp engine's
     ``SourceAddress``, a frozen dataclass): two interior taps may share the
     module, side and even shape while meaning different ops inside its
     forward — the DeltaNet q and k reshapes — so the address itself joins the
@@ -566,7 +566,7 @@ def _attention_result(site: ResolvedSite, premix: torch.Tensor) -> torch.Tensor:
     ⚠️ Calls ``site.module`` directly, so it needs something that runs the
     projection when called: a real ``nn.Module``, or an envoy inside a trace
     body, where the call runs the module the envoy resolves to — which is how
-    the nnsight + nnterp engine derives it, in its block, over the gathered
+    the nnterp engine derives it, in its block, over the gathered
     rows.
     """
     module = site.module
@@ -718,7 +718,7 @@ def _pair_offsets(
 # Everything a write needs from the document and the executor arrives
 # through a `WriteServices`, so the same math runs from a method of a live
 # executor (the hook engines: the services are its bound methods) and from a
-# block that ships to another process (the nnsight engine on NDIF: the
+# block that ships to another process (the nnterp engine on NDIF: the
 # services are tables prepared before the trace, and no executor travels).
 # ---------------------------------------------------------------------- #
 
@@ -2667,7 +2667,7 @@ class ExecutorBase:
         projected and derived, which need the model's own modules. What is
         left is the part that needs only the document: the head's slice, the
         featurizer stack, ``dims``. An engine whose forward runs in another
-        process (the nnsight engine on NDIF) downloads the slice this way
+        process (the nnterp engine on NDIF) downloads the slice this way
         rather than the contract tensor.
         """
         if to_cpu is None:

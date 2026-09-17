@@ -19,7 +19,7 @@ map, and `docs/running_experiments.md` §6 is the user-facing routing table.
   registered engine declaring `grad`.
 - `engines/nnsight_tracing/` — the second engine: one trace over an envoy tree,
   with fused-forward interiors addressed through nnsight `.source`.
-- `engines/nnsight_nnterp/` — the nnsight + nnterp engine, outside the closed
+- `engines/nnsight_nnterp/` — the nnterp engine, outside the closed
   registry (a caller's explicit choice): one trace per forward group over
   nnterp's standardized tree, locally or on NDIF. It declares `grad` too — its
   `train.py` fits a document on the shared loop, locally.
@@ -38,5 +38,5 @@ Qwen3.6-35B-A3B in `tests/golden/test_a3b_engine_parity.py`.
 
 Everything else that used to live here — the Plan IR and its scheduler, the old
 nnsight *pipeline*, spec persistence — was replaced by the protocol layer
-(`causalab/protocol`) plus the engines above. The nnsight engine here is not
+(`causalab/protocol`) plus the engines above. The nnterp engine here is not
 that pipeline returning; it is a protocol engine like the reference one.

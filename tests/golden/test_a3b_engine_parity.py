@@ -1,6 +1,6 @@
 """The engine-agreement sweep on the real Qwen/Qwen3.6-35B-A3B.
 
-The smoke half (``tests/neural/engines/nnsight_tracing/test_parity_a3b_sweep.py``)
+The smoke half (``tests/neural/engines/nnsight_nnterp/test_parity_a3b_sweep.py``)
 runs this table on ``tiny-random/qwen3.5-moe`` — the same architecture at four
 layers and hidden 8. What a tiny-random fixture cannot show is whether the taps
 still land when the tensors are real: 40 layers on the documented 3-linear-then-1-full
@@ -15,11 +15,11 @@ at once. Instead each engine captures the whole sweep in turn and is then freed
 One model resident at a time, which is what makes this fit on a single
 accelerator.
 
-**Tolerance.** The smoke tier's 1e-5 is an fp32 number. 📐 Here the measurement
-is stronger than any band: on the real checkpoint in bf16, all 111 compared
-cases agree at max abs diff **exactly 0.0** — the two engines differ in how they
-capture a tensor, not in what the model computes, and the same eager kernels
-over the same weights produce the same bits. :data:`ATOL` is kept as a band
+**Tolerance.** The smoke tier agrees exactly in fp32. The expectation here is
+the same on the real checkpoint in bf16 — max abs diff **exactly 0.0** on
+every compared case: the two engines differ in how they capture a tensor, not
+in what the model computes, and the same eager kernels over the same weights
+produce the same bits. :data:`ATOL` is kept as a band
 rather than zero only to absorb a future release that dispatches a different
 kernel; at 1e-2 it is well under one bf16 ulp at the logit magnitude this model
 produces (|max| ~18, ulp ~0.06), so it cannot admit a real disagreement. The run
@@ -35,7 +35,7 @@ import os
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_tracing.executor import TracePointExecutor
+from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 
 from tests._helpers import a3b_sweep as sweep
@@ -184,7 +184,7 @@ def _capture_delta_family(executor_cls, bundle, layer: int, which: int) -> dict:
     """The DeltaNet interior, in whichever vocabulary this engine serves.
 
     ``which`` selects the element of each :data:`sweep.DELTA_FAMILY_PAIRS`
-    entry — 0 for the reference engine's spelling, 1 for the nnsight
+    entry — 0 for the reference engine's spelling, 1 for the nnterp
     engine's — of the three typed pairs.
     """
     out: dict[str, torch.Tensor] = {}
@@ -223,17 +223,15 @@ def captures():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    from causalab.neural.engines.nnsight_tracing.loading import load_model as load_trace
+    from causalab.neural.engines.nnsight_nnterp.loading import load_model as load_trace
 
     # eager pinned: the reference engine loads eager, and parity must compare
     # like against like (the same rule the smoke fixtures follow)
     trace_bundle = load_trace(
         MODEL, dtype=DTYPE, device=device, attn_implementation="eager"
     )
-    trace = _capture(TracePointExecutor, trace_bundle, cases, want_writes=True)
-    trace_delta = _capture_delta_family(
-        TracePointExecutor, trace_bundle, delta_layer, 1
-    )
+    trace = _capture(NnterpExecutor, trace_bundle, cases, want_writes=True)
+    trace_delta = _capture_delta_family(NnterpExecutor, trace_bundle, delta_layer, 1)
 
     load_trace.cache_clear()
     del trace_bundle
@@ -372,7 +370,7 @@ def test_delta_family_cross_engine_agreement(
     sweep.assert_same(
         left,
         right,
-        f"{hooks_component!r} (pytorch_hooks) vs {trace_component!r} (nnsight)",
+        f"{hooks_component!r} (pytorch_hooks) vs {trace_component!r} (nnterp)",
         atol=ATOL,
     )
 

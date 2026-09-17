@@ -254,22 +254,19 @@
       "id": "30",
       "layer": "run",
       "captured": false,
-      "reason": "The alias fold: 'deltanet_qkv' is an alias of 'delta_qkv' — the eight DeltaNet tensors the two engines reached under two spellings carry one name each (schema.DEPRECATED_COMPONENTS), and the reference engine serves the name through in_proj_qkv's output. The refusal survives for the three faces only the nnsight engine serves ('deltanet_query', 'deltanet_key', 'deltanet_state' — registry.BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_tracing/test_deltanet_interior.py::test_the_reference_engine_refuses_by_name."
+      "reason": "The alias fold: 'deltanet_qkv' is an alias of 'delta_qkv' — the eight DeltaNet tensors the two engines reached under two spellings carry one name each (schema.DEPRECATED_COMPONENTS), and the reference engine serves the name through in_proj_qkv's output. The refusal survives for the three faces only the nnterp engine serves ('deltanet_query', 'deltanet_key', 'deltanet_state' — registry.BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_nnterp/test_deltanet_interior.py::test_the_reference_engine_refuses_the_fused_faces_by_name."
     },
     {
       "id": "31",
       "layer": "run",
-      "captured": true,
-      "exc_class": "ProtocolError",
-      "code": "P4",
-      "path": null,
-      "message": "[P4] site names expert 0 on 'expert_activation', and the nnsight engine does not serve the ragged 'expert:' face — read the token-major form here, or route to the reference engine."
+      "captured": false,
+      "reason": "Retired: the ragged 'expert:' face of the routed interior is served by both engines (registry.Capability.expert_selection). The nnterp engine captures the experts module's routing table beside its `.source` interior and hands it to the shared `_expert_selected`, the same landing the reference engine's dispatch wrapper feeds. The trigger runs to a value and is pinned in tests/neural/engines/nnsight_nnterp/test_refusal_snapshot.py; parity on the face is tests/neural/engines/nnsight_nnterp/test_expert_interior.py."
     },
     {
       "id": "32",
       "layer": "run",
       "captured": false,
-      "reason": "nnsight executor: an interior component with no address in its tables — every interior component in the vocabulary has one today, so the branch is reachable only by editing the address table"
+      "reason": "Retired: the executor this row named is removed with its address tables, and the row was never captured (no fixture reached the branch). The nnterp engine's refusal of an interior its address table has no row for is reachable — the three per-token DeltaNet faces, and any interior on a tree the table does not cover — and is pinned in tests/neural/engines/nnsight_nnterp/test_parity_a3b_sweep.py::test_a_per_token_face_is_refused_by_name and test_standard_adapter.py."
     },
     {
       "id": "33",

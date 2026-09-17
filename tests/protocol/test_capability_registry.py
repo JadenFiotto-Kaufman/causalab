@@ -680,7 +680,7 @@ def test_a_row_cannot_be_inconsistent() -> None:
         dataclasses.replace(good, reads=frozenset({"megatron"}))
     hooks_only = CAPABILITIES["delta_state"]  # the per-step face: reference engine only
     with pytest.raises(ValueError, match="does not serve"):
-        dataclasses.replace(hooks_only, expert_selection=frozenset({"nnsight"}))
+        dataclasses.replace(hooks_only, expert_selection=frozenset({"nnterp"}))
     assert isinstance(good, Capability)
 
 

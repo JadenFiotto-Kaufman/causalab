@@ -1,4 +1,4 @@
-"""The generated frame on the nnsight + nnterp engine.
+"""The generated frame on the nnterp engine.
 
 One ``model.generate`` trace per group: prompt-frame taps and writes bind
 occurrence 0 of their locations — the prefill — and the decode steps are
@@ -315,7 +315,10 @@ def test_a_write_in_the_continuation_is_rule_16_before_any_engine():
 
 
 def test_routing_sends_generate_documents_here():
+    from causalab.protocol.engine import choose_engine
+
     doc = parse_document(in_order(_gen_doc("block_output", 1)))
     assert "generate" in NnterpEngine().capabilities
     assert "generate" in requires(doc)
     assert requires(doc) <= NnterpEngine().effective_capabilities
+    assert isinstance(choose_engine(doc, [NnterpEngine()]), NnterpEngine)

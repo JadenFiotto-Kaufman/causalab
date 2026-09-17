@@ -1153,14 +1153,14 @@ predicate text the load-time refusal prints — never as a placeholder.
 | `delta_qkv` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_qkv` (retired under protocol version 1) |
 | `delta_gate` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_gate` (retired under protocol version 1) |
 | `delta_conv` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_qkv_conv` (retired under protocol version 1) |
-| `delta_query` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnsight` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `delta_key` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnsight` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `delta_query` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `delta_key` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `delta_value` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_value` (retired under protocol version 1) |
 | `delta_beta` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_beta` (retired under protocol version 1) |
 | `delta_decay` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_decay` (retired under protocol version 1) |
-| `delta_kv_mem` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnsight` refuses it by name | read-only — a memory readout has no independent existence: it is (S_{t-1}·exp(g_t) · k̂_t) summed, recomputed from the state at every step, so there is no tensor a write could persist into. Write 'delta_state' to change what the memory holds, or 'delta_value' to change what is stored into it | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `delta_state_update` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnsight` refuses it by name | read-only — its write lowers exactly onto a state edit through the reconstruction identity S_t = S_{t-1}·exp(g_t) + k̂_t ⊗ delta_t, and that lowering is deferred — write 'delta_state' instead | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `delta_state` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnsight` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `delta_kv_mem` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnterp` refuses it by name | read-only — a memory readout has no independent existence: it is (S_{t-1}·exp(g_t) · k̂_t) summed, recomputed from the state at every step, so there is no tensor a write could persist into. Write 'delta_state' to change what the memory holds, or 'delta_value' to change what is stored into it | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `delta_state_update` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnterp` refuses it by name | read-only — its write lowers exactly onto a state edit through the reconstruction identity S_t = S_{t-1}·exp(g_t) + k̂_t ⊗ delta_t, and that lowering is deferred — write 'delta_state' instead | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `delta_state` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `pytorch_hooks` only — `nnterp` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `delta_kernel_output` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_core_out` (retired under protocol version 1) |
 | `attention_query_pre_rope` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | any mechanism | `split_qkv` — needs addressable q/k/v projections (the per-family tap table has none) | none — `expert` is refused at load: no per-expert axis | none |
 | `attention_key_pre_rope` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | any mechanism | `split_qkv` — needs addressable q/k/v projections (the per-family tap table has none) | none — `expert` is refused at load: no per-expert axis | none |
@@ -1170,9 +1170,9 @@ predicate text the load-time refusal prints — never as a placeholder.
 | `attention_key` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `attention_scores` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `attention_z` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `deltanet_query` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnsight` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `deltanet_key` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnsight` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
-| `deltanet_state` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnsight` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `deltanet_query` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnterp` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `deltanet_key` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnterp` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
+| `deltanet_state` | a `layers` band | `linear_attention` layers only — refused on the other mixer | `nnterp` only — `pytorch_hooks` refuses it by name | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `attention_result` | a `layers` band | `full_attention` layers only — refused on the other mixer | both | read-only — it is derived, not computed: the model never forms the per-head contribution at all — it forms their sum, by projecting the whole 'attention_premix' at once — so there is no tensor here for a write to change. Write 'attention_premix' instead, with the same 'head'; 'attention_result' is a linear function of it, so a write there moves this by exactly the projection of what you wrote | nothing | none — `expert` is refused at load: no per-expert axis | none |
 | `delta_premix` | a `layers` band | `linear_attention` layers only — refused on the other mixer | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | `deltanet_gated_out` (retired under protocol version 1) |
 | `attention_output` | a `layers` band | either | both | any mechanism | nothing | none — `expert` is refused at load: no per-expert axis | none |
@@ -1187,12 +1187,12 @@ predicate text the load-time refusal prints — never as a placeholder.
 | `router_logits` | a `layers` band | either | both | read-only — the MoE block discards the router's logits (it destructures them into '_') and routes on the scores and indices it computed from them, so a write here cannot reach anything — write 'router_scores' to reweight the chosen experts, or 'expert_idx' to change which experts fire | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
 | `router_scores` | a `layers` band | either | both | any mechanism | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
 | `expert_idx` | a `layers` band | either | both | `swap` only — the routing table carries integer expert ids, not features: a delta, a scale or a clamp over them yields ids chosen by arithmetic on labels, which route to arbitrary experts where they stay in range and fail at the gather where they do not. Swap in an index tensor read from elsewhere to change which experts fire, or write 'router_scores' to reweight the experts already chosen. Refusing rather than doing arithmetic on values that are labels | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
-| `expert_gate_proj` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by `pytorch_hooks` | none |
-| `expert_up_proj` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by `pytorch_hooks` | none |
-| `expert_activation` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by `pytorch_hooks` | none |
-| `expert_neuron_output` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by `pytorch_hooks` | none |
-| `expert_permutation` | a `layers` band | either | `nnsight` only — `pytorch_hooks` refuses it by name | read-only — it is the serving kernel's row bookkeeping (where each (token, slot) row sits in expert-sorted order), not routing: the kernel derives it from the routing table, and an edited copy would describe rows that were never sorted that way. Write 'expert_idx' to change which experts fire, or 'router_scores' to reweight them | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
-| `expert_output` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by `pytorch_hooks` | none |
+| `expert_gate_proj` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by both | none |
+| `expert_up_proj` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by both | none |
+| `expert_activation` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by both | none |
+| `expert_neuron_output` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by both | none |
+| `expert_permutation` | a `layers` band | either | `nnterp` only — `pytorch_hooks` refuses it by name | read-only — it is the serving kernel's row bookkeeping (where each (token, slot) row sits in expert-sorted order), not routing: the kernel derives it from the routing table, and an edited copy would describe rows that were never sorted that way. Write 'expert_idx' to change which experts fire, or 'router_scores' to reweight them | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
+| `expert_output` | a `layers` band | either | both | any mechanism | `grouped_mm` — needs the grouped experts dispatch (the loaded model runs another experts_implementation — a different factorization whose intermediates are different tensors; load it with experts_implementation='grouped_mm', the default); `moe` — needs a sparse-MoE block (the entry declares no experts) | `expert:` served by both | none |
 | `routed_output` | a `layers` band | either | both | any mechanism | `moe` — needs a sparse-MoE block (the entry declares no experts) | none — `expert` is refused at load: no per-expert axis | none |
 | `shared_expert_gate_proj` | a `layers` band | either | both | any mechanism | `moe` — needs a sparse-MoE block (the entry declares no experts); `shared_expert` — needs a shared expert (the entry declares no shared-expert width) | none — `expert` is refused at load: no per-expert axis | none |
 | `shared_expert_up_proj` | a `layers` band | either | both | any mechanism | `moe` — needs a sparse-MoE block (the entry declares no experts); `shared_expert` — needs a shared expert (the entry declares no shared-expert width) | none — `expert` is refused at load: no per-expert axis | none |
@@ -4257,36 +4257,38 @@ engine, so routing on them would be either impossible or misleading.
 
 **What the shipped engines declare.** Two engines implement this contract. The
 ten verb rows below are exactly their `capabilities` frozensets, read off
-`PytorchHooksEngine` and `NnsightEngine` — not a forecast of engines that
+`PytorchHooksEngine` and `NnterpEngine` — not a forecast of engines that
 might exist. `tests/protocol/test_vocabulary_census.py` compares every row,
 every ✓/✗ cell **and both component counts** back to those classes, so this
-table cannot drift from them the way the matrix it replaced did. The last row is a different attribute: component entries are *generated*
+table cannot drift from them. The last row is a different attribute: component entries are *generated*
 rather than listed (above), so it reports each engine's `components` /
 `writable_components` instead — sets that are themselves generated from the
 capability registry's rows (sec. 2.4), whose `reads` cell names the engines
 serving each component; the `N of 56` cells are
 `registry.engine_component_summary` and the census holds them to it.
 
-| capability | `pytorch_hooks` (reference) | `nnsight` |
+| capability | `pytorch_hooks` (reference) | `nnterp` |
 |---|---|---|
-| `grad` | ✓ | ✗ — a `train` document routes to the reference engine |
+| `grad` | ✓ | ✓ in this process, on the same shared loop; a remote engine drops it (a remote forward returns detached saves) |
 | `paired_forward` | ✓ | ✓ |
 | `full_logits` | ✓ | ✓ |
 | `generate` | ✓ | ✓ one `model.generate` trace, decode steps walked with `tracer.iter` |
 | `quantized_weights` | ✓ | ✗ |
 | `writable_attention_probs` | ✓ inside the eager attention call | ✓ on the softmax's output inside the same call |
 | `pytorch_fn_local` | ✓ | ✓ |
-| `train_free_params` | ✗ — the shared loop (`neural/shared/training/`) optimizes featurizer slots only, and refuses a free tensor as arrived-unvalidated | ✗ — no `grad` |
-| `train_loss_precision` | ✗ — the shared objective casts logits and targets to fp32 unconditionally; the authored `train.precision` is digested, not executed | ✗ — no `grad` |
-| `train_eval_updates` | ✗ — the shared loop reaches an eval on epoch boundaries only, and refuses an `updates` counter as arrived-unvalidated | ✗ — no `grad` |
-| `component:<name>`[`:write`] | 52 of 56 — all but `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation` | 51 of 56 — all but `delta_query` / `delta_key` / `delta_state` |
+| `train_free_params` | ✗ — the shared loop (`neural/shared/training/`) optimizes featurizer slots only, and refuses a free tensor as arrived-unvalidated | ✗ — the same loop |
+| `train_loss_precision` | ✗ — the shared objective casts logits and targets to fp32 unconditionally; the authored `train.precision` is digested, not executed | ✗ — the same loop |
+| `train_eval_updates` | ✗ — the shared loop reaches an eval on epoch boundaries only, and refuses an `updates` counter as arrived-unvalidated | ✗ — the same loop |
+| `component:<name>`[`:write`] | 52 of 56 — all but `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation` | 53 of 56 — all but `delta_kv_mem` / `delta_state_update` / `delta_state` |
 
 Neither engine is a superset of the other, which is the point of routing: the
-reference engine alone reaches the post-tiling `delta_query` / `delta_key` and
-the per-step `delta_state` (by swapping module-global call sites), and the
-nnsight engine alone reaches their pre-tiling / per-chunk faces and
-`expert_permutation` (through `.source`); the rest of the DeltaNet interior is
-one name both serve, each by its own mechanism (sec. 2.4).
+reference engine alone reaches the per-token DeltaNet faces `delta_kv_mem` /
+`delta_state_update` / `delta_state` (by stepping the recurrent kernel inside
+swapped module-global call sites — the chunked prefill kernel never
+materializes them) and loads quantized weights, and the nnterp engine alone
+reaches the pre-tiling `deltanet_query` / `deltanet_key`, the per-chunk
+`deltanet_state` and `expert_permutation` (through `.source`); the rest of the
+DeltaNet interior is one name both serve, each by its own mechanism (sec. 2.4).
 `--engine auto`, the default, lists every installed engine with the reference
 first and lets `choose_engine` pick.
 

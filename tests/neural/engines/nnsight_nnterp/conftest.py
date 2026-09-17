@@ -1,4 +1,4 @@
-"""Fixtures for the nnsight + nnterp engine's parity suite.
+"""Fixtures for the nnterp engine's parity suite.
 
 Both engines load the same checkpoints in fp32 with eager attention on the
 CPU, so parity is like-against-like: any disagreement is an executor bug,
@@ -7,8 +7,7 @@ extra (nnsight + nnterp) is not installed.
 
 Placement needs no guard here: the loader passes the requested device as the
 pipeline factory's own ``device`` argument, which is honoured on every
-platform (the previous engine's MPS guard worked around ``device_map`` being
-ignored at dispatch).
+platform (``device_map`` alone is ignored at dispatch on MPS).
 """
 
 from __future__ import annotations
@@ -210,7 +209,7 @@ class Family:
         return hooked, traced
 
     def unpatched_logits(self) -> torch.Tensor:
-        """The nnsight engine's clean last-position logits — the
+        """The nnterp engine's clean last-position logits — the
         anti-vacuity reference every write is compared against."""
         return self.traced(sweep.read_doc("lm_head", None), with_cf=False).read_value(
             "r"

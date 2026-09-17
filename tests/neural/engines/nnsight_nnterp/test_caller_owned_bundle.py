@@ -1,13 +1,12 @@
-"""The nnsight + nnterp engine's ``bundle=`` entry (spec §9, the ownership
+"""The nnterp engine's ``bundle=`` entry (spec §9, the ownership
 contract).
 
 The engine takes an :class:`NnterpBundle` the way the reference engine takes
 a ``ModelBundle`` and holds it to the same realization check before any
 trace — the document's ``key`` / ``revision`` / ``dtype`` and the engine's
 ``device`` against the bundle's — and the run receipt says
-``model_source: caller``. The engine is not registered, so it is handed to
-``run_protocol`` directly, which is also what proves the executor end to
-end: the corpus interchange document runs through ``execute_request`` and
+``model_source: caller``. The engine is handed to ``run_protocol``
+directly, which is also what proves the executor end to end: the corpus interchange document runs through ``execute_request`` and
 writes the same files and receipt as a loaded run.
 """
 

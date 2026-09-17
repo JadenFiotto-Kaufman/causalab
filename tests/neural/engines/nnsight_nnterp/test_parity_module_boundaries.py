@@ -1,5 +1,5 @@
 """The parity suite: the same documents through the reference engine and the
-nnsight + nnterp engine, asserting the answers agree.
+nnterp engine, asserting the answers agree.
 
 This is the new engine's correctness proof for the module-boundary
 vocabulary and its numerical oracle. Reads must agree to fp32-eager-CPU

@@ -126,26 +126,26 @@ def doc_site(component: str, layer: int):
     return SiteSpec(component=component, layers=(layer,))
 
 
-@pytest.mark.parametrize("pair", ALIASED, ids=lambda p: p.nnsight)
+@pytest.mark.parametrize("pair", ALIASED, ids=lambda p: p.nnterp)
 def test_the_retired_spelling_is_the_same_document(hooks_qwen, delta_layer, pair):
-    """A document authored with the nnsight spelling parses to the canonical
+    """A document authored with the retired spelling parses to the canonical
     name and canonicalizes to the same bytes — the alias is a courtesy at the
     door, and the document that runs is one document."""
     register_model(hooks_qwen.info)
-    old = _intervention(pair.nnsight, delta_layer)
+    old = _intervention(pair.nnterp, delta_layer)
     new = _intervention(pair.hooks, delta_layer)
     # the parsed sites are one site (`raw` keeps the authored text, by design)
     assert parse_document(in_order(old)).sites == parse_document(in_order(new)).sites
     # the canonical form, on a document whose data the test env resolves
     old_c, new_c = base_doc(), base_doc()
-    for raw, component in ((old_c, pair.nnsight), (new_c, pair.hooks)):
+    for raw, component in ((old_c, pair.nnterp), (new_c, pair.hooks)):
         raw["model"]["key"] = TINY_QWEN35_MOE
         raw["method"]["sites"]["tgt"] = {
             "component": component,
             "layers": [delta_layer],
         }
     assert canonicalize(in_order(old_c), ENV) == canonicalize(in_order(new_c), ENV)
-    assert DEPRECATED_COMPONENTS[pair.nnsight] == pair.hooks
+    assert DEPRECATED_COMPONENTS[pair.nnterp] == pair.hooks
 
 
 # --------------------------------------------------------------------------- #
@@ -153,16 +153,16 @@ def test_the_retired_spelling_is_the_same_document(hooks_qwen, delta_layer, pair
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize("pair", TYPED, ids=lambda p: p.nnsight)
+@pytest.mark.parametrize("pair", TYPED, ids=lambda p: p.nnterp)
 def test_a_typed_pair_is_not_redirected_and_would_not_tile_silently(
     hooks_qwen, nnterp_qwen, delta_layer, pair
 ):
     register_model(hooks_qwen.info)
-    raw = _intervention(pair.nnsight, delta_layer)
+    raw = _intervention(pair.nnterp, delta_layer)
     doc = parse_document(in_order(raw))
-    assert doc.sites["tap"].component == pair.nnsight  # not folded
-    # the reference engine refuses the nnsight face by name — the seam holds
-    with pytest.raises(ProtocolError, match="nnsight engine"):
+    assert doc.sites["tap"].component == pair.nnterp  # not folded
+    # the reference engine refuses the nnterp-only face by name — the seam holds
+    with pytest.raises(ProtocolError, match="nnterp engine"):
         sweep.make_executor(
             PointExecutor, raw, hooks_qwen, rows=ROWS[:1], with_cf=True
         ).read_value("logits")
@@ -177,7 +177,7 @@ def test_a_typed_pair_is_not_redirected_and_would_not_tile_silently(
     ).read_value("r")
     traced = sweep.make_executor(
         NnterpExecutor,
-        sweep.read_doc(pair.nnsight, delta_layer, pos="all") | {"model": raw["model"]},
+        sweep.read_doc(pair.nnterp, delta_layer, pos="all") | {"model": raw["model"]},
         nnterp_qwen,
         rows=ROWS[:1],
         with_cf=False,
@@ -186,5 +186,5 @@ def test_a_typed_pair_is_not_redirected_and_would_not_tile_silently(
     # the declared relation, and only it, lines them up
     left, right = sweep.align_delta_pair(hooked, traced, pair.hooks, hooks_qwen.info)
     sweep.assert_same(
-        left, right, f"{pair.hooks!r} vs {pair.nnsight!r} after {pair.relation}"
+        left, right, f"{pair.hooks!r} vs {pair.nnterp!r} after {pair.relation}"
     )

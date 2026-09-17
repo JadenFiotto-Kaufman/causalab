@@ -577,8 +577,8 @@ uv run causalab explain patch.json --data-root data --artifacts-root . \
 | `delta_qkv` | DeltaNet (30) | `(batch, position, feature)` | module output | both | any mechanism |
 | `delta_gate` | DeltaNet (30) | `(batch, position, head·feature)` | module output | both | any mechanism |
 | `delta_conv` | DeltaNet (30) | `(batch, feature, position)` | delta-kernel boundary | both | any mechanism |
-| `delta_query` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | `pytorch_hooks` | any mechanism |
-| `delta_key` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | `pytorch_hooks` | any mechanism |
+| `delta_query` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | both | any mechanism |
+| `delta_key` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | both | any mechanism |
 | `delta_value` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | both | any mechanism |
 | `delta_beta` | DeltaNet (30) | `(batch, position, head)` | delta-kernel boundary | both | any mechanism |
 | `delta_decay` | DeltaNet (30) | `(batch, position, head)` | delta-kernel boundary | both | any mechanism |
@@ -586,9 +586,9 @@ uv run causalab explain patch.json --data-root data --artifacts-root . \
 | `delta_state_update` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | `pytorch_hooks` | read-only — its write lowers exactly onto a state edit through the reconstruction identity S_t = S_{t-1}·exp(g_t) + k̂_t ⊗ delta_t, and that lowering is deferred — write 'delta_state' instead |
 | `delta_state` | DeltaNet (30) | `(batch, position[steps], head, state, state)` | delta-kernel boundary | `pytorch_hooks` | any mechanism |
 | `delta_kernel_output` | DeltaNet (30) | `(batch, position, head, feature)` | delta-kernel boundary | both | any mechanism |
-| `deltanet_query` | DeltaNet (30) | `(batch, position, head, feature)` | `.source` line (fused forward) | `nnsight` | any mechanism |
-| `deltanet_key` | DeltaNet (30) | `(batch, position, head, feature)` | `.source` line (fused forward) | `nnsight` | any mechanism |
-| `deltanet_state` | DeltaNet (30) | `(batch, position[chunk], head, feature)` | `.source` line (fused forward) | `nnsight` | any mechanism |
+| `deltanet_query` | DeltaNet (30) | `(batch, position, head, feature)` | `.source` line (fused forward) | `nnterp` | any mechanism |
+| `deltanet_key` | DeltaNet (30) | `(batch, position, head, feature)` | `.source` line (fused forward) | `nnterp` | any mechanism |
+| `deltanet_state` | DeltaNet (30) | `(batch, position[chunk], head, feature)` | `.source` line (fused forward) | `nnterp` | any mechanism |
 | `delta_premix` | DeltaNet (30) | `(batch, position, head·feature)` | module input | both | any mechanism |
 
 **Sparse MoE + shared expert — every layer**
@@ -602,7 +602,7 @@ uv run causalab explain patch.json --data-root data --artifacts-root . \
 | `expert_up_proj` | every layer (40) | `(batch·position, topk·fused·feature)` | grouped-experts dispatch | both | any mechanism |
 | `expert_activation` | every layer (40) | `(batch·position, topk·feature)` | grouped-experts dispatch | both | any mechanism |
 | `expert_neuron_output` | every layer (40) | `(batch·position, topk·feature)` | grouped-experts dispatch | both | any mechanism |
-| `expert_permutation` | every layer (40) | `(batch·position, topk)` | `.source` line (fused forward) | `nnsight` | read-only — it is the serving kernel's row bookkeeping (where each (token, slot) row sits in expert-sorted order), not routing: the kernel derives it from the routing table, and an edited copy would describe rows that were never sorted that way. Write 'expert_idx' to change which experts fire, or 'router_scores' to reweight them |
+| `expert_permutation` | every layer (40) | `(batch·position, topk)` | `.source` line (fused forward) | `nnterp` | read-only — it is the serving kernel's row bookkeeping (where each (token, slot) row sits in expert-sorted order), not routing: the kernel derives it from the routing table, and an edited copy would describe rows that were never sorted that way. Write 'expert_idx' to change which experts fire, or 'router_scores' to reweight them |
 | `expert_output` | every layer (40) | `(batch·position, topk·feature)` | grouped-experts dispatch | both | any mechanism |
 | `routed_output` | every layer (40) | `(batch·position, feature)` | module output | both | any mechanism |
 | `shared_expert_gate_proj` | every layer (40) | `(batch·position, feature)` | module output | both | any mechanism |
@@ -731,12 +731,12 @@ are prose.
 
 <!-- generated: begin engine-summary -->
 
-| | `pytorch_hooks` | `nnsight` |
+| | `pytorch_hooks` | `nnterp` |
 |---|---|---|
-| how | `register_forward_hook` / pre-hook, plus global swaps for the delta kernel and the experts dispatch | one trace over an envoy tree, `.source` for fused-forward interiors |
-| capabilities | `grad` `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` `quantized_weights` | `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` |
-| components | 52 of 56 — every component but `deltanet_query`, `deltanet_key`, `deltanet_state` and `expert_permutation` | 51 of 56 — every component but `delta_query`, `delta_key`, `delta_kv_mem`, `delta_state_update` and `delta_state` |
-| serves alone | the post-tiling `delta_query` / `delta_key` and the per-step `delta_state` (the typed backend pairs, §5), training (`train` documents need `grad`), quantized weights | the fused-forward faces `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation` |
+| how | `register_forward_hook` / pre-hook, plus global swaps for the delta kernel and the experts dispatch | one frozen program per forward group, run as one nnsight trace over nnterp's standardized tree — envoys for module boundaries, `.source` for fused-forward interiors — in this process or on NDIF |
+| capabilities | `grad` `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` `quantized_weights` | `grad` `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` |
+| components | 52 of 56 — every component but `deltanet_query`, `deltanet_key`, `deltanet_state` and `expert_permutation` | 53 of 56 — every component but `delta_kv_mem`, `delta_state_update` and `delta_state` |
+| serves alone | the per-token DeltaNet faces `delta_kv_mem` / `delta_state_update` / `delta_state` (the last a typed backend pair, §5), quantized weights | the fused-forward faces `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation`, remote execution on NDIF |
 | install | always | `uv sync` (dev group) or the `nnsight` extra |
 
 <!-- generated: end engine-summary -->

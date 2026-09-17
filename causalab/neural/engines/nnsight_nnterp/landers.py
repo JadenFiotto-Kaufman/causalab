@@ -275,7 +275,7 @@ def _refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
             "P4",
             f"group {program.label!r} of {program.model_key!r} was handed a "
             "model whose parameters are on 'meta' where its block runs. The "
-            "nnsight_nnterp engine needs a trusted, in-process NDIF "
+            "nnterp engine needs a trusted, in-process NDIF "
             "deployment, where the block runs against the served model "
             "itself: a sandboxed (untrusted) deployment runs it in a runner "
             "process against a weight-free copy, where the eager-attention switch "

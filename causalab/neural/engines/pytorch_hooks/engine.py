@@ -80,10 +80,11 @@ class PytorchHooksEngine(Engine):
     # (`registry.CAPABILITIES`, the `reads` cell), not a literal here: the
     # module-boundary and attention-interface vocabulary, writes included, and
     # the routed-expert interior reached by wrapping the grouped
-    # experts dispatch. What the rows leave to the nnsight engine:
+    # experts dispatch. What the rows leave to the nnterp engine:
     # `expert_permutation` (the serving kernel's own bookkeeping, a `.source`
-    # line with no dispatch-slot face) and the Gated DeltaNet interior —
-    # tensors inside a fused forward where no hook can reach. Read-only /
+    # line with no dispatch-slot face) and the three `deltanet_*` faces of the
+    # Gated DeltaNet interior — tensors inside a fused forward where no hook
+    # can reach. Read-only /
     # swap-only components and stream constraints are *protocol policy* (the
     # rows' `writes` and `stream` cells, applied by the shared executor and
     # `validate`), not capability gaps: declaring router_logits unwritable

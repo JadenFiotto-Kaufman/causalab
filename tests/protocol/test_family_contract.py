@@ -464,14 +464,20 @@ def test_the_eleven_pairs_split_eight_to_three():
     assert {p.relation for p in typed} == {"gva_tile", "chunk_boundary"}
     assert set(RELATIONS) == {"identical", "gva_tile", "chunk_boundary"}
     for pair in aliased:
-        assert DEPRECATED_COMPONENTS[pair.nnsight] == pair.hooks
-        assert pair.nnsight not in COMPONENTS and pair.hooks in COMPONENTS
-        assert CAPABILITIES[pair.hooks].reads == {"pytorch_hooks", "nnsight"}
-        assert CAPABILITIES[pair.hooks].aliases == (pair.nnsight,)
+        assert DEPRECATED_COMPONENTS[pair.nnterp] == pair.hooks
+        assert pair.nnterp not in COMPONENTS and pair.hooks in COMPONENTS
+        assert CAPABILITIES[pair.hooks].reads == {"pytorch_hooks", "nnterp"}
+        assert CAPABILITIES[pair.hooks].aliases == (pair.nnterp,)
     for pair in typed:
-        assert CAPABILITIES[pair.hooks].reads == {"pytorch_hooks"}
-        assert CAPABILITIES[pair.nnsight].reads == {"nnsight"}
-        assert pair.nnsight not in DEPRECATED_COMPONENTS
+        # the `delta_*` spelling is the reference engine's at least — the
+        # tiled q/k are the kernel call's arguments, which both engines read;
+        # the per-step state is the reference engine's alone
+        assert CAPABILITIES[pair.hooks].reads >= {"pytorch_hooks"}
+        assert ("nnterp" in CAPABILITIES[pair.hooks].reads) == (
+            pair.relation == "gva_tile"
+        )
+        assert CAPABILITIES[pair.nnterp].reads == {"nnterp"}
+        assert pair.nnterp not in DEPRECATED_COMPONENTS
 
 
 def test_the_canonical_spelling_is_the_engine_neutral_one():
@@ -479,7 +485,7 @@ def test_the_canonical_spelling_is_the_engine_neutral_one():
     spellings echo the modeling file's variable names (`core_attn_out`,
     `mixed_qkv`) — module paths, which the public vocabulary does not carry."""
     assert all(p.hooks.startswith("delta_") for p in BACKEND_PAIRS)
-    assert all(p.nnsight.startswith("deltanet_") for p in BACKEND_PAIRS)
+    assert all(p.nnterp.startswith("deltanet_") for p in BACKEND_PAIRS)
     assert DEPRECATED_COMPONENTS["deltanet_core_out"] == "delta_kernel_output"
     assert DEPRECATED_COMPONENTS["deltanet_gated_out"] == "delta_premix"
     assert DEPRECATED_COMPONENTS["deltanet_qkv_conv"] == "delta_conv"
@@ -513,25 +519,25 @@ def test_the_three_typed_pairs_are_not_folded():
             continue
         raw = base_doc()
         raw["model"]["key"] = DOCS_TABLE_MODEL
-        raw["method"]["sites"]["tgt"] = {"component": pair.nnsight, "layers": [0]}
-        assert parse_document(in_order(raw)).sites["tgt"].component == pair.nnsight
+        raw["method"]["sites"]["tgt"] = {"component": pair.nnterp, "layers": [0]}
+        assert parse_document(in_order(raw)).sites["tgt"].component == pair.nnterp
 
 
 @pytest.mark.parametrize(
-    "pair", [p for p in BACKEND_PAIRS if not p.aliased], ids=lambda p: p.nnsight
+    "pair", [p for p in BACKEND_PAIRS if not p.aliased], ids=lambda p: p.nnterp
 )
 def test_aliasing_a_typed_pair_is_refused_as_a_rebind(pair: BackendPair):
     """T2's mutation, at the vocabulary: point an alias at a `gva_tile` (or
     `chunk_boundary`) pair and the alias census refuses with the relation —
     a shape / timing refusal, never a silent tile."""
-    reason = alias_would_rebind(pair.nnsight, pair.hooks)
+    reason = alias_would_rebind(pair.nnterp, pair.hooks)
     assert reason is not None and pair.relation in reason and "rebind" in reason
-    mutated = {**DEPRECATED_COMPONENTS, pair.nnsight: pair.hooks}
+    mutated = {**DEPRECATED_COMPONENTS, pair.nnterp: pair.hooks}
     with pytest.raises(AssertionError, match="would rebind, not redirect"):
         _check_aliases(mutated)
     # and the two really do differ in shape (gva) or timing (chunk) on the A3B
     left = component_shape(A3B, pair.hooks)
-    right = component_shape(A3B, pair.nnsight)
+    right = component_shape(A3B, pair.nnterp)
     assert left.describe() != right.describe() or left.width != right.width
 
 
@@ -563,11 +569,13 @@ def test_backend_pair_is_looked_up_by_either_spelling():
 def test_the_typed_pairs_are_read_by_the_sweep_helper_not_owned():
     sweep = pytest.importorskip("tests._helpers.a3b_sweep")  # imports torch
     assert sweep.DELTA_FAMILY_PAIRS == tuple(
-        (p.hooks, p.nnsight, p.relation) for p in BACKEND_PAIRS if not p.aliased
+        (p.hooks, p.nnterp, p.relation) for p in BACKEND_PAIRS if not p.aliased
     )
     assert not hasattr(sweep, "DELTA_CHUNK")
+    # both engines' DeltaNet surface: the eight one-name tensors and the two
+    # tiled kernel arguments
     assert set(sweep.SHARED_LINEAR_ONLY) == {
-        p.hooks for p in BACKEND_PAIRS if p.aliased
+        p.hooks for p in BACKEND_PAIRS if p.aliased or p.relation == "gva_tile"
     }
 
 
@@ -685,13 +693,13 @@ def test_the_inventory_carries_the_rows_mechanisms():
     inv = inventory(A3B)
     layer3 = inv.layers[3]
     assert layer3.reads["delta_premix"] if "delta_premix" in layer3.reads else True
-    assert layer3.reads["attention_probs"] == {"pytorch_hooks", "nnsight"}
+    assert layer3.reads["attention_probs"] == {"pytorch_hooks", "nnterp"}
     assert layer3.writes["attention_probs"] == {"swap"}
     assert layer3.writes["router_logits"] is None
     layer0 = inv.layers[0]
     assert layer0.reads["delta_state"] == {"pytorch_hooks"}
-    assert layer0.reads["deltanet_state"] == {"nnsight"}
-    assert layer0.reads["delta_beta"] == {"pytorch_hooks", "nnsight"}
+    assert layer0.reads["deltanet_state"] == {"nnterp"}
+    assert layer0.reads["delta_beta"] == {"pytorch_hooks", "nnterp"}
 
 
 def test_an_entry_without_a_layer_pattern_has_no_offline_inventory():

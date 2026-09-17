@@ -1,6 +1,5 @@
-"""Every snapshotted **run-time** refusal still refuses on the nnsight +
-nnterp engine, with the same message wherever the refusal is the shared
-layer's.
+"""Every snapshotted **run-time** refusal still refuses on the nnterp engine,
+with the same message wherever the refusal is the shared layer's.
 
 The run-time half of the refusal snapshot (``tests/protocol/
 test_refusal_snapshot.py`` holds the rule and the shared trigger table),
@@ -8,10 +7,11 @@ re-run with this engine's bundles and executor in place of the reference
 engine's. Refusals raised by shared code — the write policy, the stream
 check, the predicate probes, the head and expert sub-axes, the whole-tensor
 read rule, the ``dims`` refusal on the ragged ``expert:`` face (33) — reach
-the same words. One entry is retired for this engine: the previous nnsight
-engine refused the ``expert:`` face outright (31), and this one serves it
-through the routing table it captures beside the experts interior, so the
-trigger runs to a value. A recorded decision, pinned by running it.
+the same words. One retired entry is this engine's to pin: the ragged
+``expert:`` face (31) is served through the routing table the executor
+captures beside the experts interior, so its trigger
+(``table.RETIRED_TRIGGERS``) runs to a value. A recorded decision, pinned by
+running it.
 """
 
 from __future__ import annotations
@@ -28,22 +28,8 @@ from tests.protocol.test_refusal_snapshot import ENTRIES, check_entry
 
 pytestmark = pytest.mark.smoke
 
-#: Snapshotted refusals this engine deliberately turned into a pass.
-SERVED_NOW: dict[str, str] = {
-    "31": (
-        "The ragged 'expert:' face of the routed interior is served: the "
-        "executor captures the experts module's routing table beside its "
-        "`.source` interior and hands it to the shared `_expert_selected`, "
-        "the same landing the reference engine's dispatch wrapper feeds."
-    ),
-}
-
 RUN_IDS = sorted(
-    (
-        i
-        for i, e in ENTRIES.items()
-        if e["layer"] == "run" and e["captured"] and i not in SERVED_NOW
-    ),
+    (i for i, e in ENTRIES.items() if e["layer"] == "run" and e["captured"]),
     key=int,
 )
 
@@ -82,7 +68,7 @@ class NnterpFixtures(table.Fixtures):
         return dataclasses.replace(self.hooks_qwen, model=model)
 
     @functools.cached_property
-    def trace_qwen(self) -> Any:
+    def nnterp_qwen(self) -> Any:
         return self.hooks_qwen
 
 
@@ -92,7 +78,7 @@ def fixtures(request: pytest.FixtureRequest) -> table.Fixtures:
 
     original = table._executor
 
-    def executor(doc_raw: dict[str, Any], bundle: Any, *, trace: bool = False) -> Any:
+    def executor(doc_raw: dict[str, Any], bundle: Any, *, nnterp: bool = False) -> Any:
         return _with_class(original, NnterpExecutor, doc_raw, bundle)
 
     monkeypatch = pytest.MonkeyPatch()
@@ -129,9 +115,10 @@ def test_every_snapshotted_run_refusal_still_refuses(
     check_entry(entry, excinfo.value)
 
 
-@pytest.mark.parametrize("entry_id", sorted(SERVED_NOW, key=int))
-def test_a_retired_run_refusal_now_runs(
+@pytest.mark.parametrize("entry_id", sorted(table.RETIRED_TRIGGERS, key=int))
+def test_a_retired_run_refusal_runs_to_a_value(
     entry_id: str, fixtures: table.Fixtures
 ) -> None:
-    assert ENTRIES[entry_id]["captured"]
-    table.RUN_TRIGGERS[entry_id](fixtures)  # a value, or an unavailable cell
+    assert not ENTRIES[entry_id]["captured"]
+    assert ENTRIES[entry_id]["reason"] == table.RETIRED[entry_id]
+    table.RETIRED_TRIGGERS[entry_id](fixtures)  # a value, or an unavailable cell

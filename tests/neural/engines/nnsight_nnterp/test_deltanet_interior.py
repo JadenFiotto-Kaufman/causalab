@@ -1,4 +1,4 @@
-"""The Gated DeltaNet interior on the nnsight + nnterp engine.
+"""The Gated DeltaNet interior on the nnterp engine.
 
 30 of the 40 target layers carry this mixer, and nothing at its kernel
 boundary is a module boundary. The kernel-boundary components carry one
@@ -439,7 +439,7 @@ def test_delta_family_cross_engine_agreement(
         left,
         right,
         f"{hooks_component!r} (pytorch_hooks) vs {trace_component!r} "
-        f"(nnsight_nnterp), related by {relation!r}",
+        f"(nnterp), related by {relation!r}",
         # q and k are one tensor tiled, so exact; the state is two kernels'
         # arithmetic — the reference engine steps the recurrent formulation,
         # this engine reads the chunked one's running state
@@ -452,9 +452,7 @@ def test_the_delta_family_tensors_are_not_all_the_same_tensor(nnterp_qwen):
     different tensors, or 'they agree' would be satisfiable by a tap that
     returns the same thing for every component."""
     seen: list[tuple[str, torch.Tensor]] = []
-    for component in (
-        sweep.SHARED_LINEAR_ONLY + sweep.NNSIGHT_ONLY + ("delta_query", "delta_key")
-    ):
+    for component in sweep.SHARED_LINEAR_ONLY + sweep.NNTERP_ONLY:
         if component == "expert_permutation":
             continue
         value = sweep.make_executor(
@@ -482,7 +480,7 @@ def test_the_delta_family_tensors_are_not_all_the_same_tensor(nnterp_qwen):
 )
 def test_the_reference_engine_refuses_the_fused_faces_by_name(hooks_qwen, component):
     doc = _read_doc(component, pos="all" if component == "deltanet_state" else -1)
-    with pytest.raises(ProtocolError, match="nnsight engine"):
+    with pytest.raises(ProtocolError, match="nnterp engine"):
         sweep.make_executor(
             PointExecutor, doc, hooks_qwen, rows=ROWS, with_cf=False
         ).run_all()

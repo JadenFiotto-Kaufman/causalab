@@ -1,11 +1,16 @@
-"""The nnsight + nnterp engine's entry point.
+"""The nnterp engine's entry point.
 
-The same shape as the other engines': capability and component declarations
-for routing, a loader, an executor factory and the shared execution
-orchestration. It is **not registered** in the closed engine registry
-(``registry.ENGINES``): its component set is computed from the family taps
-it can land rather than read from a capability row, and routing to it is a
-caller's explicit choice (``run_protocol(..., [NnterpEngine()])``).
+The same shape as the reference engine's: capability and component
+declarations for routing, a loader, an executor factory and the shared
+execution orchestration. Which components it serves is the capability
+registry's ``reads`` cell (``registry.CAPABILITIES``): the whole vocabulary
+but the three per-token DeltaNet faces the chunked prefill kernel never
+materializes (``delta_kv_mem``, ``delta_state_update``, ``delta_state``),
+which route to the reference engine by name. Read-only and swap-only
+components and stream constraints are protocol policy (the rows' ``writes``
+and ``stream`` cells), not capability gaps, so ``writable_components`` is the
+same set. It does not declare ``quantized_weights`` — unverified through
+this loader.
 
 It declares ``grad``: a ``train`` document is fitted by ``train.run_training``
 on the shared loop — featurizer slots, fp32 losses, evals on epoch
@@ -22,7 +27,6 @@ from typing import Any, Mapping, Sequence
 
 from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
 from causalab.neural.engines.nnsight_nnterp.loading import NnterpBundle, load_model
-from causalab.neural.engines.nnsight_nnterp.sources import components_addressed
 from causalab.neural.engines.nnsight_nnterp.train import run_training
 from causalab.neural.shared.execution import TrainOutcome, execute_request
 from causalab.neural.shared.services import (
@@ -34,54 +38,24 @@ from causalab.neural.shared.services import (
 from causalab.protocol.canonical import canonical_model
 from causalab.protocol.engine import Engine, ExecutionRequest, RunResult
 from causalab.protocol.errors import ProtocolError
-from causalab.protocol.registry import CAPABILITIES, FAMILIES
+from causalab.protocol.registry import components_served_by, write_capabilities
 from causalab.protocol.schema import Document
 
-__all__ = ["NnterpEngine", "module_boundary_components", "served_components"]
-
-
-def module_boundary_components() -> frozenset[str]:
-    """Every component some registered family taps at a module boundary —
-    what this engine can land. A ``from_row`` tap is one too: the resolver
-    reads its child off the row's per-family address (the pre-RoPE
-    projections, the value states, the gate), and the executor lands it as
-    any other envoy side."""
-    return frozenset(
-        component
-        for adapter in FAMILIES.values()
-        for component, tap in adapter.taps.items()
-        if tap.kind in ("in", "out")
-    )
-
-
-def served_components() -> frozenset[str]:
-    """What this engine lands: every module boundary, plus every interior the
-    address table reaches through ``.source``
-    (:func:`~causalab.neural.engines.nnsight_nnterp.sources.components_addressed`)."""
-    return module_boundary_components() | components_addressed()
-
-
-def _write_verbs(components: frozenset[str]) -> frozenset[str]:
-    """The coarse §8 verbs the rows charge for writes at ``components``."""
-    return frozenset(
-        row.write_capability
-        for component, row in CAPABILITIES.items()
-        if component in components and row.write_capability is not None
-    )
+__all__ = ["NnterpEngine"]
 
 
 class NnterpEngine(Engine):
-    """The nnsight + nnterp engine. ``components`` is :func:`served_components`,
-    the union over every registered tree, so a document naming an interior the
-    loaded tree has no address for routes here and is refused by name at run
-    time (:meth:`NnterpExecutor._address`)."""
+    """The nnterp engine. ``components`` is the registry's row set, the union
+    over every registered tree, so a document naming an interior the loaded
+    tree has no address for routes here and is refused by name at run time
+    (:meth:`NnterpExecutor._address`)."""
 
-    name = "nnsight_nnterp"
-    components = served_components()
-    writable_components = served_components()
+    name = "nnterp"
+    components = components_served_by("nnterp")
+    writable_components = components
     capabilities = frozenset(
         {"grad", "paired_forward", "full_logits", "pytorch_fn_local", "generate"}
-    ) | _write_verbs(served_components())
+    ) | write_capabilities("nnterp")
     is_local = True
 
     def __init__(
@@ -154,7 +128,7 @@ class NnterpEngine(Engine):
         if request.decoding is not None:
             raise ProtocolError(
                 "P4",
-                "this request carries a decoding block, which the nnsight_nnterp "
+                "this request carries a decoding block, which the nnterp "
                 "engine does not serve — its continuation is the greedy decode "
                 "alone, and it publishes no continuations file; the reference "
                 "engine serves the request",
@@ -163,8 +137,9 @@ class NnterpEngine(Engine):
             raise ProtocolError(
                 "P4",
                 "this document declares weight quantization, which the "
-                "nnsight_nnterp engine has not verified through its loader — "
-                "the reference engine serves it",
+                "nnterp engine has not verified through its loader — its "
+                "'quantized_weights' capability is absent, so routing should "
+                "not have sent it here; the reference engine serves it",
             )
         if self.bundle is not None:
             check_caller_bundle(self.bundle, realization, device=self.device)

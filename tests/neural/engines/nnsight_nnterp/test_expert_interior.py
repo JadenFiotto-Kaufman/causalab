@@ -1,4 +1,4 @@
-"""The per-expert MoE interior on the nnsight + nnterp engine.
+"""The per-expert MoE interior on the nnterp engine.
 
 The five slot components carry one name on both engines and are held to
 parity in the sweep — including, now, the ragged ``expert:`` face, which
@@ -366,7 +366,7 @@ def test_a_ragged_expert_face_write_agrees_under_each_policy(qwen, policy):
 
 
 def test_the_reference_engine_refuses_the_permutation_by_name(hooks_qwen):
-    with pytest.raises(ProtocolError, match="nnsight engine"):
+    with pytest.raises(ProtocolError, match="nnterp engine"):
         sweep.make_executor(
             PointExecutor,
             _read_doc("expert_permutation"),

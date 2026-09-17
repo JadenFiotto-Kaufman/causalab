@@ -271,7 +271,7 @@ def stamp_tensor(path: Path, identity: Mapping[str, Any], *, what: str) -> None:
     #
     # Keyed on ARTIFACT_IDENTITY_KEYS, so adding a key there widens what a
     # re-stamped bundle carries forward. `implementations` was added for the
-    # nnsight engine's applied requirements and inherits deliberately: the
+    # nnterp engine's applied requirements and inherits deliberately: the
     # tensors a script re-stamps really did come through that kernel path, so
     # dropping it would lose provenance the header is the only record of.
     declared = {

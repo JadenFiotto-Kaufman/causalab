@@ -20,7 +20,7 @@ of one forward, when and only when the model's weights are not on a CUDA
 device — to transformers' **own** wrapper over that torch function, built by
 the same decorator with a package that cannot import, and restores them on
 exit. The wrapper rather than the bare function, because the module global's
-*shape* is part of the nnsight engine's address table: its ``.source``
+*shape* is part of the nnterp engine's address table: its ``.source``
 interiors peel the hub wrapper's ``implementation_0`` call before descending
 into the torch body (``nnsight_tracing/addresses.py``), and a bare function
 has nothing to peel. A CUDA model is untouched, so an installed kernel keeps

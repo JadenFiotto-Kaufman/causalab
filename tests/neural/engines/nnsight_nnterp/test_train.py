@@ -276,12 +276,15 @@ def test_the_reference_runner_and_this_one_fit_the_same_weights(
 
 def test_a_train_document_routes_to_this_engine():
     """``train`` needs ``grad`` (§8) and nothing this engine leaves
-    undeclared; the engine is not in the closed registry, so the comparison
-    ``choose_engine`` makes is made here directly."""
+    undeclared, so a pinned list of this engine alone serves it."""
+    from causalab.protocol.engine import choose_engine
+
     for raw in (das_doc(), dbm_doc()):
-        needed = requires(parse_document(in_order(raw)))
+        doc = parse_document(in_order(raw))
+        needed = requires(doc)
         assert "grad" in needed
         assert needed <= NnterpEngine().effective_capabilities
+        assert isinstance(choose_engine(doc, [NnterpEngine()]), NnterpEngine)
     assert {
         "train_free_params",
         "train_loss_precision",

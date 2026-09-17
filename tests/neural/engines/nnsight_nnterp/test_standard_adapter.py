@@ -73,3 +73,24 @@ def test_a_sub_child_component_refuses_by_name(nnterp_neox, component) -> None:
         ).read_value("r")
     assert repr(component) in str(excinfo.value)
     assert excinfo.value.reason == "component_unavailable"
+
+
+@pytest.mark.parametrize("component", ["attention_scores", "attention_z"])
+def test_an_interior_without_an_address_on_this_tree_refuses_by_name(
+    nnterp_neox, component
+) -> None:
+    """The engine declares the interiors for every registered tree, so a
+    document naming one routes here whatever the checkpoint; on a tree the
+    address table has no rows for, the executor refuses by name before any
+    forward."""
+    with pytest.raises(ProtocolError) as excinfo:
+        sweep.make_executor(
+            NnterpExecutor,
+            sweep.read_doc(component, 1, pos=sweep.default_pos(component)),
+            nnterp_neox,
+            rows=ROWS,
+            with_cf=False,
+        ).read_value("r")
+    assert repr(component) in str(excinfo.value)
+    assert "no interior address on the 'nnterp_standard' tree" in str(excinfo.value)
+    assert excinfo.value.reason == "component_unavailable"

@@ -1,4 +1,4 @@
-"""Model loading for the nnsight + nnterp engine.
+"""Model loading for the nnterp engine.
 
 :func:`load_model` builds one :class:`nnterp.StandardizedTransformer` per
 realization and wraps it in an :class:`NnterpBundle` exposing the surface the

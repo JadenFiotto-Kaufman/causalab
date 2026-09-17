@@ -1,4 +1,4 @@
-"""The nnsight + nnterp engine: interventions over the standardized envoy
+"""The nnterp engine: interventions over the standardized envoy
 tree, locally or on NDIF.
 
 The engine runs one nnsight trace per forward group over the tree

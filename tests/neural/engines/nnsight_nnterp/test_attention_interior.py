@@ -1,4 +1,4 @@
-"""The attention interior on the nnsight + nnterp engine.
+"""The attention interior on the nnterp engine.
 
 The same treatment the module-boundary vocabulary got, extended to the
 attention function's slots: the same documents through both engines,

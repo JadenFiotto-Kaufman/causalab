@@ -765,7 +765,7 @@ class NnterpExecutor(ExecutorBase):
             raise ProtocolError(
                 "P4",
                 f"component {site.component!r} has no generated-frame address "
-                "in the nnsight_nnterp engine's tables "
+                "in the nnterp engine's tables "
                 "(neural/engines/nnsight_nnterp/sources.py): the decode path "
                 "dispatches different kernels than prefill, so an interior "
                 "tensor is only served per step once its decode address is "

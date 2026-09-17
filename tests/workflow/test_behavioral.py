@@ -228,7 +228,7 @@ def test_the_field_table_is_the_step_grammar() -> None:
 
 
 def test_the_sampling_engines_are_registry_engines() -> None:
-    assert set(SAMPLING_ENGINES) <= set(ENGINES) and "nnsight" not in SAMPLING_ENGINES
+    assert set(SAMPLING_ENGINES) <= set(ENGINES) and "nnterp" not in SAMPLING_ENGINES
 
 
 def test_the_three_files_are_named_once() -> None:
@@ -716,12 +716,12 @@ def test_the_seed_is_identity_too() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# the run-time refusal that needs no model: sampling on the nnsight engine
+# the run-time refusal that needs no model: sampling on the nnterp engine
 # --------------------------------------------------------------------------- #
 
 
 class _Greedy(Engine):
-    """An engine named like the nnsight one, able to serve the fixture
+    """An engine named like the nnterp one, able to serve the fixture
     document, whose `execute` raises: reaching it means a model would have
     loaded before the refusal."""
 
@@ -745,13 +745,13 @@ def test_a_sampled_step_routed_to_a_greedy_engine_is_refused_before_it_loads(
 
     loaded = _load(_raw(decoding={"mode": "sampled", "seed": 7}))
     with pytest.raises(WorkflowError) as err:
-        run_workflow(loaded, _env(), tmp_path, [_Greedy("nnsight")])
+        run_workflow(loaded, _env(), tmp_path, [_Greedy("nnterp")])
     assert err.value.rule == BEHAVIORAL_RULE
-    assert "nnsight" in str(err.value) and "deterministic" in str(err.value)
+    assert "nnterp" in str(err.value) and "deterministic" in str(err.value)
     # the twin: a deterministic step reaches the engine (whose execute raises)
     loaded = _load(_raw(decoding={"mode": "deterministic"}))
     with pytest.raises(AssertionError, match="executed"):
-        run_workflow(loaded, _env(), tmp_path / "twin", [_Greedy("nnsight")])
+        run_workflow(loaded, _env(), tmp_path / "twin", [_Greedy("nnterp")])
 
 
 # --------------------------------------------------------------------------- #
