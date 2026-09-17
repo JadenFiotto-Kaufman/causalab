@@ -312,19 +312,18 @@ def run_training(
     outcomes: list[TrainOutcome] = []
     for doc, executor in zip(docs, executors):
         planned = plan_fit(doc, executor, request)
-        with executor._kernel_path():  # pyright: ignore[reportPrivateUsage]
-            result = run_fit(
-                executor.bundle.model,
-                planned.plan,
-                remote=executor.remote,
-                redraw=(
-                    None
-                    if planned.drawn is None
-                    else functools.partial(_redraw, planned.drawn, planned.plan.spec)
-                ),
-                # a job's log lines are the only sign of life a client waiting
-                # on one gets; a fit in this process prints its own
-                progress=bool(executor.remote) and executor.remote != "local",
-            )
+        result = run_fit(
+            executor.bundle.model,
+            planned.plan,
+            remote=executor.remote,
+            redraw=(
+                None
+                if planned.drawn is None
+                else functools.partial(_redraw, planned.drawn, planned.plan.spec)
+            ),
+            # a job's log lines are the only sign of life a client waiting on
+            # one gets; a fit in this process prints its own
+            progress=bool(executor.remote) and executor.remote != "local",
+        )
         outcomes.append(_load(planned, result))
     return outcomes

@@ -59,6 +59,7 @@ from causalab.neural.engines.nnterp_engine.program import (
 from causalab.neural.engines.nnterp_engine.versions import ensure_server_matches
 from causalab.neural.shared.featurizers import Stage, featurizer_cache
 from causalab.neural.shared.fires import FireTally, check_fires
+from causalab.neural.shared.kernels import torch_kernel_path
 from causalab.neural.shared.services import BundlePoint
 from causalab.neural.shared.training import build_fit_state, fit_loop, step_loss
 from causalab.neural.shared.training.objective import score
@@ -334,9 +335,16 @@ def fit_body(
                 f"loss {float(losses[-1]):.6g}"
             )
 
-    (outcome,) = fit_loop(
-        [state], [spec], step=step, evaluate=evaluate, on_epoch=on_epoch
-    )
+    # the DeltaNet kernel globals on the torch path for a model that is not
+    # on CUDA (``shared/kernels.py``): they are module globals of the process
+    # the *model* runs in, so a fit binds them where its forwards happen —
+    # the client's binding is not in the payload — and restores them after.
+    # Bound before the first forward, so the globals snapshot nnsight's
+    # instrumented forward takes at the first ``.source`` access is this one.
+    with torch_kernel_path(module):
+        (outcome,) = fit_loop(
+            [state], [spec], step=step, evaluate=evaluate, on_epoch=on_epoch
+        )
     if progress:
         print(
             f"fit {plan.label}: done after {state.step} updates, "
