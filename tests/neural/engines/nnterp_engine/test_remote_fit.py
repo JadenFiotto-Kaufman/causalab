@@ -160,7 +160,7 @@ def test_the_loss_moves_across_updates_on_the_server(remote_llama, ndif_llama):
     executor = _executor(remote_llama, das_doc(seed=0, epochs=3))
     planned = plan_fit(executor.doc, executor, _request())
     start = executor.stage_cache["rot"].state_dict()[ORIGINAL].detach().clone()
-    result = run_fit(remote_llama.model, planned.plan, remote=True)
+    result = run_fit(remote_llama.model, planned.plan, remote=True, progress=True)
     losses = result["loss_trace"]
     assert result["steps_run"] == len(losses) == 6
     assert all(a != b for a, b in zip(losses, losses[1:])), losses

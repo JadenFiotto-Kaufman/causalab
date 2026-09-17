@@ -145,7 +145,7 @@ def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
     executor = _executor(nnterp_llama, doc_raw)
     request = train_request({EVAL_SPLIT: ROWS})
     plan = train_module.plan_fit(executor.doc, executor, request).plan
-    assert plan.score is not None and plan.score.split == EVAL_SPLIT
+    assert plan.spec.score is not None and plan.spec.score.split == EVAL_SPLIT
     assert plan.eval and not any(program.grad for program in plan.eval)
     assert all(program.grad for program in plan.train)
 

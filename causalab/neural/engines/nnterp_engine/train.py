@@ -183,24 +183,27 @@ def plan_fit(
     assert isinstance(planner, NnterpExecutor)
     train = planner.fit_programs(spec.objective_reads)
 
-    score, evaluation = None, ()
+    evaluation: tuple[GroupProgram, ...] = ()
     if spec.eval_every_epochs is not None and spec.epochs >= spec.eval_every_epochs:
         evaluator = eval_executor(doc, executor, request, _inner_executor)
         assert isinstance(evaluator, NnterpExecutor)
-        score = score_spec(
-            doc, evaluator.rows_for_metrics(), evaluator.bundle.tokenizer
+        # the eval pass travels with the fit: its metrics are resolved here,
+        # where the tokenizer is, and scored where the fit runs
+        spec = dataclasses.replace(
+            spec,
+            score=score_spec(
+                doc, evaluator.rows_for_metrics(), evaluator.bundle.tokenizer
+            ),
         )
-        evaluation = evaluator.fit_programs(score.reads)
+        assert spec.score is not None
+        evaluation = evaluator.fit_programs(spec.score.reads)
 
-    remote = executor.remote
     plan = TrainPlan(
         label=f"{executor.bundle.key}{dict(executor.coords) or ''}",
         spec=spec,
         train=train,
         eval=evaluation,
-        score=score,
         artifacts=artifacts,
-        progress=bool(remote) and remote != "local",
     )
     return _Planned(plan, executor, init_digest, drawn)
 
@@ -293,6 +296,9 @@ def run_training(
                     if planned.drawn is None
                     else functools.partial(_redraw, planned.drawn, planned.plan.spec)
                 ),
+                # a job's log lines are the only sign of life a client waiting
+                # on one gets; a fit in this process prints its own
+                progress=bool(executor.remote) and executor.remote != "local",
             )
         outcomes.append(_load(planned, result))
     return outcomes

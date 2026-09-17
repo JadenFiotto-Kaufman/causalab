@@ -19,9 +19,9 @@ bits.
 **What ships** (:class:`TrainPlan`) is plain data: the spec, one *template*
 program per forward group over the point's **whole frame**
 (:meth:`~causalab.neural.engines.nnterp_engine.executor.NnterpExecutor.
-fit_programs`) with its stacks by name, the eval split's programs and its
-:class:`~causalab.neural.shared.training.spec.ScoreSpec`, and the saved
-tensors a featurizer starts from (:class:`Artifacts`). A minibatch is a **row
+fit_programs`) with its stacks by name, the eval split's programs, and the
+saved tensors a featurizer starts from (:class:`Artifacts`); the spec
+carries the eval pass's metrics. A minibatch is a **row
 selection** of a template (:func:`select_rows`) — the partition is the
 spec's ``batches`` — so epochs add nothing to the payload.
 
@@ -61,7 +61,7 @@ from causalab.neural.shared.fires import FireTally, check_fires
 from causalab.neural.shared.services import BundlePoint
 from causalab.neural.shared.training import build_fit_state, fit_loop, step_loss
 from causalab.neural.shared.training.objective import score
-from causalab.neural.shared.training.spec import FitSpec, ScoreSpec
+from causalab.neural.shared.training.spec import FitSpec
 from causalab.neural.shared.training.state import build_stages
 from causalab.protocol.errors import ProtocolError
 
@@ -163,21 +163,18 @@ class TrainPlan:
     """One point's fit as the data its body runs on.
 
     ``spec`` is the fit (:class:`FitSpec`: objective, optimizer, schedules,
-    the minibatch partition ``batches``, and a recipe per stage the programs
-    name). ``train`` is one template program per forward group of a step, in
-    dependency order, over the whole frame; ``eval`` the same over the
-    ``train.eval`` split and ``score`` its metrics — ``None`` / ``()`` for a
-    fit that never evaluates. ``artifacts`` answers a featurizer's saved
-    start. ``progress`` prints a line per epoch where the fit runs — on NDIF
-    a log line the waiting client shows."""
+    the minibatch partition ``batches``, a recipe per stage the programs
+    name, and the eval pass's metrics — ``spec.score``). ``train`` is one
+    template program per forward group of a step, in dependency order, over
+    the whole frame; ``eval`` the same over the ``train.eval`` split, ``()``
+    for a fit that never evaluates. ``artifacts`` answers a featurizer's
+    saved start."""
 
     label: str
     spec: FitSpec
     train: tuple[GroupProgram, ...]
     eval: tuple[GroupProgram, ...] = ()
-    score: ScoreSpec | None = None
     artifacts: Artifacts = dataclasses.field(default_factory=Artifacts)
-    progress: bool = False
 
 
 def select_rows(program: GroupProgram, rows: Sequence[int]) -> GroupProgram:
@@ -243,6 +240,7 @@ def run_fit(
     *,
     remote: bool | str = False,
     redraw: Callable[[], tuple[GroupProgram, ...]] | None = None,
+    progress: bool = False,
 ) -> dict[str, Any]:
     """Fit ``plan`` on ``model`` and hand back :func:`fit_body`'s result.
 
@@ -252,19 +250,21 @@ def run_fit(
     trace saved is downloaded, so the loop lives in a function.
 
     ``redraw`` is a local fit's §2.2 ``draw``: the step's programs re-planned
-    for a new epoch's draw, which only the client can do."""
+    for a new epoch's draw, which only the client can do. ``progress`` prints
+    a line per epoch where the fit runs — on NDIF a log line the waiting
+    client shows, which is the only sign of life a long job gives."""
     import nnsight
 
     if not remote:
         result: dict[str, Any] = {}
-        fit_body(model, plan, result, redraw=redraw)
+        fit_body(model, plan, result, redraw=redraw, progress=progress)
         return result
     if redraw is not None:
         raise ValueError("a redraw is the client's: it cannot cross into a session")
     ensure_server_matches(remote)
     with model.session(remote=remote):
         result = nnsight.save({})
-        fit_body(model, plan, result)
+        fit_body(model, plan, result, progress=progress)
     return result
 
 
@@ -274,6 +274,7 @@ def fit_body(
     result: dict[str, Any],
     *,
     redraw: Callable[[], tuple[GroupProgram, ...]] | None = None,
+    progress: bool = False,
 ) -> None:
     """The whole fit, where the model is: build the stages and the fit's
     state from the spec, step the shared loop with this engine's forwards,
@@ -313,16 +314,16 @@ def fit_body(
         losses.append(state.last_loss)
 
     def evaluate(_members: Sequence[int]) -> list[dict[str, float]]:
-        assert plan.score is not None
+        assert spec.score is not None
         for stage in stages.values():
             stage.eval()
         with featurizer_cache(isolated=True):
-            return [score(plan.score, forward(plan.eval, None))]
+            return [score(spec.score, forward(plan.eval, None))]
 
     def on_epoch(_members: Sequence[int]) -> None:
         if redraw is not None:
             train[0] = redraw()
-        if plan.progress:
+        if progress:
             print(
                 f"fit {plan.label}: {state.epoch} of {spec.epochs} epochs, "
                 f"{state.step} of {spec.total_steps} updates, "
@@ -332,7 +333,7 @@ def fit_body(
     (outcome,) = fit_loop(
         [state], [spec], step=step, evaluate=evaluate, on_epoch=on_epoch
     )
-    if plan.progress:
+    if progress:
         print(
             f"fit {plan.label}: done after {state.step} updates, "
             f"loss {float(losses[-1]):.6g}"

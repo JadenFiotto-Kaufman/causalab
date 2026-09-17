@@ -203,7 +203,7 @@ def test_the_fit_session_body_is_the_container_and_one_call():
     ]
     bind, call = block.body
     assert ast.unparse(bind) == "result = nnsight.save({})"
-    assert ast.unparse(call) == "fit_body(model, plan, result)"
+    assert ast.unparse(call) == "fit_body(model, plan, result, progress=progress)"
 
 
 def test_nnsight_captures_only_the_program_for_each_body_kind(
@@ -259,7 +259,7 @@ def test_nnsight_captures_only_the_program_for_each_body_kind(
     assert captured == {
         "session": {
             frozenset({"model", "programs", "nnsight", "run_program"}),
-            frozenset({"model", "plan", "nnsight", "fit_body"}),
+            frozenset({"model", "plan", "progress", "nnsight", "fit_body"}),
         },
         "trace": {body},
         "generate": {body},
