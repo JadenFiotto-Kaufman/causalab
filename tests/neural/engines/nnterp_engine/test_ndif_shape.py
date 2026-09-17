@@ -251,7 +251,11 @@ def test_nnsight_captures_only_the_program_for_each_body_kind(
     )
     run_training([fit.doc], [fit], train_request())  # a whole fit: one session
 
-    body = frozenset({"model", "tracer", "program", "flow", "nnsight", "execute"})
+    # `stages` is a fit's table; a block that ships is never a fit's — a fit's
+    # forwards run inside its session — so what travels here is one `None`
+    body = frozenset(
+        {"model", "tracer", "program", "flow", "stages", "nnsight", "execute"}
+    )
     assert captured == {
         "session": {
             frozenset({"model", "programs", "nnsight", "run_program"}),

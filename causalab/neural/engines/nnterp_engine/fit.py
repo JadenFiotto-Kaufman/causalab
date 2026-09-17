@@ -54,16 +54,9 @@ from causalab.neural.engines.nnterp_engine.program import (
     GroupProgram,
     Op,
     ReadPlan,
-    SlotRef,
-    StackRef,
 )
 from causalab.neural.engines.nnterp_engine.versions import ensure_server_matches
-from causalab.neural.shared.featurizers import (
-    FeaturizerStack,
-    Identity,
-    Stage,
-    featurizer_cache,
-)
+from causalab.neural.shared.featurizers import Stage, featurizer_cache
 from causalab.neural.shared.fires import FireTally, check_fires
 from causalab.neural.shared.services import BundlePoint
 from causalab.neural.shared.training import build_fit_state, fit_loop, step_loss
@@ -75,7 +68,6 @@ from causalab.protocol.errors import ProtocolError
 __all__ = [
     "Artifacts",
     "TrainPlan",
-    "bind_stages",
     "fit_body",
     "run_fit",
     "select_rows",
@@ -228,48 +220,6 @@ def select_rows(program: GroupProgram, rows: Sequence[int]) -> GroupProgram:
     )
 
 
-def bind_stages(program: GroupProgram, stages: Mapping[str, Stage]) -> GroupProgram:
-    """``program`` with every name resolved against ``stages``, the fit's own
-    table: a :class:`StackRef` becomes the stack of those stages, a
-    :class:`SlotRef` the stage's slot as it stands now. Bound per forward —
-    a slot of a trained stage moves with every update."""
-
-    def stack_of(ref: Any) -> Any:
-        if not isinstance(ref, StackRef):
-            return ref
-        if not ref.names:
-            return FeaturizerStack(names=(), stages=(Identity(),))
-        return FeaturizerStack(ref.names, tuple(stages[name] for name in ref.names))
-
-    def slot_of(operand: Any) -> Any:
-        if not isinstance(operand, SlotRef):
-            return operand
-        return stages[operand.featurizer].slot_params()[operand.slot]
-
-    def bound(op: Op) -> Op:
-        reads = tuple(
-            dataclasses.replace(
-                plan,
-                flow=dataclasses.replace(plan.flow, stack=stack_of(plan.flow.stack)),
-            )
-            if isinstance(plan, ReadPlan) and plan.flow is not None
-            else plan
-            for plan in op.reads
-        )
-        write = op.write
-        if write is not None:
-            write = dataclasses.replace(
-                write,
-                stacks={ename: stack_of(ref) for ename, ref in write.stacks.items()},
-                operands={
-                    name: slot_of(operand) for name, operand in write.operands.items()
-                },
-            )
-        return dataclasses.replace(op, reads=reads, write=write)
-
-    return dataclasses.replace(program, ops=tuple(bound(op) for op in program.ops))
-
-
 def stage_digest(stage: Stage) -> str:
     """sha256 over a stage's ``state_dict`` — names, shapes and bytes, on the
     CPU. The client's and the fit's own are compared as built: a differing
@@ -350,9 +300,7 @@ def fit_body(
         for program in programs:
             if rows is not None:
                 program = select_rows(program, rows)
-            _check_fired(
-                program, run_program(model, bind_stages(program, stages), flow)
-            )
+            _check_fired(program, run_program(model, program, flow, stages))
         return flow.__getitem__
 
     def step(_members: Sequence[int]) -> None:
