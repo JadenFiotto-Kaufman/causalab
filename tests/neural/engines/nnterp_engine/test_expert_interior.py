@@ -381,3 +381,13 @@ def test_routing_chooses_this_engine_even_listed_second():
     assert isinstance(
         choose_engine(doc, [PytorchHooksEngine(), NnterpEngine()]), NnterpEngine
     )
+
+
+def test_the_generated_refusal_names_the_missing_component():
+    """With the reference engine alone in the list, routing refuses at load
+    and the generated capability entry names the component nobody serves."""
+    from causalab.protocol.errors import ValidationError
+
+    doc = parse_document(in_order(_read_doc("expert_permutation")))
+    with pytest.raises(ValidationError, match="component:expert_permutation"):
+        choose_engine(doc, [PytorchHooksEngine()])
