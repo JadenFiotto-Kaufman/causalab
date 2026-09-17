@@ -288,6 +288,8 @@ def test_a_flowing_operand_is_finished_on_the_server(
     _assert_parity(reference, remote)
     assert tuple(remote.read_value("v_cf").shape)[-1] == 3
     assert len(ndif_llama.jobs) == 1, ndif_llama.jobs
+    remote.run_all()  # nothing left to run: no session, not an empty job
+    assert len(ndif_llama.jobs) == 1, ndif_llama.jobs
 
 
 def test_a_lazy_read_runs_a_job_per_group(

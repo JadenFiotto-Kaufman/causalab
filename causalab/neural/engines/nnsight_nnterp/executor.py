@@ -312,7 +312,8 @@ class NnterpExecutor(ExecutorBase):
                 for rname, read in self.doc.reads.items()
                 if (str(read.model), str(read.input)) == group
             }
-        return [(groups, frozenset(flowing)) for groups, flowing in segments]
+        # a point with nothing left to run is no session, not an empty job
+        return [(groups, frozenset(flowing)) for groups, flowing in segments if groups]
 
     def _flowable(self, rname: str) -> bool:
         """Whether the server can finish read ``rname`` into a session's
