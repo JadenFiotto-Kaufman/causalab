@@ -168,8 +168,18 @@ def run_program(
                 out = nnsight.save({})
                 execute(model, tracer, program, flow, out)
         else:
+            # the cache is on only where a decode consumes it — the reference
+            # engine's rule (``use_cache=depth > 0``). A prompt-only forward
+            # handed a ``DynamicCache`` (HF's default) attends over the
+            # re-laid-out keys and values ``DynamicCache.update`` returns,
+            # whose matmul rounds an ulp away from the cacheless forward's;
+            # a gradient-enabled one would also keep graph-attached copies
+            # of every layer's keys and values
             with model.trace(
-                program.inputs, position_ids=program.position_ids, remote=remote
+                program.inputs,
+                position_ids=program.position_ids,
+                use_cache=False,
+                remote=remote,
             ) as tracer:
                 out = nnsight.save({})
                 execute(model, tracer, program, flow, out)

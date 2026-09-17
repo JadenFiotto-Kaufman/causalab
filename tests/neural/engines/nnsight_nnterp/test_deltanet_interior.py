@@ -38,8 +38,10 @@ from causalab.protocol.schema import parse_document
 
 from tests._helpers import a3b_sweep as sweep
 from tests.neural.engines.nnsight_nnterp.conftest import (
+    FORMULATION_ATOL,
     ROWS,
     Family,
+    assert_same,
     read_doc,
     single_row,
 )
@@ -47,6 +49,8 @@ from tests.protocol._docs import in_order
 
 pytestmark = pytest.mark.smoke
 
+#: the anti-vacuity band — a write has to move a value by more than float
+#: noise to count as having landed; agreement itself is exact (conftest)
 ATOL = sweep.ATOL
 LAYER = 0  # DeltaNet on the fixture (layers 0-2; layer 3 is full attention)
 
@@ -176,7 +180,9 @@ def test_the_mixer_output_is_the_projection_of_the_premix(qwen):
     )
     executor = qwen.traced(doc, with_cf=False)
     projected = qwen.nnterp.blocks[LAYER].linear_attn.out_proj(executor.read_value("r"))
-    torch.testing.assert_close(projected, executor.read_value("out"), atol=ATOL, rtol=0)
+    torch.testing.assert_close(
+        projected, executor.read_value("out"), atol=0.0, rtol=0.0
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -384,7 +390,7 @@ def test_the_three_kernel_arguments_written_together_agree(qwen):
     hooked = qwen.hooked(doc, with_cf=True).dense_value("logits")
     executor = qwen.traced(doc, with_cf=True)
     traced = executor.dense_value("logits")
-    sweep.assert_same(hooked, traced, "logits after q, k and g swapped together")
+    assert_same(hooked, traced, "logits after q, k and g swapped together")
     assert executor.fires == {
         ("patched", "base"): {"patch": 1, "patch_k": 1, "patch_g": 1}
     }
@@ -429,11 +435,15 @@ def test_delta_family_cross_engine_agreement(
     left, right = sweep.align_delta_pair(
         hooked, traced, hooks_component, hooks_qwen.info
     )
-    sweep.assert_same(
+    assert_same(
         left,
         right,
         f"{hooks_component!r} (pytorch_hooks) vs {trace_component!r} "
         f"(nnsight_nnterp), related by {relation!r}",
+        # q and k are one tensor tiled, so exact; the state is two kernels'
+        # arithmetic — the reference engine steps the recurrent formulation,
+        # this engine reads the chunked one's running state
+        atol=FORMULATION_ATOL if relation == "chunk_boundary" else 0.0,
     )
 
 

@@ -28,10 +28,18 @@ from tests._helpers.parity_docs import (
     mechanism_doc,
     mixed_block_write_precedence_doc,
 )
-from tests.neural.engines.nnsight_nnterp.conftest import DENSE, ROWS, Family
+from tests.neural.engines.nnsight_nnterp.conftest import (
+    DENSE,
+    FORMULATION_ATOL,
+    ROWS,
+    Family,
+    assert_same,
+)
 
 pytestmark = pytest.mark.smoke
 
+#: the anti-vacuity band — a write has to move a value by more than float
+#: noise to count as having landed; agreement itself is exact (conftest)
 ATOL = sweep.ATOL
 
 # --------------------------------------------------------------------------- #
@@ -84,7 +92,7 @@ GPT2_READS = [
 )
 def test_read_parity(family, component, layer, head):
     hooked, traced = family.read_both(component, layer, head=head)
-    sweep.assert_same(
+    assert_same(
         hooked,
         traced,
         f"{family.name}: read {component!r} (layer {layer}, head {head})",
@@ -101,11 +109,17 @@ def test_a_whole_sequence_lm_head_read_taps_the_head_itself(hooks_llama, nnterp_
     traced = llama.traced(whole, with_cf=False).read_value("r")
     # the two base rows differ in length, so the whole-sequence read is ragged
     assert hooked.widths == traced.widths
-    sweep.assert_same(hooked.flat, traced.flat, "whole-sequence logits")
+    assert_same(hooked.flat, traced.flat, "whole-sequence logits")
     last = llama.traced(sweep.read_doc("lm_head", None), with_cf=False)
     ends = torch.tensor(traced.widths).cumsum(0) - 1
-    sweep.assert_same(
-        traced.flat[ends].unsqueeze(1), last.read_value("r"), "projected last logits"
+    # one engine, two formulations: the head over the whole frame's rows and
+    # over the gathered last rows are GEMMs of different row counts, which
+    # block — and so round — differently
+    assert_same(
+        traced.flat[ends].unsqueeze(1),
+        last.read_value("r"),
+        "projected last logits",
+        atol=FORMULATION_ATOL,
     )
 
 
@@ -135,7 +149,7 @@ def _assert_write_parity(doc, component, family: Family) -> NnterpExecutor:
     hooked = family.hooked(doc, with_cf=True).dense_value("logits")
     executor = family.traced(doc, with_cf=True)
     traced = executor.dense_value("logits")
-    sweep.assert_same(hooked, traced, f"patched logits after a write at {component!r}")
+    assert_same(hooked, traced, f"patched logits after a write at {component!r}")
     # anti-vacuity: agreement must not be reachable by "neither write landed"
     assert not torch.allclose(traced, family.unpatched_logits(), atol=ATOL), (
         f"the write at {component!r} left the logits unchanged"
@@ -197,8 +211,8 @@ def test_a_pattern_read_in_the_written_group_sees_the_write(family):
     hooked = family.hooked(doc, with_cf=True)
     traced = family.traced(doc, with_cf=True)
     seen = traced.read_value("r_pattern")
-    sweep.assert_same(traced.read_value("v_cf"), seen, "the pattern its own write set")
-    sweep.assert_same(hooked.read_value("r_pattern"), seen, "pattern read parity")
+    assert_same(traced.read_value("v_cf"), seen, "the pattern its own write set")
+    assert_same(hooked.read_value("r_pattern"), seen, "pattern read parity")
 
 
 def test_the_pattern_is_read_under_an_on_demand_eager_switch(
@@ -214,12 +228,12 @@ def test_the_pattern_is_read_under_an_on_demand_eager_switch(
     executor = llama.traced(doc, with_cf=False)
     traced = executor.read_value("r")
     hooked = llama.hooked(doc, with_cf=False).read_value("r")
-    sweep.assert_same(hooked, traced, "pattern read under the switch")
+    assert_same(hooked, traced, "pattern read under the switch")
     assert executor.applied_requirements == {"attn_eager"}
     assert bundle.model.config._attn_implementation == "sdpa"
     doc = sweep.interchange_doc("attention_probs", 1, pos="all")
     executor = llama.traced(doc, with_cf=True)
-    sweep.assert_same(
+    assert_same(
         llama.hooked(doc, with_cf=True).dense_value("logits"),
         executor.dense_value("logits"),
         "pattern write under the switch",
@@ -253,10 +267,10 @@ def test_block_mid_write_allows_later_same_layer_reads(family, later_component, 
     base_mid = hooked.read_value("v_mid_base")
     cf_mid = hooked.read_value("v_mid_cf")
     assert not torch.allclose(base_mid, cf_mid, atol=ATOL)
-    sweep.assert_same(base_mid, traced.read_value("v_mid_base"), "clean block_mid")
-    sweep.assert_same(cf_mid, traced.read_value("v_mid_cf"), "counterfactual block_mid")
+    assert_same(base_mid, traced.read_value("v_mid_base"), "clean block_mid")
+    assert_same(cf_mid, traced.read_value("v_mid_cf"), "counterfactual block_mid")
     for name in ("r_later", "r_out"):
-        sweep.assert_same(
+        assert_same(
             hooked.read_value(name),
             traced.read_value(name),
             f"block_mid write followed by {name}",
@@ -273,9 +287,9 @@ def test_mixed_block_write_precedence_agrees(family):
     expected = hooked.read_value("v_out_cf")
     for model in ("mid_then_out", "out_then_mid"):
         value = traced.read_value(f"r_{model}")
-        sweep.assert_same(hooked.read_value(f"r_{model}"), value, model)
-        sweep.assert_same(expected, value, f"absolute output precedence for {model}")
-    sweep.assert_same(
+        assert_same(hooked.read_value(f"r_{model}"), value, model)
+        assert_same(expected, value, f"absolute output precedence for {model}")
+    assert_same(
         hooked.read_value("r_mid_plus_out"),
         traced.read_value("r_mid_plus_out"),
         "write-back followed by an additive output write",
@@ -294,9 +308,7 @@ def test_a_band_runs_as_its_hand_written_twin_and_agrees(family):
     assert sorted(band.doc.sites) == ["a[layers=0]", "a[layers=1]", "head"]  # lowered
     assert torch.equal(band.read_value("logits"), hand.read_value("logits"))
     hooked = family.hooked(band_doc(one_site=True), with_cf=True)
-    sweep.assert_same(
-        hooked.read_value("logits"), band.read_value("logits"), "band logits"
-    )
+    assert_same(hooked.read_value("logits"), band.read_value("logits"), "band logits")
 
 
 def test_many_reads_in_one_trace_are_issued_in_forward_order(hooks_llama, nnterp_llama):
@@ -332,7 +344,7 @@ def test_many_reads_in_one_trace_are_issued_in_forward_order(hooks_llama, nnterp
     traced.run_all()
     assert len(traced._groups_run) == 1
     for c in components:
-        sweep.assert_same(hooked.read_value(f"r_{c}"), traced.read_value(f"r_{c}"), c)
+        assert_same(hooked.read_value(f"r_{c}"), traced.read_value(f"r_{c}"), c)
 
 
 def test_qwen_moe_block_reads_in_one_trace_follow_the_forward(hooks_qwen, nnterp_qwen):
@@ -372,7 +384,7 @@ def test_qwen_moe_block_reads_in_one_trace_follow_the_forward(hooks_qwen, nnterp
     traced = qwen.traced(doc, with_cf=False)
     traced.run_all()
     for c in components:
-        sweep.assert_same(hooked.read_value(f"r_{c}"), traced.read_value(f"r_{c}"), c)
+        assert_same(hooked.read_value(f"r_{c}"), traced.read_value(f"r_{c}"), c)
 
 
 # --------------------------------------------------------------------------- #

@@ -27,10 +27,16 @@ from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS, Family
+from tests.neural.engines.nnsight_nnterp.conftest import (
+    ROWS,
+    Family,
+    assert_same,
+)
 
 pytestmark = pytest.mark.smoke
 
+#: the anti-vacuity band — a write has to move a value by more than float
+#: noise to count as having landed; agreement itself is exact (conftest)
 ATOL = sweep.ATOL
 
 #: layer 3 is the qwen fixture's one full-attention layer; the dense trees
@@ -90,7 +96,7 @@ QWEN_READS = INTERIOR_READS + [
 )
 def test_interior_read_parity(family, component, pos, head):
     hooked, traced = family.read_both(component, LAYER[family.name], pos=pos, head=head)
-    sweep.assert_same(
+    assert_same(
         hooked, traced, f"{family.name}: read {component!r} (pos {pos}, head {head})"
     )
 
@@ -133,7 +139,7 @@ def test_z_times_gate_is_the_premix(family):
     gate = _traced_read(family, "attention_gate", pos=-1)
     premix = _traced_read(family, "attention_premix", pos=-1)
     torch.testing.assert_close(
-        z.float() * torch.sigmoid(gate.float()), premix.float(), atol=ATOL, rtol=0
+        z.float() * torch.sigmoid(gate.float()), premix.float(), atol=0.0, rtol=0.0
     )
 
 
@@ -165,7 +171,7 @@ def test_interior_write_parity(family, component, pos):
     doc = _write_doc(component, LAYER[family.name], {"swap": "v_cf"}, pos=pos)
     hooked = family.hooked(doc, with_cf=True)
     traced = family.traced(doc, with_cf=True)
-    sweep.assert_same(
+    assert_same(
         hooked.dense_value("logits"),
         traced.dense_value("logits"),
         f"{family.name}: patched logits after a swap at {component!r}",
@@ -200,7 +206,7 @@ def test_query_and_key_written_together_agree(family):
     hooked = family.hooked(doc, with_cf=True).dense_value("logits")
     executor = family.traced(doc, with_cf=True)
     traced = executor.dense_value("logits")
-    sweep.assert_same(hooked, traced, f"{family.name}: logits after q and k swapped")
+    assert_same(hooked, traced, f"{family.name}: logits after q and k swapped")
     assert executor.fires == {("patched", "base"): {"patch": 1, "patch_k": 1}}
     for component in ("attention_query", "attention_key"):
         single = family.traced(sweep.interchange_doc(component, layer), with_cf=True)
@@ -329,7 +335,7 @@ def test_several_interior_reads_share_one_trace_in_forward_order(family):
     traced.run_all()
     assert len(traced._groups_run) == 1
     for c in components:
-        sweep.assert_same(
+        assert_same(
             hooked.read_value(f"r_{c}"), traced.read_value(f"r_{c}"), f"grouped {c!r}"
         )
 
@@ -386,7 +392,7 @@ def test_the_switch_serves_the_scores_from_an_sdpa_loaded_model(
     assert bundle.model.config._attn_implementation == default  # restored
     assert executor.applied_requirements == {"attn_eager"}
     pinned = Family("llama", hooks_llama, nnterp_llama, ROWS)
-    sweep.assert_same(
+    assert_same(
         pinned.traced(doc, with_cf=False).read_value("r"),
         switched,
         "scores through the runtime switch",

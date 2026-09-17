@@ -31,7 +31,12 @@ from causalab.protocol.schema import parse_document
 from causalab.protocol.validate import validate_document
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS, Family, single_row
+from tests.neural.engines.nnsight_nnterp.conftest import (
+    ROWS,
+    Family,
+    assert_same,
+    single_row,
+)
 from tests.protocol._docs import in_order
 
 pytestmark = pytest.mark.smoke
@@ -88,7 +93,7 @@ def test_generated_read_parity(family: Family, component, pos):
     doc = _gen_doc(component, layer, pos=pos)
     hooked = family.hooked(doc, with_cf=False).read_value("r")
     traced = family.traced(doc, with_cf=False).read_value("r")
-    sweep.assert_same(hooked, traced, f"{family.name}: generated read of {component!r}")
+    assert_same(hooked, traced, f"{family.name}: generated read of {component!r}")
     assert traced.shape[1] == (
         DEPTH if pos.get("all") else len(range(*pos["span"])) if "span" in pos else 1
     )
@@ -133,7 +138,7 @@ def test_prompt_and_continuation_reads_share_one_generate_trace(family: Family):
     alone = family.traced(sweep.read_doc("block_output", layer, pos=-1), with_cf=False)
     torch.testing.assert_close(traced.read_value("p"), alone.read_value("r"))
     hooked = family.hooked(doc, with_cf=False)
-    sweep.assert_same(hooked.read_value("r"), traced.read_value("r"), "continuation")
+    assert_same(hooked.read_value("r"), traced.read_value("r"), "continuation")
 
 
 @pytest.mark.parametrize("family", ["llama", "gpt2", "qwen"], indirect=True)
@@ -161,7 +166,7 @@ def test_a_write_reaches_the_continuation_identically(family: Family):
     doc["method"]["save"][0]["model"] = "patched"
     hooked = family.hooked(doc, with_cf=True)
     traced = family.traced(doc, with_cf=True)
-    sweep.assert_same(
+    assert_same(
         hooked.read_value("r"), traced.read_value("r"), "a patched continuation read"
     )
     assert hooked.generated_ids("r") == traced.generated_ids("r")
@@ -257,9 +262,7 @@ def test_the_deltanet_state_reads_per_decode_step(nnterp_qwen, hooks_qwen):
     ).read_value("r")
     # the reference engine's state keeps its (heads, d_k, d_v) axes; the
     # per-chunk face declares one flat width
-    sweep.assert_same(
-        hooked.reshape(per_step.shape), per_step, "the state per decode step"
-    )
+    assert_same(hooked.reshape(per_step.shape), per_step, "the state per decode step")
 
 
 @pytest.mark.parametrize("component", ["expert_gate_proj", "delta_query"])

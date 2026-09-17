@@ -28,7 +28,10 @@ from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS
+from tests.neural.engines.nnsight_nnterp.conftest import (
+    ROWS,
+    assert_same,
+)
 
 pytestmark = pytest.mark.smoke
 
@@ -78,7 +81,7 @@ def _read_both(component, layer, hooks_bundle, trace_bundle):
 @pytest.mark.parametrize("component", _served(sweep.SHARED_LAYERLESS))
 def test_read_parity_layerless(hooks_qwen, nnterp_qwen, component):
     hooked, traced = _read_both(component, None, hooks_qwen, nnterp_qwen)
-    sweep.assert_same(hooked, traced, f"read {component!r}")
+    assert_same(hooked, traced, f"read {component!r}")
 
 
 @pytest.mark.parametrize(
@@ -87,7 +90,7 @@ def test_read_parity_layerless(hooks_qwen, nnterp_qwen, component):
 def test_read_parity_deltanet_layer(hooks_qwen, nnterp_qwen, layers, component):
     delta_layer, _ = layers
     hooked, traced = _read_both(component, delta_layer, hooks_qwen, nnterp_qwen)
-    sweep.assert_same(hooked, traced, f"read {component!r} @ DeltaNet L{delta_layer}")
+    assert_same(hooked, traced, f"read {component!r} @ DeltaNet L{delta_layer}")
 
 
 @pytest.mark.parametrize(
@@ -96,7 +99,7 @@ def test_read_parity_deltanet_layer(hooks_qwen, nnterp_qwen, layers, component):
 def test_read_parity_full_attention_layer(hooks_qwen, nnterp_qwen, layers, component):
     _, full_layer = layers
     hooked, traced = _read_both(component, full_layer, hooks_qwen, nnterp_qwen)
-    sweep.assert_same(hooked, traced, f"read {component!r} @ full-attn L{full_layer}")
+    assert_same(hooked, traced, f"read {component!r} @ full-attn L{full_layer}")
 
 
 # --------------------------------------------------------------------------- #
@@ -118,7 +121,7 @@ def _write_both(component, layer, hooks_bundle, trace_bundle, unpatched):
     hooked = _hooks(doc, hooks_bundle, with_cf=True).dense_value("logits")
     traced = _trace(doc, trace_bundle, with_cf=True).dense_value("logits")
     where = f"{component!r}" + ("" if layer is None else f" @ L{layer}")
-    sweep.assert_same(hooked, traced, f"patched logits after a swap at {where}")
+    assert_same(hooked, traced, f"patched logits after a swap at {where}")
     assert not torch.allclose(hooked, unpatched["hooks"], atol=sweep.ATOL), (
         f"pytorch_hooks: the interchange at {where} left the logits unchanged"
     )
@@ -168,7 +171,7 @@ def test_read_parity_kernel_arguments(hooks_qwen, nnterp_qwen, layers, component
     global, this engine reads off the kernel call's own arguments."""
     delta_layer, _ = layers
     hooked, traced = _read_both(component, delta_layer, hooks_qwen, nnterp_qwen)
-    sweep.assert_same(hooked, traced, f"read {component!r} @ DeltaNet L{delta_layer}")
+    assert_same(hooked, traced, f"read {component!r} @ DeltaNet L{delta_layer}")
 
 
 @pytest.mark.parametrize("component", sweep.write_cases(_served(sweep.HOOKS_ONLY)))

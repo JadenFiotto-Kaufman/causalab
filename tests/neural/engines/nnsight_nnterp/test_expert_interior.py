@@ -38,6 +38,7 @@ from tests._helpers import a3b_sweep as sweep
 from tests.neural.engines.nnsight_nnterp.conftest import (
     ROWS,
     Family,
+    assert_same,
     read_doc,
     single_row,
 )
@@ -45,6 +46,8 @@ from tests.protocol._docs import in_order
 
 pytestmark = pytest.mark.smoke
 
+#: the anti-vacuity band — a write has to move a value by more than float
+#: noise to count as having landed; agreement itself is exact (conftest)
 ATOL = sweep.ATOL
 LAYER = 0  # every fixture layer carries the sparse-MoE block
 TEXT = "the quick brown fox jumps"
@@ -116,7 +119,7 @@ def test_the_activation_is_act_of_gate_exactly(qwen):
     gate, up = executor.read_value("r"), executor.read_value("up")
     act, neuron = executor.read_value("act"), executor.read_value("neuron")
     torch.testing.assert_close(torch.nn.functional.silu(gate), act, atol=0.0, rtol=0.0)
-    torch.testing.assert_close(act * up, neuron, atol=ATOL, rtol=0.0)
+    torch.testing.assert_close(act * up, neuron, atol=0.0, rtol=0.0)
 
 
 def test_expert_output_weighted_sums_to_routed_output(qwen):
@@ -138,7 +141,7 @@ def test_expert_output_weighted_sums_to_routed_output(qwen):
         *per_slot.shape[:-1], info.num_experts_per_tok, info.hidden_size
     ) * executor.read_value("scores").unsqueeze(-1)
     torch.testing.assert_close(
-        weighted.sum(-2), executor.read_value("routed"), atol=ATOL, rtol=0
+        weighted.sum(-2), executor.read_value("routed"), atol=0.0, rtol=0.0
     )
 
 
@@ -292,9 +295,7 @@ def test_the_expert_face_reads_in_parity(qwen, component, pos):
     traced = qwen.traced(doc, with_cf=False).read_value("r")
     assert hooked.widths == traced.widths
     assert sum(traced.widths) > 0
-    sweep.assert_same(
-        hooked.flat, traced.flat, f"expert {expert} face of {component!r}"
-    )
+    assert_same(hooked.flat, traced.flat, f"expert {expert} face of {component!r}")
 
 
 def test_an_expert_nobody_chose_is_an_empty_selector_cell(qwen):
@@ -322,7 +323,7 @@ def test_an_expert_face_write_lands_on_that_experts_slots_alone(qwen):
     doc["method"]["sites"]["tap"]["expert"] = expert
     hooked = qwen.hooked(doc, with_cf=True).dense_value("logits")
     traced = qwen.traced(doc, with_cf=True).dense_value("logits")
-    sweep.assert_same(hooked, traced, f"logits after a swap at expert {expert}")
+    assert_same(hooked, traced, f"logits after a swap at expert {expert}")
     assert not torch.allclose(traced, qwen.unpatched_logits(), atol=ATOL)
     whole = qwen.traced(
         sweep.interchange_doc("expert_neuron_output", LAYER), with_cf=True
@@ -347,7 +348,7 @@ def test_a_ragged_expert_face_write_agrees_under_each_policy(qwen, policy):
     doc["method"]["writes"]["patch"]["ragged"] = {"policy": policy}
     hooked = qwen.hooked(doc, with_cf=True)
     traced = qwen.traced(doc, with_cf=True)
-    sweep.assert_same(
+    assert_same(
         hooked.dense_value("logits"),
         traced.dense_value("logits"),
         f"logits after a ragged swap at expert {expert} under {policy!r}",

@@ -78,6 +78,27 @@ GPT2_ROWS = [
 ]
 
 
+#: What two *different formulations* of one tensor agree to in fp32 — the only
+#: two comparisons of the suite that are not bit-exact, each stating its cause
+#: where it passes this: the reference engine's per-step DeltaNet state (the
+#: recurrent kernel) against this engine's per-chunk one (the chunked kernel),
+#: and the head applied to a whole frame against the head applied to its
+#: gathered last rows (a GEMM blocks by its row count). 📐 measured: 3.4e-08
+#: and 6.0e-08 on the fixtures.
+FORMULATION_ATOL = 1e-6
+
+
+def assert_same(a: torch.Tensor, b: torch.Tensor, what: str, *, atol: float = 0.0):
+    """:func:`sweep.assert_same`, **exactly**: the two engines run the same
+    fp32 eager kernels on the same frames in one process — a prompt forward
+    without a KV cache on both sides, a generated one with it on both — so
+    they agree bit for bit on every fixture family (tiny Llama, tiny GPT-2,
+    ``tiny-random/qwen3.5-moe``), read and written, and any difference is an
+    executor bug. ``sweep.ATOL`` stays the band of the suites that share that
+    helper."""
+    sweep.assert_same(a, b, what, atol=atol)
+
+
 @pytest.fixture(scope="session")
 def hooks_llama() -> ModelBundle:
     return load_hooks_model(TINY_LLAMA)
