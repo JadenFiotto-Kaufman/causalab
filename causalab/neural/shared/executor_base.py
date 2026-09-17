@@ -30,6 +30,8 @@ from causalab.neural.shared.encoding import (
 from causalab.neural.shared.featurizers import (
     FeaturizerStack,
     Stage,
+    StageRecipe,
+    build_recipe,
     build_stack,
     link_budget_pools,
 )
@@ -1938,33 +1940,42 @@ class ExecutorBase:
     def stage(self, name: str) -> Stage:
         """The (shared) featurizer stage instance for one declared name."""
         if name not in self.stage_cache:
-            width, site, entry = self._featurizer_input(name)
-            # §2.5 `axis`: the window the entry addresses sizes a position gate;
-            # `build_stack` decides whether it matters and refuses a `None` for a
-            # position gate — the same line `_read_stack` hands it, so a gate
-            # reached through either path gets one message. Rule 4 already held
-            # every use of the gate to one fixed span, so the first entry's
-            # window is the gate's
-            build_stack(
-                name,
-                dict(self.doc.featurizers),
-                width=width,
+            build_recipe(
+                self.stage_recipe(name),
+                self.doc.featurizers,
                 load_tensors=self.load_tensors,
                 load_table=self.load_table,
                 stage_cache=self.stage_cache,
                 device=self.bundle.device,
                 seed=self.seed,
                 coords=self.coords,
-                site_shape=site.shape,
-                site_component=site.component,
                 model_info=self.bundle.info,
-                position_width=span_length(self._spec(entry.pos)),
             )
             # a budget pool's members are built together (§2.5 `pool`): a
             # member's mask is solved over the whole pool, so none may be
             # computed before every co-member exists
             link_budget_pools(self.doc.featurizers, self.stage_cache, self.stage)
         return self.stage_cache[name]
+
+    def stage_recipe(self, name: str) -> StageRecipe:
+        """Where this document uses featurizer ``name``, as the plain data a
+        stage is built from (:class:`~causalab.neural.shared.featurizers.
+        StageRecipe`) — what :meth:`stage` builds with, and what a fit's spec
+        carries so the same stage can be built where no executor is."""
+        width, site, entry = self._featurizer_input(name)
+        # §2.5 `axis`: the window the entry addresses sizes a position gate;
+        # `build_stack` decides whether it matters and refuses a `None` for a
+        # position gate — the same line `_read_stack` hands it, so a gate
+        # reached through either path gets one message. Rule 4 already held
+        # every use of the gate to one fixed span, so the first entry's
+        # window is the gate's
+        return StageRecipe(
+            name=name,
+            width=width,
+            site_shape=site.shape,
+            site_component=site.component,
+            position_width=span_length(self._spec(entry.pos)),
+        )
 
     def _featurizer_input(
         self, name: str
