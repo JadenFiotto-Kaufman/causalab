@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from tests._helpers import refusal_snapshot as table
-from tests.neural.engines.nnsight_nnterp.conftest import TINY_LLAMA, TINY_QWEN35_MOE
+from tests.neural.engines.nnterp_engine.conftest import TINY_LLAMA, TINY_QWEN35_MOE
 from tests.protocol.test_refusal_snapshot import ENTRIES, check_entry
 
 pytestmark = pytest.mark.smoke
@@ -39,13 +39,13 @@ class NnterpFixtures(table.Fixtures):
 
     @functools.cached_property
     def hooks_qwen(self) -> Any:
-        from causalab.neural.engines.nnsight_nnterp.loading import load_model
+        from causalab.neural.engines.nnterp_engine.loading import load_model
 
         return load_model(TINY_QWEN35_MOE, attn_implementation="eager")
 
     @functools.cached_property
     def hooks_llama(self) -> Any:
-        from causalab.neural.engines.nnsight_nnterp.loading import load_model
+        from causalab.neural.engines.nnterp_engine.loading import load_model
 
         return load_model(TINY_LLAMA, attn_implementation="eager")
 
@@ -74,7 +74,7 @@ class NnterpFixtures(table.Fixtures):
 
 @pytest.fixture(scope="module")
 def fixtures(request: pytest.FixtureRequest) -> table.Fixtures:
-    from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+    from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 
     original = table._executor
 

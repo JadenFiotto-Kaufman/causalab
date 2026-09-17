@@ -1,7 +1,7 @@
 """The block side of the engine: what runs inside a trace.
 
 Everything here is a module-level function over the model and a frozen
-:class:`~causalab.neural.engines.nnsight_nnterp.program.GroupProgram` — no
+:class:`~causalab.neural.engines.nnterp_engine.program.GroupProgram` — no
 executor, no ``self``. That is what makes a trace body shippable: nnsight
 pickles every name a block reads, so :func:`run_program`'s two ``with``
 bodies read only ``model``, ``tracer``, ``program``, ``flow``, ``nnsight``
@@ -56,7 +56,7 @@ from typing import Any, Callable
 
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.program import (
+from causalab.neural.engines.nnterp_engine.program import (
     Entries,
     FirePlan,
     GroupProgram,
@@ -65,7 +65,7 @@ from causalab.neural.engines.nnsight_nnterp.program import (
     ReadPlan,
     WritePlan,
 )
-from causalab.neural.engines.nnsight_nnterp.sources import (
+from causalab.neural.engines.nnterp_engine.sources import (
     AddressResolutionError,
     SourceAddress,
     match_op,

@@ -331,7 +331,7 @@ def load_engines(
         )
     if choice in ("nnterp", "auto"):
         try:
-            nnterp = importlib.import_module("causalab.neural.engines.nnsight_nnterp")
+            nnterp = importlib.import_module("causalab.neural.engines.nnterp_engine")
         except ModuleNotFoundError as err:
             if choice == "nnterp":
                 raise ProtocolError(

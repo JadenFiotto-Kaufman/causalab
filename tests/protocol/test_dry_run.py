@@ -475,7 +475,7 @@ def test_b_under_auto_another_candidate_serving_is_exit_0(
     )
     _install(
         monkeypatch,
-        "causalab.neural.engines.nnsight_nnterp",
+        "causalab.neural.engines.nnterp_engine",
         "NnterpEngine",
         _nnterp_stub(FULL),
     )

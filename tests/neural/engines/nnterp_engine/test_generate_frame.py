@@ -21,8 +21,8 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.shared.encoding import continuation_widths
 from causalab.protocol.engine import requires
@@ -31,7 +31,7 @@ from causalab.protocol.schema import parse_document
 from causalab.protocol.validate import validate_document
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import (
+from tests.neural.engines.nnterp_engine.conftest import (
     ROWS,
     Family,
     assert_same,

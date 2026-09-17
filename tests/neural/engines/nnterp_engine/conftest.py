@@ -22,13 +22,13 @@ import torch
 pytest.importorskip("nnsight")
 pytest.importorskip("nnterp")
 
-from causalab.neural.engines.nnsight_nnterp.executor import (  # noqa: E402
+from causalab.neural.engines.nnterp_engine.executor import (  # noqa: E402
     NnterpExecutor,
 )
-from causalab.neural.engines.nnsight_nnterp.loading import (  # noqa: E402
+from causalab.neural.engines.nnterp_engine.loading import (  # noqa: E402
     NnterpBundle,
 )
-from causalab.neural.engines.nnsight_nnterp.loading import (  # noqa: E402
+from causalab.neural.engines.nnterp_engine.loading import (  # noqa: E402
     load_model as load_nnterp_model,
 )
 from causalab.neural.engines.pytorch_hooks.executor import (  # noqa: E402

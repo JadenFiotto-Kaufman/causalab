@@ -45,7 +45,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
-from causalab.neural.engines.nnsight_nnterp.adapter import standard_adapter
+from causalab.neural.engines.nnterp_engine.adapter import standard_adapter
 from causalab.neural.shared import streams
 from causalab.neural.shared.compile_cache import configure as configure_compile_cache
 from causalab.neural.shared.kernels import bind_kernel_path

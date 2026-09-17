@@ -1666,7 +1666,7 @@ def _refuse_interior(what: str, site: ResolvedSite) -> None:
         f"{what} addresses {site.component!r}, which lives inside a fused "
         "forward where no pytorch hook can reach — the nnterp engine "
         "serves it (its `.source` address table, "
-        "neural/engines/nnsight_nnterp/sources.py). Routing sends such "
+        "neural/engines/nnterp_engine/sources.py). Routing sends such "
         "documents there.",
         reason="component_unavailable",
     )

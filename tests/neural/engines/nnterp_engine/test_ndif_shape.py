@@ -38,14 +38,14 @@ import pathlib
 import pytest
 import torch
 
-import causalab.neural.engines.nnsight_nnterp as engine_package
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import load_model
+import causalab.neural.engines.nnterp_engine as engine_package
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import load_model
 from causalab.neural.shared.loading import torch_module
 from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS, TINY_LLAMA
+from tests.neural.engines.nnterp_engine.conftest import ROWS, TINY_LLAMA
 
 pytestmark = pytest.mark.smoke
 
@@ -200,7 +200,7 @@ def test_nnsight_captures_only_the_program_for_each_body_kind(
     """
     from nnsight.schema import request
 
-    from tests.neural.engines.nnsight_nnterp.test_generate_frame import _gen_doc
+    from tests.neural.engines.nnterp_engine.test_generate_frame import _gen_doc
 
     captured: dict[str, set[str]] = {}
     reduce_block = request.reduce_block

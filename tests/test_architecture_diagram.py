@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 from causalab.protocol.registry import CAPABILITIES
 

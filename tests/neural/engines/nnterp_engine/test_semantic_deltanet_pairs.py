@@ -20,7 +20,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.shared.sites import resolve_site
 from causalab.protocol.canonical import canonicalize

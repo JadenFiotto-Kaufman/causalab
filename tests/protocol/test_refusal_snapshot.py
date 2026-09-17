@@ -7,7 +7,7 @@ rule**: the old message must appear inside the new one, and the exception
 class must be the same — or one of the upgrades ``ALLOWED_UPGRADES`` lists by
 entry, each of which is a recorded decision, not a
 tolerance. The run-time half lives beside the engine tests
-(``tests/neural/engines/nnsight_nnterp/test_refusal_snapshot.py``), because
+(``tests/neural/engines/nnterp_engine/test_refusal_snapshot.py``), because
 it loads models; the shared trigger table and the rule are the same.
 """
 

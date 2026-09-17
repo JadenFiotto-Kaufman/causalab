@@ -27,7 +27,7 @@ from typing import Any, Mapping
 
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.sources import SourceAddress
+from causalab.neural.engines.nnterp_engine.sources import SourceAddress
 from causalab.neural.shared.executor_base import RaggedValue, TapKey, tap_key
 from causalab.neural.shared.featurizers import FeaturizerStack
 from causalab.neural.shared.sites import ResolvedSite

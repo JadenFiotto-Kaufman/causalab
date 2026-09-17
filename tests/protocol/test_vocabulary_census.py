@@ -1269,7 +1269,7 @@ def test_the_engine_table_matches_what_each_engine_declares() -> None:
     Engines are imported inside the test — they pull torch, and this module is
     a `unit` test about markdown.
     """
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 
     engines = [PytorchHooksEngine, NnterpEngine]
@@ -1316,7 +1316,7 @@ def test_the_component_counts_match_each_engine() -> None:
     `writable_components` is asserted equal to `components` because the row's
     header carries `[:write]`, so the counts are claimed for writes too.
     """
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 
     rows = [row for row in _engine_declaration_rows() if _is_component_row(row)]
@@ -1437,7 +1437,7 @@ def test_engine_component_sets_are_generated_from_the_rows() -> None:
     """Each engine's `components` and `writable_components` are exactly the
     rows whose `reads` name it — nothing declared by hand survives in the
     classes. Engines are imported inside the test (they pull torch)."""
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
     from causalab.protocol.registry import CAPABILITIES, components_served_by
 

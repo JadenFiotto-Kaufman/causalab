@@ -25,9 +25,9 @@ from __future__ import annotations
 import functools
 from typing import Any, Mapping, Sequence
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import NnterpBundle, load_model
-from causalab.neural.engines.nnsight_nnterp.train import run_training
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import NnterpBundle, load_model
+from causalab.neural.engines.nnterp_engine.train import run_training
 from causalab.neural.shared.execution import TrainOutcome, execute_request
 from causalab.neural.shared.services import (
     check_caller_bundle,

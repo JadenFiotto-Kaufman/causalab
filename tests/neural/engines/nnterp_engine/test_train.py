@@ -15,10 +15,10 @@ from typing import Any
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import NnterpBundle
-from causalab.neural.engines.nnsight_nnterp.train import run_training
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine.train import run_training
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle
 from causalab.neural.engines.pytorch_hooks.train import (

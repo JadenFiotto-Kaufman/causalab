@@ -22,12 +22,12 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import (
+from tests.neural.engines.nnterp_engine.conftest import (
     ROWS,
     Family,
     assert_same,

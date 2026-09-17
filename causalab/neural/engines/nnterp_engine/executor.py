@@ -9,13 +9,13 @@ the two ends of a forward group, and nothing in between:
   the group's reads and writes to sites and interior addresses, refuse what
   has none, resolve every position, look every operand up, build every
   featurizer stack, and freeze the result as a
-  :class:`~causalab.neural.engines.nnsight_nnterp.program.GroupProgram`;
+  :class:`~causalab.neural.engines.nnterp_engine.program.GroupProgram`;
 * **after the trace — finalization** (:meth:`NnterpExecutor._finalize`):
   replay the fires the block reported and check them, and finish each read
   from the slice the block gathered (the featurizer stack and ``dims``, the
   part that needs only the document).
 
-The trace itself is :func:`~causalab.neural.engines.nnsight_nnterp.landers.run_program`,
+The trace itself is :func:`~causalab.neural.engines.nnterp_engine.landers.run_program`,
 module-level functions over the program. **No trace body in this package
 reads ``self``**: nnsight ships every name a block reads, whole, so an
 executor inside a block would travel to NDIF with the document, the bundle,
@@ -50,7 +50,7 @@ and the decode steps are walked afterwards. Module boundaries and the
 attention function's stackable slots are read per step through their
 prompt-frame landings; the DeltaNet state through the recurrent kernel's own
 address
-(:data:`~causalab.neural.engines.nnsight_nnterp.sources.GENERATED_ADDRESSES`);
+(:data:`~causalab.neural.engines.nnterp_engine.sources.GENERATED_ADDRESSES`);
 every other interior is refused by name, because decode dispatches
 different kernels than prefill and a prefill address is no evidence the
 tensor exists per step.
@@ -84,7 +84,7 @@ What remote mode requires of the server, and what it does not promise:
   attention implementation and calls its head and mixer projections. A
   sandboxed (untrusted) deployment runs the block against a ``meta`` copy;
   the block refuses there by name
-  (:func:`~causalab.neural.engines.nnsight_nnterp.landers.execute`). A
+  (:func:`~causalab.neural.engines.nnterp_engine.landers.execute`). A
   version skew between the two ``causalab`` installs is a skew between the
   plan and the code that reads it.
 * **a hard kill mid-block can leave a shared deployment on eager
@@ -113,9 +113,9 @@ from typing import Any
 
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.adapter import matched_family
-from causalab.neural.engines.nnsight_nnterp.landers import run_program, run_session
-from causalab.neural.engines.nnsight_nnterp.program import (
+from causalab.neural.engines.nnterp_engine.adapter import matched_family
+from causalab.neural.engines.nnterp_engine.landers import run_program, run_session
+from causalab.neural.engines.nnterp_engine.program import (
     PATTERN,
     FirePlan,
     FlowPlan,
@@ -126,7 +126,7 @@ from causalab.neural.engines.nnsight_nnterp.program import (
     needs_eager,
     schedule,
 )
-from causalab.neural.engines.nnsight_nnterp.sources import (
+from causalab.neural.engines.nnterp_engine.sources import (
     ADDRESSES,
     GENERATED_ADDRESSES,
     SourceAddress,
@@ -153,7 +153,7 @@ from causalab.protocol.schema import PositionSpec, ReadSpec, SiteSpec, WriteSpec
 __all__ = ["NnterpExecutor"]
 
 #: Tap kinds with no module boundary: served through an address of
-#: :data:`~causalab.neural.engines.nnsight_nnterp.sources.ADDRESSES`, refused
+#: :data:`~causalab.neural.engines.nnterp_engine.sources.ADDRESSES`, refused
 #: by name where the tree has none.
 _INTERIOR_KINDS = frozenset({"interface", "delta", "experts", "interior"})
 
@@ -272,7 +272,7 @@ class NnterpExecutor(ExecutorBase):
         """Run every group the document implies. Locally that is the lazy
         per-group run. Remotely every group is planned here, once, before
         any job is spent, and the groups run in dependency order as sessions
-        (:func:`~causalab.neural.engines.nnsight_nnterp.landers.run_session`)
+        (:func:`~causalab.neural.engines.nnterp_engine.landers.run_session`)
         — one where every operand can flow between the traces on the server,
         which is the usual point. An operand the server cannot finish
         (:meth:`_flowable`) has to come home first, so the session is cut in
@@ -535,7 +535,7 @@ class NnterpExecutor(ExecutorBase):
                 why = (
                     f"a {site.kind!r} tap with no interior address on the "
                     f"{self._tree!r} tree of this engine "
-                    "(neural/engines/nnsight_nnterp/sources.py) — the reference "
+                    "(neural/engines/nnterp_engine/sources.py) — the reference "
                     "engine serves it"
                 )
             raise ProtocolError(
@@ -627,7 +627,7 @@ class NnterpExecutor(ExecutorBase):
                         f"a write at {PATTERN!r} lands on the attention "
                         "function's softmax, which has no interior address on "
                         f"the {self._tree!r} tree of this engine "
-                        "(neural/engines/nnsight_nnterp/sources.py)",
+                        "(neural/engines/nnterp_engine/sources.py)",
                         reason="component_unavailable",
                     )
                 groups.setdefault(tap_key(site, address), (site, address, []))[
@@ -766,7 +766,7 @@ class NnterpExecutor(ExecutorBase):
                 "P4",
                 f"component {site.component!r} has no generated-frame address "
                 "in the nnterp engine's tables "
-                "(neural/engines/nnsight_nnterp/sources.py): the decode path "
+                "(neural/engines/nnterp_engine/sources.py): the decode path "
                 "dispatches different kernels than prefill, so an interior "
                 "tensor is only served per step once its decode address is "
                 "verified. Read it in the prompt frame.",

@@ -8,18 +8,18 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.adapter import (
+from causalab.neural.engines.nnterp_engine.adapter import (
     STANDARD_MIXERS,
     standard_adapter,
 )
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import load_model
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import load_model
 from causalab.neural.shared.loading import torch_module
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.registry import BLOCK_TAPS
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS, TINY_GPT_NEOX
+from tests.neural.engines.nnterp_engine.conftest import ROWS, TINY_GPT_NEOX
 
 pytestmark = pytest.mark.smoke
 

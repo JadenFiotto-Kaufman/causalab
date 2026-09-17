@@ -3,7 +3,7 @@
 Both engines load through a four-entry ``normalized_cache``
 (``causalab.neural.shared.normalized_cache``; the ``load_model`` of
 ``causalab.neural.engines.pytorch_hooks.loading`` and of
-``causalab.neural.engines.nnsight_nnterp.loading``), so a model a test loaded
+``causalab.neural.engines.nnterp_engine.loading``), so a model a test loaded
 — directly, or through a protocol run — stays *alive* after the test ends. The
 per-test ``gc.collect()`` + ``torch.cuda.empty_cache()`` in
 ``tests/conftest.py`` reclaims only *dead* models; nothing it does can
@@ -31,7 +31,7 @@ def evict_resident_models() -> None:
     collection pass, and the collection must run before ``empty_cache`` has
     anything to return to the driver.
     """
-    from causalab.neural.engines.nnsight_nnterp.loading import (
+    from causalab.neural.engines.nnterp_engine.loading import (
         load_model as nnterp_load_model,
     )
     from causalab.neural.engines.pytorch_hooks.loading import (

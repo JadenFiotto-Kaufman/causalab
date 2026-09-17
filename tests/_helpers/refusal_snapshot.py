@@ -242,7 +242,7 @@ class Fixtures:
 
     @functools.cached_property
     def nnterp_qwen(self) -> Any:
-        from causalab.neural.engines.nnsight_nnterp.loading import load_model
+        from causalab.neural.engines.nnterp_engine.loading import load_model
 
         return load_model(TINY_QWEN35_MOE, attn_implementation="eager")
 
@@ -262,7 +262,7 @@ def _executor(doc_raw: dict[str, Any], bundle: Any, *, nnterp: bool = False) -> 
     that validated first would, after the consolidation, hit the load-time twin of two of
     them and never reach the run-time path this snapshot pins."""
     if nnterp:
-        from causalab.neural.engines.nnsight_nnterp.executor import (
+        from causalab.neural.engines.nnterp_engine.executor import (
             NnterpExecutor as cls,
         )
     else:
@@ -430,8 +430,8 @@ RETIRED: dict[str, str] = {
         "`.source` interior and hands it to the shared `_expert_selected`, "
         "the same landing the reference engine's dispatch wrapper feeds. The "
         "trigger runs to a value and is pinned in "
-        "tests/neural/engines/nnsight_nnterp/test_refusal_snapshot.py; parity "
-        "on the face is tests/neural/engines/nnsight_nnterp/"
+        "tests/neural/engines/nnterp_engine/test_refusal_snapshot.py; parity "
+        "on the face is tests/neural/engines/nnterp_engine/"
         "test_expert_interior.py."
     ),
     "32": (
@@ -440,7 +440,7 @@ RETIRED: dict[str, str] = {
         "branch). The nnterp engine's refusal of an interior its address "
         "table has no row for is reachable — the three per-token DeltaNet "
         "faces, and any interior on a tree the table does not cover — and is "
-        "pinned in tests/neural/engines/nnsight_nnterp/"
+        "pinned in tests/neural/engines/nnterp_engine/"
         "test_parity_a3b_sweep.py::test_a_per_token_face_is_refused_by_name "
         "and test_standard_adapter.py."
     ),
@@ -451,7 +451,7 @@ RETIRED: dict[str, str] = {
         "the reference engine serves the name through in_proj_qkv's output. The "
         "refusal survives for the three faces only the nnterp engine serves "
         "('deltanet_query', 'deltanet_key', 'deltanet_state' — registry."
-        "BACKEND_PAIRS) and is pinned in tests/neural/engines/nnsight_nnterp/"
+        "BACKEND_PAIRS) and is pinned in tests/neural/engines/nnterp_engine/"
         "test_deltanet_interior.py::"
         "test_the_reference_engine_refuses_the_fused_faces_by_name."
     ),

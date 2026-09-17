@@ -190,7 +190,7 @@ def test_json_attention_backend_reaches_loading_and_artifacts(
         pytest.importorskip("nnterp")
     module = importlib.import_module(
         "causalab.neural.engines."
-        + ("nnsight_nnterp" if engine == "nnterp" else engine)
+        + ("nnterp_engine" if engine == "nnterp" else engine)
         + ".engine"
     )
     real_load = module.load_model

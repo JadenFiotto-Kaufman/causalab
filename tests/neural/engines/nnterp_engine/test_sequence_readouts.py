@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.sequences import pair_sequences, prepare_sequence
 from causalab.protocol.schema import parse_document
 from tests.neural.test_sequence_analysis import document, executor

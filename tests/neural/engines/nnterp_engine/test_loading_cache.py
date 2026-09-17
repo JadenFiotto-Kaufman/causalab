@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from causalab.neural.engines.nnsight_nnterp import loading
+from causalab.neural.engines.nnterp_engine import loading
 
 pytestmark = pytest.mark.unit
 

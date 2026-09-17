@@ -21,14 +21,14 @@ import sys
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.landers import (
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.landers import (
     Navigation,
     fire_ops,
     present_native,
     routing,
 )
-from causalab.neural.engines.nnsight_nnterp.sources import (
+from causalab.neural.engines.nnterp_engine.sources import (
     ADDRESSES,
     GENERATED_ADDRESSES,
     AddressResolutionError,
@@ -42,7 +42,7 @@ from causalab.protocol.registry import CAPABILITIES
 from causalab.protocol.schema import SiteSpec
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import ROWS
+from tests.neural.engines.nnterp_engine.conftest import ROWS
 
 pytestmark = pytest.mark.smoke
 
@@ -210,7 +210,7 @@ def test_sources_imports_nothing_from_causalab():
     rewrite. Loaded by file path in a subprocess (the package ``__init__``
     would drag the engine in), so a green run means the module's own body
     pulled in nothing of causalab at all."""
-    import causalab.neural.engines.nnsight_nnterp.sources as sources
+    import causalab.neural.engines.nnterp_engine.sources as sources
 
     path = sources.__file__
     code = (

@@ -347,7 +347,7 @@ def test_engine_nnterp_refuses_by_name_when_not_installed(
     extra provides it — unlike auto, which quietly narrows to what exists."""
     import sys as _sys
 
-    target = "causalab.neural.engines.nnsight_nnterp"
+    target = "causalab.neural.engines.nnterp_engine"
     for mod in [m for m in list(_sys.modules) if m.startswith(target)]:
         monkeypatch.delitem(_sys.modules, mod)
     monkeypatch.setattr(_sys, "meta_path", [_AbsentModule(target), *_sys.meta_path])
@@ -370,9 +370,9 @@ def test_engine_nnterp_selects_the_nnterp_engine(
     class _CapturingNnterp(_CapturingEngine):
         name = "nnterp"
 
-    stub = types.ModuleType("causalab.neural.engines.nnsight_nnterp")
+    stub = types.ModuleType("causalab.neural.engines.nnterp_engine")
     stub.NnterpEngine = _CapturingNnterp
-    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnsight_nnterp", stub)
+    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnterp_engine", stub)
     _CapturingNnterp.last = None
     code = main(
         _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "nnterp")
@@ -457,9 +457,9 @@ def test_the_default_falls_through_to_the_engine_that_can_serve(
         capabilities = frozenset(_CapturingEngine.capabilities)
 
     monkeypatch.setattr(capturing_engine, "capabilities", frozenset())
-    stub = types.ModuleType("causalab.neural.engines.nnsight_nnterp")
+    stub = types.ModuleType("causalab.neural.engines.nnterp_engine")
     stub.NnterpEngine = _Nnterp
-    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnsight_nnterp", stub)
+    monkeypatch.setitem(_sys.modules, "causalab.neural.engines.nnterp_engine", stub)
     _Nnterp.last = None
 
     assert main(_run_argv("02_interchange_im.json", artifacts_root, tmp_path)) == 0

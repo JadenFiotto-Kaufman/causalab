@@ -16,7 +16,7 @@ and deliberately nothing else:
   inventory;
 * **the navigation lives in the executor** — recursive ``.source`` drilling
   only works inside a trace, so the lines that walk a resolved address stay
-  in :mod:`causalab.neural.engines.nnsight_nnterp.executor`.
+  in :mod:`causalab.neural.engines.nnterp_engine.executor`.
 
 **This module imports nothing from ``causalab``** (enforced by a test): it is
 exactly the hybrid/interior accessor layer nnterp's issue #18 asks for, and

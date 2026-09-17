@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.protocol.errors import ProtocolError
 
@@ -28,7 +28,7 @@ from tests._helpers.parity_docs import (
     mechanism_doc,
     mixed_block_write_precedence_doc,
 )
-from tests.neural.engines.nnsight_nnterp.conftest import (
+from tests.neural.engines.nnterp_engine.conftest import (
     DENSE,
     FORMULATION_ATOL,
     ROWS,
@@ -438,7 +438,7 @@ def test_a_pattern_document_routes_here_when_this_engine_is_listed_first():
     on the softmax's output inside the eager function — is this engine's to
     serve, reads and writes: a document naming it stays on this engine when
     it is first in the list."""
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
     from causalab.protocol.engine import choose_engine, component_capability
     from causalab.protocol.schema import parse_document

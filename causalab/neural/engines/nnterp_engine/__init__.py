@@ -72,7 +72,7 @@ working on the served model itself, and it refuses a ``meta`` copy by name.
 :mod:`.executor` states the rest — the eager switch a hard kill can strand,
 featurizer stages shipping by value, where bit-identity holds.
 
-``tests/neural/engines/nnsight_nnterp/test_ndif_shape.py`` pins the
+``tests/neural/engines/nnterp_engine/test_ndif_shape.py`` pins the
 structure, and ``test_faithful_server.py`` runs the deserialized program
 against a separately loaded model, results through a ``torch.save`` round
 trip — nnsight's ``remote="local"`` dry run executes against the caller's
@@ -82,6 +82,6 @@ Requires the ``nnsight`` extra (``pip install 'causalab[nnsight]'``), which
 carries both packages.
 """
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 
 __all__ = ["NnterpEngine"]

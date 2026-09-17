@@ -20,15 +20,15 @@ from __future__ import annotations
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.engine import PytorchHooksEngine
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import COMPONENTS
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import (
+from tests.neural.engines.nnterp_engine.conftest import (
     ROWS,
     assert_same,
 )
@@ -216,7 +216,7 @@ def test_the_declaration_is_the_boundaries_plus_the_address_table():
     resolver knows accounted for, and every addressed component a kind the
     resolver marks as having no boundary. A row naming this engine without
     a landing, or a landing without its row, fails here."""
-    from causalab.neural.engines.nnsight_nnterp.sources import components_addressed
+    from causalab.neural.engines.nnterp_engine.sources import components_addressed
     from causalab.protocol.registry import FAMILIES
 
     kinds = {

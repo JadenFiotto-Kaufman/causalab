@@ -1,6 +1,6 @@
 """The engine-agreement sweep on the real Qwen/Qwen3.6-35B-A3B.
 
-The smoke half (``tests/neural/engines/nnsight_nnterp/test_parity_a3b_sweep.py``)
+The smoke half (``tests/neural/engines/nnterp_engine/test_parity_a3b_sweep.py``)
 runs this table on ``tiny-random/qwen3.5-moe`` — the same architecture at four
 layers and hidden 8. What a tiny-random fixture cannot show is whether the taps
 still land when the tensors are real: 40 layers on the documented 3-linear-then-1-full
@@ -35,7 +35,7 @@ import os
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 
 from tests._helpers import a3b_sweep as sweep
@@ -223,7 +223,7 @@ def captures():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    from causalab.neural.engines.nnsight_nnterp.loading import load_model as load_trace
+    from causalab.neural.engines.nnterp_engine.loading import load_model as load_trace
 
     # eager pinned: the reference engine loads eager, and parity must compare
     # like against like (the same rule the smoke fixtures follow)

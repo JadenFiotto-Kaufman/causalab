@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from causalab.neural.engines.nnsight_nnterp import loading as nnterp_loading
+from causalab.neural.engines.nnterp_engine import loading as nnterp_loading
 from causalab.neural.engines.pytorch_hooks import loading as hooks
 
 pytestmark = pytest.mark.unit

@@ -624,7 +624,7 @@ class TestLoadersCallIt:
     def test_the_nnterp_loader(self, monkeypatch) -> None:
         pytest.importorskip("nnsight")
         pytest.importorskip("nnterp")
-        from causalab.neural.engines.nnsight_nnterp import loading
+        from causalab.neural.engines.nnterp_engine import loading
         from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA
 
         calls: list[str] = []

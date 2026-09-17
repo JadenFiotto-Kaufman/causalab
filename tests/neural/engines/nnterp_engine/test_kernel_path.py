@@ -17,8 +17,8 @@ from typing import Any, Callable, Iterator
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
 from causalab.neural.shared.kernels import (
     KERNEL_GLOBALS,
     bind_kernel_path,

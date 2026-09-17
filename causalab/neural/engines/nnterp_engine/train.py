@@ -5,7 +5,7 @@ What a ``train`` section means, and the update loop itself, are
 :mod:`causalab.neural.shared.training`'s. What is here is how a step's
 forward runs on this engine:
 
-* a minibatch is an :class:`~causalab.neural.engines.nnsight_nnterp.executor.
+* a minibatch is an :class:`~causalab.neural.engines.nnterp_engine.executor.
   NnterpExecutor` over a row selection of the point's frame, built
   ``grad_enabled`` and on the point's own stage cache — its programs run
   under ``torch.enable_grad()`` and its reads come back as device tensors
@@ -37,7 +37,7 @@ from __future__ import annotations
 import functools
 from typing import Any, Mapping, Sequence
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.shared.encoding import EncodedBatch
 from causalab.neural.shared.execution import TrainOutcome
 from causalab.neural.shared.executor_base import ExecutorBase

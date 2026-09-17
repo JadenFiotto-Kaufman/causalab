@@ -18,14 +18,14 @@ from pathlib import Path
 
 import pytest
 
-from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.shared.services import check_caller_bundle
 from causalab.protocol import RUN_RECORD_NAME, run_protocol
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.loader import load
 from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
 
-from tests.neural.engines.nnsight_nnterp.conftest import TINY_LLAMA
+from tests.neural.engines.nnterp_engine.conftest import TINY_LLAMA
 from tests.protocol._env import CORPUS_DIR, FIXTURES
 
 pytestmark = pytest.mark.smoke

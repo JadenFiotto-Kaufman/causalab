@@ -17,18 +17,18 @@ from typing import Any, Callable
 import pytest
 import torch
 
-from causalab.neural.engines.nnsight_nnterp.executor import NnterpExecutor
-from causalab.neural.engines.nnsight_nnterp.loading import load_model
+from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
+from causalab.neural.engines.nnterp_engine.loading import load_model
 from causalab.neural.shared.loading import torch_module
 from causalab.protocol.errors import ProtocolError
 
 from tests._helpers import a3b_sweep as sweep
-from tests.neural.engines.nnsight_nnterp.conftest import (
+from tests.neural.engines.nnterp_engine.conftest import (
     ROWS,
     TINY_LLAMA,
     TINY_QWEN35_MOE,
 )
-from tests.neural.engines.nnsight_nnterp.test_generate_frame import _gen_doc, _window
+from tests.neural.engines.nnterp_engine.test_generate_frame import _gen_doc, _window
 
 pytestmark = pytest.mark.smoke
 
@@ -324,7 +324,7 @@ def test_the_engine_runs_a_point_as_one_job_through_the_front_door(
     import json
     import shutil
 
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
     from causalab.protocol import RUN_RECORD_NAME, run_protocol
     from causalab.protocol.loader import load
     from causalab.protocol.resolve import FileArtifacts, FileDatasets, ResolutionEnv
@@ -431,7 +431,7 @@ def test_a_whole_native_refusal_costs_no_job(remote_llama, ndif_llama):
 def test_the_engine_inherits_remote_from_a_weight_free_bundle(remote_llama):
     """``NnterpEngine(bundle=load_model(key, remote=True))`` runs on NDIF:
     the engine's ``remote`` defaults to the bundle's own."""
-    from causalab.neural.engines.nnsight_nnterp.engine import NnterpEngine
+    from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 
     assert NnterpEngine().remote is None
     assert NnterpEngine(bundle=remote_llama).remote is None
