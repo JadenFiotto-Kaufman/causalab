@@ -104,7 +104,7 @@ torch-free until you ask it to route.)
 | capabilities | `grad` `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` `quantized_weights` | `grad` `paired_forward` `full_logits` `writable_attention_probs` `pytorch_fn_local` `generate` |
 | components | 52 of 56 — every component but `deltanet_query`, `deltanet_key`, `deltanet_state` and `expert_permutation` | 53 of 56 — every component but `delta_kv_mem`, `delta_state_update` and `delta_state` |
 | serves alone | the per-token DeltaNet faces `delta_kv_mem` / `delta_state_update` / `delta_state`, quantized weights | the fused-forward faces `deltanet_query` / `deltanet_key` / `deltanet_state` and `expert_permutation`, remote execution on NDIF |
-| install | always | `uv sync` (dev group) or the `nnsight` extra |
+| install | always | `uv sync` (dev group) or the `nnterp` extra |
 
 <!-- generated: end engine-summary -->
 

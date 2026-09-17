@@ -451,7 +451,7 @@ flash-linear-attention = [
     { name = "causal-conv1d", marker = "sys_platform == 'linux'" },
     { name = "flash-linear-attention", extra = ["cuda"], marker = "sys_platform == 'linux'" },
 ]
-nnsight = [
+nnterp = [
     { name = "nnsight" },
     { name = "nnterp" },
 ]
@@ -505,8 +505,8 @@ requires-dist = [
     { name = "jupyterlab", marker = "extra == 'notebook'" },
     { name = "matplotlib" },
     { name = "networkx" },
-    { name = "nnsight", marker = "extra == 'nnsight'", editable = "/home/localjadenfk/wd/nnsight" },
-    { name = "nnterp", marker = "extra == 'nnsight'", editable = "/home/localjadenfk/wd/nnterp" },
+    { name = "nnsight", marker = "extra == 'nnterp'", editable = "/home/localjadenfk/wd/nnsight" },
+    { name = "nnterp", marker = "extra == 'nnterp'", editable = "/home/localjadenfk/wd/nnterp" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "plotly", specifier = ">=5.0" },
@@ -522,7 +522,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.16" },
     { name = "umap-learn", specifier = ">=0.5.0" },
 ]
-provides-extras = ["notebook", "nnsight", "flash-attn", "flash-linear-attention"]
+provides-extras = ["notebook", "nnterp", "flash-attn", "flash-linear-attention"]
 
 [package.metadata.requires-dev]
 dev = [

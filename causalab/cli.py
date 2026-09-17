@@ -337,7 +337,7 @@ def load_engines(
                 raise ProtocolError(
                     "P2",
                     f"the nnterp engine is not installed ({err}) — install "
-                    "the 'nnsight' extra (pip install 'causalab[nnsight]')",
+                    "the 'nnterp' extra (pip install 'causalab[nnterp]')",
                 ) from err
         else:
             engines.append(nnterp.NnterpEngine(device=device))

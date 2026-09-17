@@ -78,7 +78,7 @@ against a separately loaded model, results through a ``torch.save`` round
 trip — nnsight's ``remote="local"`` dry run executes against the caller's
 own frame and so hides all three failure classes.
 
-Requires the ``nnsight`` extra (``pip install 'causalab[nnsight]'``), which
+Requires the ``nnterp`` extra (``pip install 'causalab[nnterp]'``), which
 carries both packages.
 """
 

@@ -103,7 +103,7 @@ causalab/
 │   │                #   mechanisms, featurizers, metrics, outputs, executor base
 │   ├── engines/
 │   │   ├── pytorch_hooks/    # the reference engine: hooks, decode, train loop
-│   │   └── nnterp_engine/    # the nnterp engine: nnsight traces (the 'nnsight' extra)
+│   │   └── nnterp_engine/    # the nnterp engine: nnsight traces (the 'nnterp' extra)
 │   └── token_positions.py
 ├── analysis/        # numerical analysis a script step runs (fits, statistics, operands)
 ├── workflow/        # the workflow runner: run-tree overlay, script invocation, manifest

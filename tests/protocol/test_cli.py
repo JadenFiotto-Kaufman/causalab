@@ -318,7 +318,7 @@ def test_batch_rows_runs_under_the_reference_engine_and_auto(
 def test_engine_auto_tolerates_a_missing_optional_engine(
     capturing_engine, artifacts_root, tmp_path
 ):
-    """--engine auto is every *installed* engine: the nnsight extra being
+    """--engine auto is every *installed* engine: the nnterp extra being
     absent must not break runs that never needed it."""
     code = main(
         _run_argv("01_harvest_im.json", artifacts_root, tmp_path, "--engine", "auto")

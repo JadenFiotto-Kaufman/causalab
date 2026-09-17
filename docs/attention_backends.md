@@ -27,7 +27,7 @@ Transformers' torch implementations for the duration of each forward
 (`causalab/neural/shared/kernels.py`). Installing the extra therefore leaves the
 CPU test tiers and CPU runs unchanged. The extras
 are independent of the `nnterp` engine; a runtime install using that engine also needs
-`--extra nnsight` (the dev group already includes it).
+`--extra nnterp` (the dev group already includes it).
 
 These extras are guarded by Linux package markers; selecting them on macOS or
 Windows installs no attention kernels. CPU-only Linux users should omit them.

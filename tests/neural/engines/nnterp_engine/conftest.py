@@ -2,7 +2,7 @@
 
 Both engines load the same checkpoints in fp32 with eager attention on the
 CPU, so parity is like-against-like: any disagreement is an executor bug,
-not a kernel or dtype story. The whole directory skips when the ``nnsight``
+not a kernel or dtype story. The whole directory skips when the ``nnterp``
 extra (nnsight + nnterp) is not installed.
 
 Placement needs no guard here: the loader passes the requested device as the
