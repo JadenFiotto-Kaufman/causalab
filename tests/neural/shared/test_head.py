@@ -23,7 +23,11 @@ from hypothesis import strategies as st
 
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.execution import campaign_cache
-from causalab.neural.shared.executor_base import ExecutorBase, RaggedValue, tap_key
+from causalab.neural.shared.executor_base import (
+    RaggedValue,
+    gather_rows,
+    tap_key,
+)
 from causalab.neural.shared.head import (
     HEAD,
     HEAD_INPUT,
@@ -282,7 +286,7 @@ def test_the_head_over_gathered_rows_is_the_full_head_sliced(
     key: str, table: tuple[int, int, list[list[int]]], dtype: torch.dtype
 ) -> None:
     """The invariant the projection rests on: for the executor's own gather
-    (``ExecutorBase._gather`` — an advanced index, contiguous), ``head(x)``
+    (:func:`gather_rows` — an advanced index, contiguous), ``head(x)``
     gathered agrees with ``head(x gathered)`` to a few ulps of the dtype,
     dense or ragged, fp32 and bf16, on every tiny family's real head, on the
     CPU. Each logit is the same dot product over ``d_model`` — what can move
@@ -309,8 +313,8 @@ def test_the_head_over_gathered_rows_is_the_full_head_sliced(
     )
     with torch.no_grad():
         full = linear(x)
-        gathered = ExecutorBase._gather(x, per_row, "x")  # pyright: ignore[reportPrivateUsage]
-        sliced = ExecutorBase._gather(full, per_row, "full")  # pyright: ignore[reportPrivateUsage]
+        gathered = gather_rows(x, per_row)
+        sliced = gather_rows(full, per_row)
         if isinstance(gathered, RaggedValue):
             assert isinstance(sliced, RaggedValue)
             assert gathered.widths == sliced.widths
@@ -350,8 +354,8 @@ def test_on_cuda_the_tiny_head_agrees_to_bf16_ulps(
     per_row = [[0], [0], [0], [0]]
     with torch.no_grad():
         full = linear(x)
-        gathered = ExecutorBase._gather(x, per_row, "x")  # pyright: ignore[reportPrivateUsage]
-        sliced = ExecutorBase._gather(full, per_row, "full")  # pyright: ignore[reportPrivateUsage]
+        gathered = gather_rows(x, per_row)
+        sliced = gather_rows(full, per_row)
         assert isinstance(gathered, torch.Tensor) and isinstance(sliced, torch.Tensor)
         projected = linear(gathered)
     _assert_within_ulps(projected, sliced)

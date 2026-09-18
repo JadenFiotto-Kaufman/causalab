@@ -427,7 +427,7 @@ RETIRED: dict[str, str] = {
         "Retired: the ragged 'expert:' face of the routed interior is served "
         "by both engines (registry.Capability.expert_selection). The nnterp "
         "engine captures the experts module's routing table beside its "
-        "`.source` interior and hands it to the shared `_expert_selected`, "
+        "`.source` interior and hands it to the shared `expert_selected`, "
         "the same landing the reference engine's dispatch wrapper feeds. The "
         "trigger runs to a value and is pinned in "
         "tests/neural/engines/nnterp_engine/test_refusal_snapshot.py; parity "
