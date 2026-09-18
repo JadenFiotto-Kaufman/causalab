@@ -39,6 +39,7 @@ from tests._helpers.train_docs import (
     controlled_dbm_doc,
     das_doc,
     dbm_doc,
+    expert_dbm_fit_doc,
     phased_chain_doc,
     train_request,
 )
@@ -267,6 +268,40 @@ def test_the_reference_runner_and_this_one_fit_the_same_weights(
     assert hooked.keys() == traced.keys()
     for name in hooked:
         torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
+
+
+def test_the_expert_neuron_dbm_fits_the_same_weights_through_both_engines(
+    hooks_qwen, nnterp_qwen
+):
+    """The headline: the shipped ``dbm_expert_neuron.json`` fit, at tiny
+    scale (``tests/_helpers/train_docs.py``), trained on this engine.
+
+    Its operand ``routed_cf`` reads ``expert_activation`` — a routed
+    interior, so it comes with a routing table, its gate is keyed by that
+    table, and the write joins its slots to the read's by expert. That read
+    could not be finished anywhere but on the client, and a fit's forwards
+    run where its stages live, so this document could not be trained on this
+    engine at all. The block finishes it now, routing table and all, and the
+    trained gates are the reference engine's to the bit."""
+    doc_raw = expert_dbm_fit_doc(pairs=2, epochs=2)
+    hooked_executor = sweep.make_executor(
+        PointExecutor, doc_raw, hooks_qwen, rows=ROWS, with_cf=True
+    )
+    hooked = _slots(
+        run_hooks_training(hooked_executor.doc, hooked_executor, train_request())
+    )
+    executor = sweep.make_executor(
+        NnterpExecutor, doc_raw, nnterp_qwen, rows=ROWS, with_cf=True
+    )
+    (outcome,) = run_training([executor.doc], [executor], train_request())
+    traced = _slots(outcome)
+    assert hooked.keys() == traced.keys() == {"routed_gate.theta", "shared_gate.theta"}
+    for name in hooked:
+        torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
+    # the fit moved them: a document that trains nothing is not two sides
+    # agreeing (the gates start at a constant fill)
+    for value in traced.values():
+        assert len(value.reshape(-1).unique()) > 1
 
 
 def _drawn(cls, bundle, *, remote: Any = None):

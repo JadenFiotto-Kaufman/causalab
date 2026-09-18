@@ -54,6 +54,7 @@ from causalab.protocol.registry import (
 )
 from causalab.protocol.schema import FeaturizerSpec, SiteSpec
 
+from tests._helpers.train_docs import MOE_LAYER, expert_dbm_doc
 from tests.neural.engines.pytorch_hooks._drive import base_data_section, executor_for
 from tests.neural.engines.pytorch_hooks.conftest import TINY_QWEN35_MOE
 
@@ -538,7 +539,6 @@ class TestOneFeaturizerOneGroupMap:
 #: 📐 fixture numbers: 128 experts, top-10, d_expert 32 — the token-major
 #: contract width of ``expert_activation`` is 10 · 32 = 320.
 EXPERTS, TOP_K, D_EXPERT = 128, 10, 32
-MOE_LAYER = 0
 
 
 @pytest.mark.unit
@@ -681,114 +681,6 @@ class TestExpertNeuronGroupMap:
 # --------------------------------------------------------------------------- #
 
 
-def _expert_dbm_doc(pos: Any = -1) -> dict[str, Any]:
-    """A DBM-shaped document on one MoE layer: the counterfactual routed
-    interior read through an expert-keyed gate and swapped into the base run
-    through the same gate, a plain gate doing the same on the shared expert,
-    plus the raw reads the hand computation needs (both inputs' activations
-    and routing tables)."""
-    reads = {
-        "routed_cf": {
-            "site": "routed",
-            "pos": pos,
-            "model": "original",
-            "input": "counterfactual",
-            "featurizer": "routed_gate",
-        },
-        "shared_cf": {
-            "site": "shared",
-            "pos": pos,
-            "model": "original",
-            "input": "counterfactual",
-            "featurizer": "shared_gate",
-        },
-        "pre_base": {
-            "site": "routed",
-            "pos": pos,
-            "model": "original",
-            "input": "base",
-        },
-        "pre_cf": {
-            "site": "routed",
-            "pos": pos,
-            "model": "original",
-            "input": "counterfactual",
-        },
-        "idx_base": {"site": "idx", "pos": pos, "model": "original", "input": "base"},
-        "idx_cf": {
-            "site": "idx",
-            "pos": pos,
-            "model": "original",
-            "input": "counterfactual",
-        },
-        "post": {"site": "routed", "pos": pos, "model": "masked", "input": "base"},
-        "shared_base": {
-            "site": "shared",
-            "pos": pos,
-            "model": "original",
-            "input": "base",
-        },
-        "shared_raw_cf": {
-            "site": "shared",
-            "pos": pos,
-            "model": "original",
-            "input": "counterfactual",
-        },
-        "shared_post": {
-            "site": "shared",
-            "pos": pos,
-            "model": "masked",
-            "input": "base",
-        },
-    }
-    return {
-        "header": {"protocol_version": "3"},
-        "model": {"key": "test", "revision": "main"},
-        "data": base_data_section(with_counterfactual=True),
-        "method": {
-            "sites": {
-                "routed": {"component": "expert_activation", "layers": [MOE_LAYER]},
-                "shared": {
-                    "component": "shared_expert_activation",
-                    "layers": [MOE_LAYER],
-                },
-                "idx": {"component": "expert_idx", "layers": [MOE_LAYER]},
-            },
-            "featurizers": {
-                "routed_gate": {"kind": "gate", "group": "expert_neuron"},
-                "shared_gate": {"kind": "gate"},
-            },
-            "reads": reads,
-            "writes": {
-                "mask_routed": {
-                    "site": "routed",
-                    "pos": pos,
-                    "featurizer": "routed_gate",
-                    "do": {"swap": "routed_cf"},
-                },
-                "mask_shared": {
-                    "site": "shared",
-                    "pos": pos,
-                    "featurizer": "shared_gate",
-                    "do": {"swap": "shared_cf"},
-                },
-            },
-            "intervened_models": {
-                "masked": {"input": "base", "writes": ["mask_routed", "mask_shared"]}
-            },
-            "save": [
-                {
-                    "value": name,
-                    "model": spec["model"],
-                    "input": spec["input"],
-                    "file_path": f"{name}.safetensors",
-                }
-                for name, spec in reads.items()
-            ],
-        },
-    }
-
-
 def _aligned_by_hand(
     pre_base: torch.Tensor,
     pre_cf: torch.Tensor,
@@ -825,7 +717,7 @@ class TestExpertSwap:
     @pytest.fixture()
     def executor(self, moe):
         return executor_for(
-            _expert_dbm_doc(), moe, base_texts=[TEXT], counterfactual_texts=[CF_TEXT]
+            expert_dbm_doc(), moe, base_texts=[TEXT], counterfactual_texts=[CF_TEXT]
         )
 
     def test_the_document_builds_the_table_and_a_separate_shared_gate(
@@ -969,7 +861,7 @@ class TestExpertSwap:
 
     def test_all_positions_count_every_slot(self, moe) -> None:
         executor = executor_for(
-            _expert_dbm_doc("all"),
+            expert_dbm_doc("all"),
             moe,
             base_texts=[TEXT],
             counterfactual_texts=[CF_TEXT],
@@ -997,7 +889,7 @@ class TestExpertSwap:
     def test_an_operand_without_routing_is_refused(self, moe) -> None:
         """A swap through the expert-keyed gate needs a source whose slots can
         be joined by expert; a read from anywhere else has no expert ids."""
-        doc = _expert_dbm_doc()
+        doc = expert_dbm_doc()
         doc["method"]["sites"]["other"] = {
             "component": "block_input",
             "layers": [MOE_LAYER],
@@ -1015,7 +907,7 @@ class TestExpertSwap:
             executor.read_value("post")
 
     def test_dims_through_an_expert_keyed_gate_is_refused(self, moe) -> None:
-        doc = _expert_dbm_doc()
+        doc = expert_dbm_doc()
         doc["method"]["writes"]["mask_routed"]["dims"] = [0, 1]
         doc["method"]["reads"]["routed_cf"]["dims"] = [0, 1]
         executor = executor_for(
@@ -1028,13 +920,13 @@ class TestExpertSwap:
         """Microbatched, the routing slices by row like every other capture,
         and the records name the role's row, not the window's."""
         whole = executor_for(
-            _expert_dbm_doc(),
+            expert_dbm_doc(),
             moe,
             base_texts=[TEXT, CF_TEXT, TEXT],
             counterfactual_texts=[CF_TEXT, TEXT, CF_TEXT],
         )
         windowed = executor_for(
-            _expert_dbm_doc(),
+            expert_dbm_doc(),
             moe,
             base_texts=[TEXT, CF_TEXT, TEXT],
             counterfactual_texts=[CF_TEXT, TEXT, CF_TEXT],
