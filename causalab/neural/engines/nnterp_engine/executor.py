@@ -347,12 +347,17 @@ class NnterpExecutor(ExecutorBase):
         (:class:`StackRef`, :class:`SlotRef`): the fit's stages are built and
         stepped where it runs.
 
-        Nothing is refused here. The block finishes every kind of read the
+        No *read* is refused here. The block finishes every kind of read the
         way the client does, and the one frame a fit's forwards are not — the
         continuation frame — is refused a layer up, for a better reason than
         this engine could give: §5 rule 16 refuses ``train`` beside any
         generated position on any engine, because a greedy decode is an
-        argmax chain with no gradient path."""
+        argmax chain with no gradient path. What this asserts is that the
+        refusal held: a fit's forwards are prompt forwards, so a planned
+        program has no decode depth, and with none it carries no ``steps``
+        and no ``rows`` — the two things a minibatch's row selection
+        (:func:`~causalab.neural.engines.nnterp_engine.fit.select_rows`)
+        does not select."""
         self._preflight()
         order: list[Group] = []
 
@@ -368,7 +373,7 @@ class NnterpExecutor(ExecutorBase):
             read = self.doc.reads[rname]
             visit((str(read.model), str(read.input)))
         flowing = frozenset(reads) | self._flowing(order)
-        return tuple(
+        programs = tuple(
             self._by_name(
                 dataclasses.replace(
                     self._plan(*group, flowing=flowing).program, offload=False
@@ -376,26 +381,41 @@ class NnterpExecutor(ExecutorBase):
             )
             for group in order
         )
+        for program in programs:
+            assert not program.depth, (
+                f"fit program {program.label!r} decodes {program.depth} steps: "
+                "a fit's forwards are prompt forwards (§5 rule 16)"
+            )
+        return programs
 
     def _by_name(self, program: GroupProgram) -> GroupProgram:
         """``program`` with every featurizer stack and every featurizer-slot
         operand replaced by its name — the slots as
         :meth:`~causalab.neural.shared.executor_base.ExecutorBase.
         _artifact_operand` resolved them (:attr:`_slot_operands`), not as a
-        second parse of the operand string would guess them."""
+        second parse of the operand string would guess them.
+
+        A flow's stack is converted by the *flow*, not by which plan carries
+        it: a :class:`~causalab.neural.engines.nnterp_engine.program.
+        FirePlan` and a :class:`~causalab.neural.engines.nnterp_engine.
+        program.StepPlan` flow exactly as a :class:`~causalab.neural.engines.
+        nnterp_engine.program.ReadPlan` does, and a concrete
+        :class:`~causalab.neural.shared.featurizers.FeaturizerStack` reaching
+        a fit's payload is the client's *initial* stage, frozen — a stack
+        nobody trains, in the place the fit's trained one belongs."""
+
+        def flows_by_name(plan: Any) -> Any:
+            if plan.flow is None:
+                return plan
+            return dataclasses.replace(
+                plan,
+                flow=dataclasses.replace(
+                    plan.flow, stack=StackRef(plan.flow.stack.names)
+                ),
+            )
 
         def named(op: Any) -> Any:
-            reads = tuple(
-                dataclasses.replace(
-                    plan,
-                    flow=dataclasses.replace(
-                        plan.flow, stack=StackRef(plan.flow.stack.names)
-                    ),
-                )
-                if isinstance(plan, ReadPlan) and plan.flow is not None
-                else plan
-                for plan in op.reads
-            )
+            reads = tuple(flows_by_name(plan) for plan in op.reads)
             write = op.write
             if write is not None:
                 write = dataclasses.replace(
@@ -411,7 +431,14 @@ class NnterpExecutor(ExecutorBase):
                 )
             return dataclasses.replace(op, reads=reads, write=write)
 
-        return dataclasses.replace(program, ops=tuple(named(op) for op in program.ops))
+        return dataclasses.replace(
+            program,
+            ops=tuple(named(op) for op in program.ops),
+            # a continuation read lives in `steps`, outside `op.reads`
+            # entirely; `fit_programs` refuses the frame it needs, so this is
+            # `()` for every program that reaches here
+            steps=tuple(flows_by_name(plan) for plan in program.steps),
+        )
 
     def _bound(self, program: GroupProgram) -> GroupProgram:
         """``program`` with every read operand this client holds shipped by

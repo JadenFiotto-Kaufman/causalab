@@ -186,7 +186,15 @@ def select_rows(program: GroupProgram, rows: Sequence[int]) -> GroupProgram:
     minibatch executor over the same selection plans: the same padded width,
     and each row's positions, which were resolved against the frame and hold
     whichever selection the row travels in. Only what has a row axis moves:
-    the inputs, the position ids and the position tables."""
+    the inputs, the position ids and the position tables.
+
+    A :class:`~causalab.neural.engines.nnterp_engine.program.ReadPlan` is the
+    only plan with a position table — a ``FirePlan``'s position axis is the
+    kernel's fire index and a ``StepPlan``'s is resolved in the block against
+    a continuation frame, which a fit's programs do not have
+    (:meth:`~causalab.neural.engines.nnterp_engine.executor.NnterpExecutor.
+    fit_programs` asserts it, which is also what keeps ``program.rows`` — the
+    one other row-axis field — empty here)."""
     index = torch.tensor(list(rows), dtype=torch.long)
 
     def of_rows(tensor: torch.Tensor) -> torch.Tensor:
