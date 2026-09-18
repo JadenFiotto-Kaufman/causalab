@@ -1,8 +1,8 @@
 """Reconciling a module's native tensor shape with the executor's.
 
 The executor works in one shape throughout — ``(batch, position, feature)``.
-``PointExecutor._gather`` indexes ``tensor[rows, idx]`` (dim 0 batch, dim 1
-position), ``_finalize_read`` slices features on dim ``-1``, and
+``gather_rows`` indexes ``tensor[rows, idx]`` (dim 0 batch, dim 1
+position), ``finalize_read`` slices features on dim ``-1``, and
 ``_address_writer`` mutates ``tensor[rows, idx][..., fslice]`` in place. That is
 the *contract*.
 

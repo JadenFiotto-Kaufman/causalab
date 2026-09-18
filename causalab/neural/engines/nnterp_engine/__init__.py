@@ -48,9 +48,10 @@ Tiering, as built:
   home as plain data, loaded into the client's own stages. Every fit is a
   cohort of one. Featurizer slots only, fp32 losses, evals on epoch
   boundaries — the reference engine's tier, and on CPU fp32 its weights to
-  the bit, remote as local. A fit whose objective, eval or operand read the
-  block cannot finish (ragged, routed, per-fire, generated) is refused by
-  name, and a §2.2 ``draw`` — re-planned each epoch — fits locally only;
+  the bit, remote as local. Every kind of read a fit consumes is finished
+  where its forward ran, the routed interior's routing table included, so
+  the shipped ``dbm_expert_neuron.json`` trains here; a §2.2 ``draw`` —
+  re-planned each epoch — fits locally only;
 * **unclaimed** — cross-point interning (§3): the engine takes the
   campaign's handle and drops it, so every point runs its own forwards — a
   fit's source forward included, on every step.
@@ -70,9 +71,11 @@ client-side config change. The structure follows from those rules:
   counts come back as data;
 * the eager-attention switch is the block's own, before any operation;
 * with ``remote`` set, a whole point runs as one ``model.session`` — the
-  groups in dependency order, operands flowing between the traces on the
-  server — against a weight-free bundle (:mod:`.loading`), whose ``remote``
-  the executor and the engine inherit.
+  groups in dependency order, **every** operand flowing between the traces
+  on the server, whatever kind of read it is (the block finishes a read the
+  way the client does: :func:`~causalab.neural.shared.executor_base.
+  finalize_read`) — against a weight-free bundle (:mod:`.loading`), whose
+  ``remote`` the executor and the engine inherit.
 
 * a whole fit is one ``model.session`` too, whose body is the saved
   container and one call (:func:`.fit.run_fit`): everything the fit moves is

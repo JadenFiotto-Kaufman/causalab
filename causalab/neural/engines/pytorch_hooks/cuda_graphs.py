@@ -573,8 +573,12 @@ class GraphExecutor(PointExecutor):
         return [[batch.padded_len - 1] for _ in batch.texts]
 
     @staticmethod
-    def _gather(tensor, per_row, what):
-        # Own storage, matching the eager advanced-index gather.
+    def _gather(tensor, per_row):
+        # Own storage, matching the eager advanced-index gather. Under a
+        # capture every row's window is the last position (`_positions`), so
+        # the slice is that gather without an index tensor — and the clone is
+        # load-bearing: a view of the graph's static output buffer would be
+        # overwritten by the next replay.
         return tensor[:, -1:, :].clone()
 
     def _apply_writes_to_contract(

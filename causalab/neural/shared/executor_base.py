@@ -29,6 +29,7 @@ from causalab.neural.shared.encoding import (
 )
 from causalab.neural.shared.featurizers import (
     FeaturizerStack,
+    Identity,
     Stage,
     StageRecipe,
     build_recipe,
@@ -112,11 +113,16 @@ __all__ = [
     "align_by_expert",
     "apply_writes_to_contract",
     "document_seed",
+    "expert_selected",
+    "featurizable",
+    "finalize_read",
     "gather_rows",
+    "identity_stack",
     "land_ragged",
     "read_features",
     "read_operand",
     "refuse_unstackable",
+    "state_read",
     "tap_key",
     "written_value",
 ]
@@ -790,6 +796,296 @@ def read_features(
     if isinstance(dims, tuple):
         index = torch.tensor(list(dims), dtype=torch.long, device=value.device)
         value = value.index_select(-1, index)
+    return value
+
+
+def identity_stack() -> FeaturizerStack:
+    """The stack of a read no featurizer acts on."""
+    return FeaturizerStack(names=(), stages=(Identity(),))
+
+
+def featurizable(site: ResolvedSite) -> bool:
+    """Whether a read at ``site`` has a feature space a stack can act on —
+    the one face :func:`read_features` runs over. The other three (a tap with
+    no contract form, the ragged ``expert:`` face, a state matrix) refuse a
+    featurizer by name instead, so their stack is :func:`identity_stack` and
+    building one against the site's width is never attempted."""
+    return (
+        site.shape.has_contract_form
+        and site.expert is None
+        and not site.shape.state_axes
+    )
+
+
+def finalize_read(
+    rname: str,
+    read: ReadSpec,
+    site: ResolvedSite,
+    raw: Any,
+    per_row: "list[list[int]] | None",
+    stack: FeaturizerStack,
+    *,
+    expert_idx: Any = None,
+    project: "Callable[[torch.Tensor], torch.Tensor] | None" = None,
+    grad_enabled: bool = False,
+    to_cpu: bool = True,
+    pregathered: bool = False,
+    notes: "dict[str, Any] | None" = None,
+    gather: "Callable[..., torch.Tensor | RaggedValue]" = gather_rows,
+) -> "torch.Tensor | RaggedValue":
+    """One read's value: gather at ``per_row``, then featurize — **the whole
+    finisher, as a function**, so whoever holds the raw tensor can finish the
+    read, whether that is the client or a shipped trace body
+    (:mod:`causalab.neural.engines.nnterp_engine.landers`).
+
+    ``per_row`` is every row's positions, already resolved; ``stack`` the
+    read's featurizer stack. ``project`` runs on the gathered slice before
+    anything else, which is how an ``lm_head`` continuation read is served
+    from kept ``ln_final`` activations: the vocabulary projection happens at
+    the addressed positions and nowhere else.
+
+    ``gather`` is how the raw tensor is reduced to its addressed rows,
+    :func:`gather_rows` unless the caller's executor gathers differently —
+    :meth:`ExecutorBase._finalize_read` passes its own
+    (:meth:`ExecutorBase._gather`), which is what a CUDA-graph executor
+    overrides so a read off a replay does not alias the graph's static
+    output buffer. ``pregathered`` never calls it.
+
+    ``pregathered`` says the forward reduced already: ``raw`` (and
+    ``expert_idx``) arrive gathered at ``per_row`` — a dense ``(rows, width,
+    …)`` tensor or a :class:`RaggedValue` — and already projected and
+    derived, which need the model's own modules. What is left is the part
+    that needs only the document: the head's slice, the featurizer stack,
+    ``dims``.
+
+    The two side facts a read leaves behind are **returned**, in
+    ``notes``, rather than written to an executor: ``notes["routing"]`` is
+    the routing table the value was read beside (what a later expert-keyed
+    write aligns its slots by) and ``notes["unavailable"]`` the
+    ``(reason, detail)`` of a cell with nothing in it. The caller owns where
+    they are recorded — a block returns them in its saved container and the
+    client records them there
+    (:meth:`ExecutorBase._record_read_notes`).
+    """
+    if not site.shape.has_contract_form:
+        return whole_native_tensor(rname, read, raw, site)
+    assert per_row is not None, f"read {rname!r}: no positions were resolved"
+    if site.expert is not None:
+        return expert_selected(
+            rname,
+            read,
+            site,
+            raw,
+            expert_idx,
+            per_row,
+            grad_enabled=grad_enabled,
+            to_cpu=to_cpu,
+            pregathered=pregathered,
+            notes=notes,
+            gather=gather,
+        )
+    gathered = raw if pregathered else gather(raw, per_row)
+    if project is not None:
+        if isinstance(gathered, RaggedValue):
+            gathered = RaggedValue(flat=project(gathered.flat), widths=gathered.widths)
+        else:
+            gathered = project(gathered)
+    ragged = isinstance(gathered, RaggedValue)
+    value = gathered.flat if isinstance(gathered, RaggedValue) else gathered
+    if site.shape.state_axes:
+        return state_read(
+            rname,
+            read,
+            site,
+            value,
+            gathered,
+            grad_enabled=grad_enabled,
+            to_cpu=to_cpu,
+        )
+    if site.derivation is not None and not pregathered:
+        # After the gather, deliberately: the value is `heads` times wider
+        # than the tensor it comes from, so deriving it before the gather
+        # would cost `seq · H · hidden` where this costs
+        # `n_positions · H · hidden`.
+        value = _derive(site, value, rname)
+    routing = None
+    if expert_idx is not None:
+        # the routing table at the same rows and positions as the value —
+        # what an expert-keyed gate keys its parameters by, and what a
+        # later write through one aligns this read's slots to its own by
+        idx_gathered = expert_idx if pregathered else gather(expert_idx, per_row)
+        if isinstance(idx_gathered, RaggedValue):
+            # the featurizer stack below is keyed by it, but no *later* write
+            # is: a ragged read has no aligned shape to pair into one and
+            # rule 19 refuses it as an operand, so the table is not recorded
+            routing = idx_gathered.flat
+        else:
+            routing = idx_gathered
+            if notes is not None:
+                notes["routing"] = routing.detach()
+    value = read_features(
+        value,
+        site,
+        stack,
+        read.dims,
+        routing=routing,
+        grad_enabled=grad_enabled,
+    )
+    if not grad_enabled:
+        value = value.detach()
+        if to_cpu:
+            value = value.cpu()
+    if ragged:
+        assert isinstance(gathered, RaggedValue)
+        return RaggedValue(flat=value, widths=gathered.widths)
+    return value
+
+
+def expert_selected(
+    rname: str,
+    read: ReadSpec,
+    site: ResolvedSite,
+    raw: Any,
+    expert_idx: Any,
+    per_row: list[list[int]],
+    *,
+    grad_enabled: bool = False,
+    to_cpu: bool = True,
+    pregathered: bool = False,
+    notes: "dict[str, Any] | None" = None,
+    gather: "Callable[..., torch.Tensor | RaggedValue]" = gather_rows,
+) -> RaggedValue:
+    """The ragged face of the routed interior: the (position, slot) pairs
+    the router sent to ``site.expert``, as flat ``(selected, d)`` rows plus
+    per-example widths.
+
+    An expert no token chose returns width-0 rows — **a data fact, not an
+    error** (there is no per-expert hook to have not fired; the router
+    simply sent it nothing at these positions). When that is true of
+    *every* addressed position, the read is reported as an ``unavailable``
+    cell with reason ``empty_selector`` (spec §4.1) in ``notes``: the
+    document was legal, the selector selected nothing here, and the cell
+    belongs in the result and in the denominator rather than in a refusal.
+    Partial emptiness stays data — the per-row widths say which rows the
+    expert served.
+
+    ``featurizer`` and ``dims`` are refused here rather than resized: the
+    document sized them against the token-major form (``top_k · d``), and
+    these rows are ``d``-wide — silently applying either would index a
+    different space than the author named.
+    """
+    if expert_idx is None:
+        raise ProtocolError(
+            "P2",
+            f"read {rname!r} selects expert {site.expert}, but the engine "
+            "captured no routing table alongside the tap — an executor bug, "
+            "not a document error",
+        )
+    if read.featurizer is not None:
+        raise ProtocolError(
+            "P4",
+            f"read {rname!r} featurizes the 'expert: {site.expert}' face of "
+            f"{site.component!r}, whose rows are d_expert-wide while the "
+            "component (and any featurizer sized against it) is top_k·d "
+            "wide. Featurize the token-major form — drop 'expert' — or read "
+            "this face raw.",
+        )
+    if isinstance(read.dims, tuple):
+        raise ProtocolError(
+            "P4",
+            f"read {rname!r} slices 'dims' on the 'expert: {site.expert}' "
+            f"face of {site.component!r}: 'dims' indexes the token-major "
+            "top_k·d axis, and these rows are d-wide. Drop 'expert' or "
+            "drop 'dims'.",
+        )
+    if pregathered:
+        gathered, idx_gathered = raw, expert_idx
+    else:
+        gathered = gather(raw, per_row)
+        idx_gathered = gather(expert_idx, per_row)
+    if isinstance(gathered, RaggedValue):
+        assert isinstance(idx_gathered, RaggedValue)
+        flat_value, pos_widths = gathered.flat, gathered.widths
+        flat_idx = idx_gathered.flat
+    else:
+        assert isinstance(idx_gathered, torch.Tensor)
+        rows, n_pos = gathered.shape[0], gathered.shape[1]
+        flat_value = gathered.reshape(rows * n_pos, gathered.shape[-1])
+        flat_idx = idx_gathered.reshape(rows * n_pos, idx_gathered.shape[-1])
+        pos_widths = (n_pos,) * rows
+    top_k = flat_idx.shape[-1]
+    per_slot = flat_value.shape[-1] // top_k
+    mask = flat_idx == site.expert  # (positions, top_k)
+    selected = flat_value.reshape(-1, top_k, per_slot)[mask]
+    # hits per (example, position) row — read to the host once, then
+    # summed per example there rather than one device read per row
+    counts = mask.sum(dim=-1).tolist()
+    widths: list[int] = []
+    offset = 0
+    for width in pos_widths:
+        widths.append(sum(counts[offset : offset + width]))
+        offset += width
+    if sum(widths) == 0 and notes is not None:
+        notes["unavailable"] = (
+            "empty_selector",
+            f"read {rname!r} selects the 'expert: {site.expert}' face of "
+            f"{site.component!r} at layer {site.layer}, and the router sent "
+            f"expert {site.expert} no token at the addressed positions "
+            f"({len(pos_widths)} rows, {sum(pos_widths)} positions) — a "
+            "fact of this batch's routing, not of the document",
+        )
+    if not grad_enabled:
+        selected = selected.detach()
+        if to_cpu:
+            selected = selected.cpu()
+    return RaggedValue(flat=selected, widths=tuple(widths))
+
+
+def state_read(
+    rname: str,
+    read: ReadSpec,
+    site: ResolvedSite,
+    value: torch.Tensor,
+    gathered: "torch.Tensor | RaggedValue",
+    *,
+    grad_enabled: bool = False,
+    to_cpu: bool = True,
+) -> "torch.Tensor | RaggedValue":
+    """The tail of a read whose trailing axes form a state matrix.
+
+    The tensor keeps its native layout — ``(batch, steps, heads, d_k,
+    d_v)`` after the position gather — because there is no feature vector
+    to flatten to. ``head:`` selects on the head axis directly;
+    ``featurizer`` and ``dims`` are refused off the declared axes (the same
+    generated refusals the attention pattern gets, with the position gather
+    kept, which is what distinguishes the two shapes).
+    """
+    what = f"{site.component!r} ({site.shape.describe()})"
+    if read.featurizer is not None:
+        raise ProtocolError(
+            "P4",
+            f"read {rname!r} featurizes {what}: {site.shape.refusal('it')}",
+        )
+    if isinstance(read.dims, tuple):
+        raise ProtocolError(
+            "P4",
+            f"read {rname!r} slices 'dims' on {what}: that would select "
+            "d_v columns of a matrix as though they were features.",
+        )
+    if site.head is not None:
+        # dim 0 of a ragged flat is the gathered rows; dense keeps
+        # (batch, steps) in front — the head axis is right after either way
+        value = (
+            value[:, site.head]
+            if isinstance(gathered, RaggedValue)
+            else value[:, :, site.head]
+        )
+    if not grad_enabled:
+        value = value.detach()
+        if to_cpu:
+            value = value.cpu()
+    if isinstance(gathered, RaggedValue):
+        return RaggedValue(flat=value, widths=gathered.widths)
     return value
 
 
@@ -2601,10 +2897,33 @@ class ExecutorBase:
                         f"{input_role!r} and {other!r}, row {i},",
                     )
 
+    def _record_read_notes(self, rname: str, notes: Mapping[str, Any]) -> None:
+        """The side facts one finished read left in ``notes``, recorded on
+        this executor: the routing table the value was read beside, and an
+        ``unavailable`` cell keyed under this point's coordinates. The
+        finisher returns them (:func:`finalize_read`) rather than reaching
+        for an executor, so a block can return them too and the client
+        record them here from what came home."""
+        routing = notes.get("routing")
+        if routing is not None:
+            self._read_routing[rname] = routing
+        empty = notes.get("unavailable")
+        if empty is not None:
+            reason, detail = empty
+            self._unavailable[rname] = unavailable(
+                reason, detail, cell_key(rname, self.coords)
+            )
+
     @staticmethod
     def _gather(
-        tensor: torch.Tensor, per_row: list[list[int]], what: str
+        tensor: torch.Tensor, per_row: Sequence[Sequence[int]]
     ) -> "torch.Tensor | RaggedValue":
+        """How this executor reduces a captured tensor to a read's addressed
+        rows — :func:`gather_rows`, and the one dispatch point an executor
+        whose tensors are not ordinary overrides
+        (:meth:`~causalab.neural.engines.pytorch_hooks.cuda_graphs.
+        GraphExecutor._gather`, whose value must own its storage because the
+        next replay overwrites the graph's static output buffer)."""
         return gather_rows(tensor, per_row)
 
     def _read_stack(
@@ -2651,233 +2970,44 @@ class ExecutorBase:
         rname: str,
         read: ReadSpec,
         site: ResolvedSite,
-        raw: torch.Tensor,
+        raw: Any,
         batch: EncodedBatch,
         input_role: str,
         *,
         per_row: list[list[int]] | None = None,
         project: Callable[[torch.Tensor], torch.Tensor] | None = None,
-        expert_idx: torch.Tensor | None = None,
+        expert_idx: Any = None,
         to_cpu: bool | None = None,
         pregathered: bool = False,
     ) -> "torch.Tensor | RaggedValue":
-        """One read's value: gather at its positions, then featurize.
-
-        ``per_row`` overrides position resolution — the continuation frame
-        resolves to decode steps, which the caller has already worked out
-        against the decode. ``project`` runs on the gathered slice before
-        anything else, which is how an ``lm_head`` continuation read is
-        served from kept ``ln_final`` activations: the vocabulary projection
-        happens at the addressed positions and nowhere else.
-        ``to_cpu`` defaults to ``not self.device_reads``: an eval executor and
-        a CUDA evaluation capture keep their read values on the device, and
-        their scorer copies out only what a metric selects.
-
-        ``pregathered`` says the engine reduced inside its forward: ``raw``
-        (and ``expert_idx``) arrive already gathered at ``per_row`` — a dense
-        ``(rows, width, …)`` tensor or a :class:`RaggedValue` — and already
-        projected and derived, which need the model's own modules. What is
-        left is the part that needs only the document: the head's slice, the
-        featurizer stack, ``dims``. An engine whose forward runs in another
-        process (the nnterp engine on NDIF) downloads the slice this way
-        rather than the contract tensor.
-        """
-        if to_cpu is None:
-            to_cpu = not self.device_reads
-        if not site.shape.has_contract_form:
-            return whole_native_tensor(rname, read, raw, site)
-        if per_row is None:
+        """:func:`finalize_read` with this executor's services bound: the
+        read's positions resolved on ``batch`` (which is what records an
+        unalignable row as this read's ``unavailable`` cell), its featurizer
+        stack built off this document, and the flags this executor runs
+        under — ``to_cpu`` defaults to ``not self.device_reads``, since an
+        eval executor and a CUDA evaluation capture keep their read values
+        on the device and their scorer copies out only what a metric
+        selects. The side facts come back in ``notes`` and are recorded
+        here (:meth:`_record_read_notes`)."""
+        if per_row is None and site.shape.has_contract_form:
             per_row = self._positions(read.pos, batch, input_role, cell=rname)
-        if site.expert is not None:
-            return self._expert_selected(
-                rname, read, site, raw, expert_idx, per_row, pregathered=pregathered
-            )
-        gathered = raw if pregathered else self._gather(raw, per_row, f"read {rname!r}")
-        if project is not None:
-            if isinstance(gathered, RaggedValue):
-                gathered = RaggedValue(
-                    flat=project(gathered.flat), widths=gathered.widths
-                )
-            else:
-                gathered = project(gathered)
-        ragged = isinstance(gathered, RaggedValue)
-        value = gathered.flat if isinstance(gathered, RaggedValue) else gathered
-        if site.shape.state_axes:
-            return self._state_read(rname, read, site, value, gathered)
-        if site.derivation is not None and not pregathered:
-            # After the gather, deliberately: the value is `heads` times wider
-            # than the tensor it comes from, so deriving it before the gather
-            # would cost `seq · H · hidden` where this costs
-            # `n_positions · H · hidden`.
-            value = _derive(site, value, rname)
-        routing = None
-        if expert_idx is not None:
-            # the routing table at the same rows and positions as the value —
-            # what an expert-keyed gate keys its parameters by, and what a
-            # later write through one aligns this read's slots to its own by
-            idx_gathered = (
-                expert_idx
-                if pregathered
-                else self._gather(expert_idx, per_row, f"read {rname!r}")
-            )
-            if isinstance(idx_gathered, RaggedValue):
-                routing = idx_gathered.flat
-            else:
-                routing = idx_gathered
-                self._read_routing[rname] = routing.detach()
-        value = read_features(
-            value,
+        notes: dict[str, Any] = {}
+        value = finalize_read(
+            rname,
+            read,
             site,
-            self._read_stack(read, site),
-            read.dims,
-            routing=routing,
+            raw,
+            per_row,
+            self._read_stack(read, site) if featurizable(site) else identity_stack(),
+            expert_idx=expert_idx,
+            project=project,
             grad_enabled=self.grad_enabled,
+            to_cpu=(not self.device_reads) if to_cpu is None else to_cpu,
+            pregathered=pregathered,
+            notes=notes,
+            gather=self._gather,
         )
-        if not self.grad_enabled:
-            value = value.detach()
-            if to_cpu:
-                value = value.cpu()
-        if ragged:
-            assert isinstance(gathered, RaggedValue)
-            return RaggedValue(flat=value, widths=gathered.widths)
-        return value
-
-    def _expert_selected(
-        self,
-        rname: str,
-        read: ReadSpec,
-        site: ResolvedSite,
-        raw: torch.Tensor,
-        expert_idx: torch.Tensor | None,
-        per_row: list[list[int]],
-        *,
-        pregathered: bool = False,
-    ) -> RaggedValue:
-        """The ragged face of the routed interior: the (position, slot) pairs
-        the router sent to ``site.expert``, as flat ``(selected, d)`` rows plus
-        per-example widths.
-
-        An expert no token chose returns width-0 rows — **a data fact, not an
-        error** (there is no per-expert hook to have not fired; the router
-        simply sent it nothing at these positions). When that is true of
-        *every* addressed position, the read is recorded as an
-        ``unavailable`` cell with reason ``empty_selector`` (spec §4.1): the
-        document was legal, the selector selected nothing here, and the cell
-        belongs in the result and in the denominator rather than in a
-        refusal. Partial emptiness stays data — the per-row widths say which
-        rows the expert served.
-
-        ``featurizer`` and ``dims`` are refused here rather than resized: the
-        document sized them against the token-major form (``top_k · d``), and
-        these rows are ``d``-wide — silently applying either would index a
-        different space than the author named.
-        """
-        if expert_idx is None:
-            raise ProtocolError(
-                "P2",
-                f"read {rname!r} selects expert {site.expert}, but the engine "
-                "captured no routing table alongside the tap — an executor bug, "
-                "not a document error",
-            )
-        if read.featurizer is not None:
-            raise ProtocolError(
-                "P4",
-                f"read {rname!r} featurizes the 'expert: {site.expert}' face of "
-                f"{site.component!r}, whose rows are d_expert-wide while the "
-                "component (and any featurizer sized against it) is top_k·d "
-                "wide. Featurize the token-major form — drop 'expert' — or read "
-                "this face raw.",
-            )
-        if isinstance(read.dims, tuple):
-            raise ProtocolError(
-                "P4",
-                f"read {rname!r} slices 'dims' on the 'expert: {site.expert}' "
-                f"face of {site.component!r}: 'dims' indexes the token-major "
-                "top_k·d axis, and these rows are d-wide. Drop 'expert' or "
-                "drop 'dims'.",
-            )
-        if pregathered:
-            gathered, idx_gathered = raw, expert_idx
-        else:
-            gathered = self._gather(raw, per_row, f"read {rname!r}")
-            idx_gathered = self._gather(expert_idx, per_row, f"read {rname!r}")
-        if isinstance(gathered, RaggedValue):
-            assert isinstance(idx_gathered, RaggedValue)
-            flat_value, pos_widths = gathered.flat, gathered.widths
-            flat_idx = idx_gathered.flat
-        else:
-            assert isinstance(idx_gathered, torch.Tensor)
-            rows, n_pos = gathered.shape[0], gathered.shape[1]
-            flat_value = gathered.reshape(rows * n_pos, gathered.shape[-1])
-            flat_idx = idx_gathered.reshape(rows * n_pos, idx_gathered.shape[-1])
-            pos_widths = (n_pos,) * rows
-        top_k = flat_idx.shape[-1]
-        per_slot = flat_value.shape[-1] // top_k
-        mask = flat_idx == site.expert  # (positions, top_k)
-        selected = flat_value.reshape(-1, top_k, per_slot)[mask]
-        # hits per (example, position) row — read to the host once, then
-        # summed per example there rather than one device read per row
-        counts = mask.sum(dim=-1).tolist()
-        widths: list[int] = []
-        offset = 0
-        for width in pos_widths:
-            widths.append(sum(counts[offset : offset + width]))
-            offset += width
-        if sum(widths) == 0:
-            self._unavailable[rname] = unavailable(
-                "empty_selector",
-                f"read {rname!r} selects the 'expert: {site.expert}' face of "
-                f"{site.component!r} at layer {site.layer}, and the router sent "
-                f"expert {site.expert} no token at the addressed positions "
-                f"({len(pos_widths)} rows, {sum(pos_widths)} positions) — a "
-                "fact of this batch's routing, not of the document",
-                cell_key(rname, self.coords),
-            )
-        if not self.grad_enabled:
-            selected = selected.detach().cpu()
-        return RaggedValue(flat=selected, widths=tuple(widths))
-
-    def _state_read(
-        self,
-        rname: str,
-        read: ReadSpec,
-        site: ResolvedSite,
-        value: torch.Tensor,
-        gathered: "torch.Tensor | RaggedValue",
-    ) -> "torch.Tensor | RaggedValue":
-        """The tail of a read whose trailing axes form a state matrix.
-
-        The tensor keeps its native layout — ``(batch, steps, heads, d_k,
-        d_v)`` after the position gather — because there is no feature vector
-        to flatten to. ``head:`` selects on the head axis directly;
-        ``featurizer`` and ``dims`` are refused off the declared axes (the same
-        generated refusals the attention pattern gets, with the position gather
-        kept, which is what distinguishes the two shapes).
-        """
-        what = f"{site.component!r} ({site.shape.describe()})"
-        if read.featurizer is not None:
-            raise ProtocolError(
-                "P4",
-                f"read {rname!r} featurizes {what}: {site.shape.refusal('it')}",
-            )
-        if isinstance(read.dims, tuple):
-            raise ProtocolError(
-                "P4",
-                f"read {rname!r} slices 'dims' on {what}: that would select "
-                "d_v columns of a matrix as though they were features.",
-            )
-        if site.head is not None:
-            # dim 0 of a ragged flat is the gathered rows; dense keeps
-            # (batch, steps) in front — the head axis is right after either way
-            value = (
-                value[:, site.head]
-                if isinstance(gathered, RaggedValue)
-                else value[:, :, site.head]
-            )
-        if not self.grad_enabled:
-            value = value.detach().cpu()
-        if isinstance(gathered, RaggedValue):
-            return RaggedValue(flat=value, widths=gathered.widths)
+        self._record_read_notes(rname, notes)
         return value
 
     def _state_step_writer(

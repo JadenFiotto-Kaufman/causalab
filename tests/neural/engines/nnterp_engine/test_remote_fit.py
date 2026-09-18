@@ -28,15 +28,17 @@ from causalab.neural.shared.execution import TrainOutcome
 from causalab.neural.shared.loading import torch_module
 from causalab.neural.shared.training.executors import fit_spec, seeded_stages
 from causalab.neural.shared.services import TensorBundle
-from causalab.protocol.errors import ProtocolError
+from causalab.protocol.errors import ProtocolError, ValidationError
 
 from tests._helpers import a3b_sweep as sweep
 from tests._helpers.train_docs import (
     ROWS,
+    TINY_QWEN35_MOE,
     chain_doc,
     controlled_dbm_doc,
     das_doc,
     dbm_doc,
+    expert_dbm_fit_doc,
     phased_chain_doc,
     train_request,
 )
@@ -512,17 +514,52 @@ def test_a_fit_on_a_meta_model_refuses(remote_llama, monkeypatch):
         _fit(remote_llama, das_doc())
 
 
-def test_a_fit_whose_objective_read_cannot_flow_is_refused_by_name(nnterp_llama):
-    """Nothing of a fit's forward comes home, so a read the block cannot
-    finish — here a ragged whole-sequence operand — refuses the fit, locally
-    as remotely: there is one path."""
+def test_the_expert_neuron_dbm_is_one_remote_job_and_the_local_fit(monkeypatch):
+    """The headline document, remotely. ``dbm_expert_neuron.json`` at tiny
+    scale: its operand reads ``expert_activation``, a routed interior, so
+    the value comes with a routing table, its gate is keyed by that table,
+    and the write joins its slots to the read's by expert. Both tables now
+    live in the session's flow, so the fit is **one job** — and the weights
+    it trains are the local fit's to the bit.
+
+    The weight-free MoE bundle builds in bf16 only (torch's meta
+    ``grouped_mm`` has no fp32 kernel) and a client's dtype is structure,
+    not numerics: the server here is the fp32 CPU model, which is what both
+    sides of the comparison run on."""
+    from causalab.neural.engines.nnterp_engine.loading import load_model
+    from tests._helpers.faithful_server import FaithfulServer
+
+    server = load_model(TINY_QWEN35_MOE, attn_implementation="eager")
+    client = load_model(TINY_QWEN35_MOE, dtype="bf16", remote=True)
+    ndif = FaithfulServer(server.model, monkeypatch)
+    doc_raw = expert_dbm_fit_doc(pairs=2, epochs=2)
+    there = _fit(client, doc_raw)
+    (job,) = ndif.jobs
+    assert job.returned == ("result",)
+    here = _fit(server, doc_raw, remote=False)
+    assert len(ndif.jobs) == 1  # the local fit is no job
+    _assert_same_fit(here, there, _init_state(_executor(server, doc_raw)))
+    assert {p.device.type for p in torch_module(client.model).parameters()} == {"meta"}
+
+
+def test_the_engine_carries_no_second_refusal_for_a_fit(nnterp_llama):
+    """``fit_programs`` refuses nothing of its own any more: the block
+    finishes every kind of read the way the client does.
+
+    The one frame a fit's forwards are not — the continuation frame — is
+    refused a layer up and for a better reason than this engine could give:
+    §5 rule 16 refuses `train` beside any generated position, on any engine,
+    because a greedy decode is an argmax chain with no gradient path. The
+    engine is never reached, which is why it carries no duplicate."""
     doc = das_doc()
-    doc["method"]["reads"]["v_cf"]["pos"] = "all"
-    doc["method"]["writes"]["patch"]["pos"] = "all"
-    doc["method"]["writes"]["patch"]["ragged"] = {"policy": "padded_masked"}
-    with pytest.raises(ProtocolError, match="read 'v_cf' feeds this fit") as err:
+    doc["method"]["reads"]["logits"]["pos"] = {
+        "index": 0,
+        "generated": {"max_new_tokens": 2},
+    }
+    with pytest.raises(ValidationError) as err:
         _fit(nnterp_llama, doc)
-    assert err.value.code == "P4"
+    assert err.value.rule == 16
+    assert "no gradient path" in str(err.value)
 
 
 def test_the_dry_run_mode_fits(nnterp_llama):

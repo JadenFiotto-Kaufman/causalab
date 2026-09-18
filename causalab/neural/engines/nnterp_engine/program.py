@@ -32,7 +32,7 @@ from causalab.neural.shared.executor_base import RaggedValue, TapKey, tap_key
 from causalab.neural.shared.featurizers import FeaturizerStack
 from causalab.neural.shared.sites import ResolvedSite
 from causalab.protocol.plan import COMPONENT_RANK
-from causalab.protocol.schema import PositionSpec, WriteSpec
+from causalab.protocol.schema import PositionSpec, ReadSpec, WriteSpec
 
 __all__ = [
     "PATTERN",
@@ -89,15 +89,35 @@ class SlotRef:
 
 @dataclasses.dataclass(frozen=True)
 class FlowPlan:
-    """How a read's gathered rows become the value a later consumer of the
+    """How a read's captured rows become the value a later consumer of the
     same session reads, without leaving the server — a later group's write
-    operand, a fit's objective, an eval metric: the feature tail of the read
-    (``site``'s head slice, ``stack``, ``dims``). ``stack`` is the stack
-    itself (an inference point ships it) or its names (a fit)."""
+    operand, a fit's objective, an eval metric.
+
+    The whole finisher runs there
+    (:func:`~causalab.neural.shared.executor_base.finalize_read`), which is
+    why this carries the read itself rather than its ``dims`` alone: the
+    ragged ``expert:`` face, a state matrix and a whole native tensor each
+    decide what they are from ``site`` and refuse a featurizer or ``dims``
+    by name, and all three finish on the server. ``stack`` is the stack
+    itself (an inference point ships it) or its names (a fit) — and ``None``
+    on exactly those three faces, which return before a stack could act, so
+    nothing stands in a payload for a featurizer that cannot run."""
 
     site: ResolvedSite
-    stack: "FeaturizerStack | StackRef"
-    dims: Any
+    stack: "FeaturizerStack | StackRef | None"
+    read: ReadSpec
+
+
+# Three read plans, not one. They share a name, a `flow` and nothing else:
+# a `ReadPlan` is served from one captured op at positions the client
+# resolved and is the only one that can name a derived component; a
+# `FirePlan` is served from the same capture but at positions only the
+# kernel's fire count decides; a `StepPlan` is served from a per-step sink
+# keyed by `TapKey` — not from an op of `ops` at all — at positions the
+# decode's own continuation frame decides. One type would carry three
+# mutually exclusive address fields (positions, a fire index, a position
+# spec) and a key meaningful for one of them, and `select_rows` would have
+# to ask which.
 
 
 @dataclasses.dataclass(frozen=True)
@@ -129,6 +149,7 @@ class FirePlan:
 
     rname: str
     index: int | None
+    flow: FlowPlan | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -192,6 +213,7 @@ class StepPlan:
     key: TapKey
     spec: PositionSpec
     project: Any = None
+    flow: FlowPlan | None = None
 
 
 @dataclasses.dataclass(frozen=True)

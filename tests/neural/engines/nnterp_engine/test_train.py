@@ -18,6 +18,7 @@ import torch
 from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine.program import StackRef
 from causalab.neural.engines.nnterp_engine import fit as fit_module
 from causalab.neural.engines.nnterp_engine import train as train_module
 from causalab.neural.engines.nnterp_engine.train import run_training
@@ -39,6 +40,7 @@ from tests._helpers.train_docs import (
     controlled_dbm_doc,
     das_doc,
     dbm_doc,
+    expert_dbm_fit_doc,
     phased_chain_doc,
     train_request,
 )
@@ -267,6 +269,105 @@ def test_the_reference_runner_and_this_one_fit_the_same_weights(
     assert hooked.keys() == traced.keys()
     for name in hooked:
         torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
+
+
+def test_the_expert_neuron_dbm_fits_the_same_weights_through_both_engines(
+    hooks_qwen, nnterp_qwen
+):
+    """The headline: the shipped ``dbm_expert_neuron.json`` fit, at tiny
+    scale (``tests/_helpers/train_docs.py``), trained on this engine.
+
+    Its operand ``routed_cf`` reads ``expert_activation`` — a routed
+    interior, so it comes with a routing table, its gate is keyed by that
+    table, and the write joins its slots to the read's by expert. That read
+    could not be finished anywhere but on the client, and a fit's forwards
+    run where its stages live, so this document could not be trained on this
+    engine at all. The block finishes it now, routing table and all, and the
+    trained gates are the reference engine's to the bit."""
+    doc_raw = expert_dbm_fit_doc(pairs=2, epochs=2)
+    hooked_executor = sweep.make_executor(
+        PointExecutor, doc_raw, hooks_qwen, rows=ROWS, with_cf=True
+    )
+    hooked = _slots(
+        run_hooks_training(hooked_executor.doc, hooked_executor, train_request())
+    )
+    executor = sweep.make_executor(
+        NnterpExecutor, doc_raw, nnterp_qwen, rows=ROWS, with_cf=True
+    )
+    (outcome,) = run_training([executor.doc], [executor], train_request())
+    traced = _slots(outcome)
+    assert hooked.keys() == traced.keys() == {"routed_gate.theta", "shared_gate.theta"}
+    for name in hooked:
+        torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
+    # the fit moved them: a document that trains nothing is not two sides
+    # agreeing (the gates start at a constant fill)
+    for value in traced.values():
+        assert len(value.reshape(-1).unique()) > 1
+
+
+def _state_swap_fit_doc() -> dict[str, Any]:
+    """The expert-neuron DBM fit with a per-fire operand added: the layer-0
+    ``deltanet_state`` at chunk 0, read off the original forward and swapped
+    into the trained one. Its plan is a ``FirePlan`` — the one plan whose
+    position axis is the kernel's fire index — and it flows, so it carries a
+    stack into the fit's payload."""
+    raw = expert_dbm_fit_doc()
+    method = raw["method"]
+    method["sites"]["state"] = {"component": "deltanet_state", "layers": [0]}
+    method["reads"]["s"] = {
+        "site": "state",
+        "pos": 0,
+        "model": "original",
+        "input": "base",
+    }
+    method["writes"]["sw"] = {"site": "state", "pos": 0, "do": {"swap": "s"}}
+    method["intervened_models"]["masked"]["writes"].append("sw")
+    return raw
+
+
+def _flows(programs: tuple[Any, ...]) -> list[tuple[str, Any]]:
+    """Every plan of ``programs`` that flows, with its stack — reads served
+    from an op's capture and continuation reads alike."""
+    return [
+        (type(plan).__name__, plan.flow.stack)
+        for program in programs
+        for plan in [p for op in program.ops for p in op.reads] + list(program.steps)
+        if plan.flow is not None
+    ]
+
+
+def test_a_fit_carries_every_flowing_stack_by_name(nnterp_qwen):
+    """A fit's stages are built, stepped and kept where the fit runs, so a
+    flow's stack travels as a :class:`StackRef` — a concrete
+    ``FeaturizerStack`` in a payload is the *client's* initial stage, frozen,
+    in the place the fit's trained one belongs.
+
+    The conversion is keyed on the flow, not on the plan type, which is what
+    the per-fire operand here pins: ``s`` is a ``FirePlan``, and it is the
+    only kind of flowing plan a fit can reach besides a ``ReadPlan`` — a
+    ``StepPlan`` lives in ``program.steps``, which needs a continuation
+    frame, and ``fit_programs`` asserts a fit has none. That combination
+    stays untested for the same reason it is unrepresentable.
+
+    ``s`` reads a state matrix, a face that refuses a featurizer by name, so
+    its flow names no stack at all (``FlowPlan.stack is None``). The two
+    outcomes a fit's payload may hold are therefore a name and nothing; a
+    built stack is the one it may not."""
+    doc_raw = _state_swap_fit_doc()
+    executor = _executor(nnterp_qwen, doc_raw)
+    request = train_request()
+    plan = train_module.plan_fit(executor.doc, executor, request).plan
+    flows = _flows(plan.train + plan.eval)
+    assert {kind for kind, _ in flows} == {"ReadPlan", "FirePlan"}
+    for kind, stack in flows:
+        assert stack is None or isinstance(stack, StackRef), kind
+    assert any(isinstance(stack, StackRef) for _, stack in flows)
+    # and the block resolves them: the fit runs, gates and all
+    executor = _executor(nnterp_qwen, doc_raw)
+    (outcome,) = run_training([executor.doc], [executor], request)
+    assert set(outcome.stages) == {"routed_gate", "shared_gate"}
+    for value in _slots(outcome).values():
+        assert len(value.reshape(-1).unique()) > 1
 
 
 def _drawn(cls, bundle, *, remote: Any = None):

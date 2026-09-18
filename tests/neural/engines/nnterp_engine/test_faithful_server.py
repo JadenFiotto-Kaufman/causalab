@@ -35,7 +35,8 @@ pytestmark = pytest.mark.smoke
 
 def _ragged_swap() -> dict[str, Any]:
     """A whole-sequence swap over rows of different lengths: the operand is
-    ragged, so the server cannot finish it into the session's flow."""
+    ragged, and the server finishes it into the session's flow with its
+    per-row widths, so the point is still one job."""
     doc = sweep.interchange_doc("mlp_output", 0, pos="all")
     doc["method"]["writes"]["patch"]["ragged"] = {"policy": "padded_masked"}
     return doc
@@ -52,8 +53,8 @@ CASES: dict[str, tuple[Callable[[], dict[str, Any]], bool, int, set[str]]] = {
         1,
         set(),
     ),
-    # an operand the server cannot finish: one job per group, shipped by value
-    "ragged_fallback": (_ragged_swap, True, 2, set()),
+    # a ragged operand, finished on the server with its widths and flowed
+    "ragged_session": (_ragged_swap, True, 1, set()),
     # the eager switch on the server's model, which the client never touches
     "eager_read": (
         lambda: sweep.read_doc("attention_scores", 1, pos="all"),
@@ -61,10 +62,11 @@ CASES: dict[str, tuple[Callable[[], dict[str, Any]], bool, int, set[str]]] = {
         1,
         {"attn_eager"},
     ),
+    # a whole native tensor (no contract form) as the operand: flowed whole
     "eager_pattern_swap": (
         lambda: sweep.interchange_doc("attention_scores", 1, pos="all"),
         True,
-        2,
+        1,
         {"attn_eager"},
     ),
     # one generate trace; the continuation frame is built where the decode ran
@@ -206,13 +208,14 @@ def _chain() -> dict[str, Any]:
     return doc
 
 
-def test_one_unflowable_operand_cuts_the_session_where_it_is_consumed(
+def test_a_ragged_operand_no_longer_cuts_the_session(
     remote_llama, nnterp_llama_default_impl, ndif_llama
 ):
-    """Flowability is per operand. In a three-group chain whose second
-    operand is ragged, the first two groups still run as one session with
-    the dense operand flowing between them, and only the group that
-    consumes the ragged one waits for it: two jobs, not three."""
+    """The three-group chain whose second operand is ragged. It used to cost
+    two jobs: the ragged read had to come home, so the session was cut in
+    front of the group that consumed it. The block finishes it now — with
+    its per-row widths — so the whole chain is **one** job, and the values
+    are the local path's to the bit."""
     reference = sweep.make_executor(
         NnterpExecutor,
         _chain(),
@@ -225,15 +228,14 @@ def test_one_unflowable_operand_cuts_the_session_where_it_is_consumed(
     remote = sweep.make_executor(
         NnterpExecutor, _chain(), remote_llama, rows=ROWS, with_cf=True
     )
-    assert remote._flowable("v_cf") and not remote._flowable("v_mid")
-    segments = remote._segments(remote._group_order())
-    assert [(len(groups), set(flowing)) for groups, flowing in segments] == [
-        (2, {"v_cf"}),
-        (1, set()),
-    ]
+    order = remote._group_order()
+    assert len(order) == 3
+    assert remote._flowing(order) == {"v_cf", "v_mid"}
     remote.run_all()
     _assert_parity(reference, remote)
-    assert len(ndif_llama.jobs) == 2, ndif_llama.jobs
+    assert len(ndif_llama.jobs) == 1, ndif_llama.jobs
+    # the ragged one really is ragged: its rows have different widths
+    assert len(set(remote.read_value("v_mid").widths)) > 1
     assert len(reference.fires) == 2  # both writes landed
 
 
@@ -472,10 +474,78 @@ def test_a_block_handed_a_meta_model_refuses(remote_llama, monkeypatch):
 # ---------------------------------------------------------------------- #
 
 
-def test_a_routed_interior_operand_falls_back_on_the_server(monkeypatch):
+def test_a_state_read_at_a_fire_flows_between_the_traces(monkeypatch):
+    """A read that is per-fire *and* a state matrix — ``deltanet_state``,
+    whose position axis is the kernel's chunk index and whose value keeps
+    its native ``(heads, d_k, d_v)`` layout — swapped into the same fire of
+    a patched forward. Both used to send the read home; the block finishes
+    it now, so the point is one job and the values are the local path's."""
+    from tests._helpers.faithful_server import FaithfulServer
+
+    server = load_model(TINY_QWEN35_MOE)
+    client = load_model(TINY_QWEN35_MOE, dtype="bf16", remote=True)
+    ndif = FaithfulServer(server.model, monkeypatch)
+    rows = [{"input": "the quick brown fox jumps over the lazy dog " * 8}]
+    doc = sweep.read_doc("attention_output", 0, pos="all")
+    doc["method"]["sites"]["state"] = {"component": "deltanet_state", "layers": [0]}
+    doc["method"]["reads"]["r"]["model"] = "patched"
+    doc["method"]["save"][0]["model"] = "patched"
+    doc["method"]["reads"]["s"] = {
+        "site": "state",
+        "pos": 0,
+        "model": "original",
+        "input": "base",
+    }
+    doc["method"]["writes"] = {"sw": {"site": "state", "pos": 0, "do": {"swap": "s"}}}
+    doc["method"]["intervened_models"] = {
+        "patched": {"input": "base", "writes": ["sw"]}
+    }
+    remote = sweep.make_executor(NnterpExecutor, doc, client, rows=rows, with_cf=False)
+    remote.run_all()
+    assert len(ndif.jobs) == 1, ndif.jobs
+    reference = sweep.make_executor(
+        NnterpExecutor, doc, server, rows=rows, with_cf=False, remote=False
+    )
+    reference.run_all()
+    _assert_parity(reference, remote)
+    # the state really is a matrix, read at one fire
+    assert remote.read_value("s").dim() == 3
+
+
+def test_the_block_finishes_the_expert_face_the_way_the_client_does(nnterp_qwen):
+    """The ragged ``expert:`` face is the one read with no consumer a
+    document can give it — its rows are ``d_expert`` wide where the
+    component, and any write at it, is ``top_k·d`` — so it never becomes a
+    write operand and never enters a session's flow. What is no longer true
+    is that the block *could not* finish it: planned as flowing and run, the
+    value it puts in the flow is the client's, selection and widths."""
+    from causalab.neural.engines.nnterp_engine.landers import run_program
+
+    idx = sweep.make_executor(
+        NnterpExecutor,
+        sweep.read_doc("expert_idx", 0, pos="all"),
+        nnterp_qwen,
+        rows=ROWS,
+        with_cf=False,
+    ).read_value("r")
+    expert = int(_flat(idx).reshape(-1)[0].item())
+    doc = sweep.read_doc("expert_activation", 0, pos="all")
+    doc["method"]["sites"]["tap"]["expert"] = expert
+    executor = sweep.make_executor(
+        NnterpExecutor, doc, nnterp_qwen, rows=ROWS, with_cf=False
+    )
+    plan = executor._plan("original", "base", flowing=frozenset({"r"}))
+    flow: dict = {}
+    executor._finalize(plan, run_program(nnterp_qwen.model, plan.program, flow))
+    client, served = executor.read_value("r"), flow["r"]
+    assert client.widths == served.widths and sum(client.widths) > 0
+    assert torch.equal(client.flat, served.flat)
+
+
+def test_a_routed_interior_operand_flows_with_its_routing_table(monkeypatch):
     """A routed-interior operand travels with its routing table, which the
-    write joins by expert, so the point runs one job per group with the
-    operand and its table shipped by value.
+    write joins its slots by expert on. The table flows beside the value
+    (``landers.routing_slot``), so the point is one job.
 
     The weight-free MoE bundle builds in bf16 only (torch's meta
     ``grouped_mm`` has no fp32 kernel), and a client's dtype is structure,
@@ -497,8 +567,8 @@ def test_a_routed_interior_operand_falls_back_on_the_server(monkeypatch):
     assert reference._read_routing.keys() == remote._read_routing.keys()
     for name, table in reference._read_routing.items():
         assert torch.equal(_flat(table), _flat(remote._read_routing[name])), name
-    assert remote._read_routing  # or the fallback had no table to ship
-    assert len(ndif.jobs) == 2, ndif.jobs
+    assert remote._read_routing  # or there was no table to compare
+    assert len(ndif.jobs) == 1, ndif.jobs
     clean = sweep.make_executor(
         NnterpExecutor,
         sweep.read_doc("lm_head", None),
