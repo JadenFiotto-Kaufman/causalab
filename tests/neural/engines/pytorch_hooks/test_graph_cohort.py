@@ -558,7 +558,7 @@ class TestSharedPool:
                 executor=fit.executor,
                 stages=fit.stages,
                 parameters=[p for g in fit.optimizer.param_groups for p in g["params"]],
-                objective_reads=fit.objective_reads,
+                objective_reads=fit.spec.objective_reads,
                 pairs=_slot_rows(fit.doc, fit.executor),
             )
             for fit in fits
@@ -566,7 +566,7 @@ class TestSharedPool:
         window = [
             WindowItem(
                 key=id(fit),
-                indices=fit.batches[0],
+                indices=fit.spec.batches[0],
                 minibatch=fit.minibatch_executors[0],
                 objective=TrainingObjective(fit.minibatch_executors[0], fit.stages),
             )

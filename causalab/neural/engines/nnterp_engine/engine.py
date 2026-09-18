@@ -12,12 +12,13 @@ and ``stream`` cells), not capability gaps, so ``writable_components`` is the
 same set. It does not declare ``quantized_weights`` — unverified through
 this loader.
 
-It declares ``grad``: a ``train`` document is fitted by ``train.run_training``
-on the shared loop — featurizer slots, fp32 losses, evals on epoch
-boundaries, so none of ``train_free_params``, ``train_loss_precision`` and
-``train_eval_updates``. Training needs the autograd graph of a forward in
-this process, so a ``remote`` engine drops ``grad`` and refuses a ``train``
-document that reaches it anyway.
+It declares ``grad``, wherever its forwards run: a ``train`` document is
+fitted by ``train.run_training`` on the shared loop — featurizer slots, fp32
+losses, evals on epoch boundaries, so none of ``train_free_params``,
+``train_loss_precision`` and ``train_eval_updates``. A ``remote`` engine runs
+the whole fit as one NDIF job (``fit.run_fit``): the stages, the optimizer
+and the autograd graph live where the model is, and the fitted state comes
+home.
 """
 
 from __future__ import annotations
@@ -73,18 +74,6 @@ class NnterpEngine(Engine):
         #: ``None`` inherits the bundle's own — here for a bundle this engine
         #: loads, on NDIF for a weight-free bundle the caller hands in.
         self.remote = remote
-        if self._runs_remotely:
-            # a remote forward returns detached saves: nothing to fit through
-            self.capabilities = type(self).capabilities - {"grad"}
-
-    @property
-    def _runs_remotely(self) -> bool:
-        """Whether the forwards leave this process — ``remote`` as given, or
-        as inherited from a weight-free bundle the caller handed in (the
-        executor's own rule)."""
-        if self.remote is None:
-            return bool(getattr(self.bundle, "remote", False))
-        return bool(self.remote)
 
     @property
     def model_source(self) -> str:
@@ -106,15 +95,6 @@ class NnterpEngine(Engine):
         executors: Sequence[NnterpExecutor],
         request: ExecutionRequest,
     ) -> list[TrainOutcome]:
-        if self._runs_remotely:
-            raise ProtocolError(
-                "P4",
-                "this document declares a train section, which the "
-                f"{self.name!r} engine fits through the autograd graph of a "
-                "forward in this process — a remote forward returns detached "
-                "saves, so no gradient reaches a trained parameter; fit "
-                "against a locally loaded bundle (remote=False)",
-            )
         return run_training(docs, executors, request)
 
     def _executor(

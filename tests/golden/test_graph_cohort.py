@@ -28,7 +28,7 @@ from causalab.neural.engines.pytorch_hooks.graph_reuse import FitGraphCache
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.execution import campaign_cache
 from causalab.neural.shared.executor_base import Interning
-from causalab.neural.shared.training import fit as fit_module
+from causalab.neural.shared.training import state as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.plan import plan_point
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv

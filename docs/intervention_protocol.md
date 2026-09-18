@@ -4271,7 +4271,7 @@ serving each component; the `N of 56` cells are
 
 | capability | `pytorch_hooks` (reference) | `nnterp` |
 |---|---|---|
-| `grad` | ✓ | ✓ in this process, on the same shared loop; a remote engine drops it (a remote forward returns detached saves) |
+| `grad` | ✓ | ✓ on the same shared loop, in this process or — a `remote` engine — as one NDIF job per fit: the stages, the optimizer and the graph live in the job's session and the fitted state comes home (a §2.2 `draw`, re-planned every epoch, fits in this process only) |
 | `paired_forward` | ✓ | ✓ |
 | `full_logits` | ✓ | ✓ |
 | `generate` | ✓ | ✓ one `model.generate` trace, decode steps walked with `tracer.iter` |
@@ -4603,8 +4603,10 @@ The contract both sides keep:
 Both engines take `bundle=` (the nnterp engine an `NnterpBundle`); `from_model`
 is the reference engine's constructor. The nnterp engine's `remote=` — its
 forwards on NDIF, against a weight-free bundle — is a Python caller's option
-too: it needs a trusted deployment with the same `causalab` installed
-server-side, which no command-line flag can state. The CLI has no bundle flag: a
+too: it needs a trusted deployment with the same `causalab`, `nnterp`,
+`nnsight` and `torch` installed server-side, which no command-line flag can state — the engine
+compares the two installs against the server's reported environment before
+it submits anything, and refuses (`P4`) on any difference. The CLI has no bundle flag: a
 caller-owned model is a Python caller's situation.
 
 The verbs dispatch on the document's shape: a **workflow** (it has `steps`)

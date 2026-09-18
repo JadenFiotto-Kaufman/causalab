@@ -18,6 +18,9 @@ import torch
 from causalab.neural.engines.nnterp_engine.engine import NnterpEngine
 from causalab.neural.engines.nnterp_engine.executor import NnterpExecutor
 from causalab.neural.engines.nnterp_engine.loading import NnterpBundle
+from causalab.neural.engines.nnterp_engine.program import StackRef
+from causalab.neural.engines.nnterp_engine import fit as fit_module
+from causalab.neural.engines.nnterp_engine import train as train_module
 from causalab.neural.engines.nnterp_engine.train import run_training
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.engines.pytorch_hooks.loading import ModelBundle
@@ -27,7 +30,6 @@ from causalab.neural.engines.pytorch_hooks.train import (
 from causalab.neural.shared.execution import TrainOutcome
 from causalab.neural.shared.loading import torch_module
 from causalab.neural.shared.metrics import compute_metric
-from causalab.neural.shared.training import loop as loop_module
 from causalab.protocol.engine import requires
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import parse_document
@@ -38,6 +40,7 @@ from tests._helpers.train_docs import (
     controlled_dbm_doc,
     das_doc,
     dbm_doc,
+    expert_dbm_fit_doc,
     phased_chain_doc,
     train_request,
 )
@@ -137,26 +140,29 @@ def _with_eval(doc_raw: dict[str, Any], every: dict[str, int]) -> dict[str, Any]
 
 
 def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
-    """A real pass: the eval executor is built once over the split's rows on
-    the point's stage cache, and every epoch's score is the document's metric
-    over it — the last one the outcome's."""
+    """A real pass: the eval split is planned once, up front, as programs
+    without gradients beside one ``ScoreSpec``; every epoch's score is the
+    document's metric over them — the last one the outcome's."""
     doc_raw = _with_eval(das_doc(seed=0, epochs=3), {"epochs": 1})
     executor = _executor(nnterp_llama, doc_raw)
-    built: list[NnterpExecutor] = []
-    real = loop_module.score
+    request = train_request({EVAL_SPLIT: ROWS})
+    plan = train_module.plan_fit(executor.doc, executor, request).plan
+    assert plan.spec.score is not None and plan.spec.score.split == EVAL_SPLIT
+    assert plan.eval and not any(program.grad for program in plan.eval)
+    assert all(program.grad for program in plan.train)
 
-    def recording(doc, eval_executor):
-        built.append(eval_executor)
-        return real(doc, eval_executor)
+    executor = _executor(nnterp_llama, doc_raw)
+    scored: list[Any] = []
+    real = fit_module.score
+
+    def recording(score_spec, read):
+        scored.append(score_spec)
+        return real(score_spec, read)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(loop_module, "score", recording)
-        (outcome,) = run_training(
-            [executor.doc], [executor], train_request({EVAL_SPLIT: ROWS})
-        )
-    assert len(built) == 3 and len({id(e) for e in built}) == 1
-    assert built[0].stage_cache is executor.stage_cache
-    assert not built[0].grad_enabled
+        patch.setattr(fit_module, "score", recording)
+        (outcome,) = run_training([executor.doc], [executor], request)
+    assert len(scored) == 3 and len({id(spec) for spec in scored}) == 1
     assert outcome.eval_score is not None
     assert outcome.eval_score.passes == 3
     assert outcome.eval_score.selected == "last"
@@ -177,26 +183,22 @@ def test_an_eval_pass_scores_the_split_on_the_trained_stages(nnterp_llama):
 def test_early_stop_returns_the_best_fit_not_the_last(nnterp_llama, monkeypatch):
     """``early_stop`` selects a fit by its eval score, so the fit it selected
     is the one that comes back. The score is scripted — a deterministic peak
-    at the second eval — because what is under test is the selection."""
+    at the second eval — because what is under test is the selection: the
+    returned weights are the fit's after two epochs, which a two-epoch fit of
+    the same document reproduces to the bit."""
     doc_raw = _with_eval(das_doc(seed=0, epochs=5), {"epochs": 1})
     doc_raw["method"]["train"]["early_stop"] = {
         "metric": "ce",
         "patience": 10,
         "mode": "max",
     }
-    scores = [0.1, 0.9, 0.5, 0.4, 0.3]
-    seen: list[dict[str, torch.Tensor]] = []
-
-    def scripted(doc, eval_executor):
-        stage = eval_executor.stage_cache["rot"]
-        seen.append({k: v.detach().clone() for k, v in stage.state_dict().items()})
-        return {"ce": scores[len(seen) - 1]}
-
-    monkeypatch.setattr(loop_module, "score", scripted)
+    scores = iter([0.1, 0.9, 0.5, 0.4, 0.3])
+    monkeypatch.setattr(fit_module, "score", lambda *_: {"ce": next(scores)})
     outcome = _fit(nnterp_llama, doc_raw, splits={EVAL_SPLIT: ROWS})
 
-    assert len(seen) == len(scores)  # patience never fires: five evals ran
-    peak, final = seen[1], seen[-1]
+    assert next(scores, None) is None  # patience never fires: five evals ran
+    peak = _fit(nnterp_llama, das_doc(seed=0, epochs=2)).stages["rot"].state_dict()
+    final = _fit(nnterp_llama, das_doc(seed=0, epochs=5)).stages["rot"].state_dict()
     assert not torch.allclose(peak[ORIGINAL], final[ORIGINAL])  # the fit moved on
     returned = outcome.stages["rot"].state_dict()
     torch.testing.assert_close(returned[ORIGINAL], peak[ORIGINAL], atol=0.0, rtol=0.0)
@@ -269,6 +271,156 @@ def test_the_reference_runner_and_this_one_fit_the_same_weights(
         torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
 
 
+def test_the_expert_neuron_dbm_fits_the_same_weights_through_both_engines(
+    hooks_qwen, nnterp_qwen
+):
+    """The headline: the shipped ``dbm_expert_neuron.json`` fit, at tiny
+    scale (``tests/_helpers/train_docs.py``), trained on this engine.
+
+    Its operand ``routed_cf`` reads ``expert_activation`` — a routed
+    interior, so it comes with a routing table, its gate is keyed by that
+    table, and the write joins its slots to the read's by expert. That read
+    could not be finished anywhere but on the client, and a fit's forwards
+    run where its stages live, so this document could not be trained on this
+    engine at all. The block finishes it now, routing table and all, and the
+    trained gates are the reference engine's to the bit."""
+    doc_raw = expert_dbm_fit_doc(pairs=2, epochs=2)
+    hooked_executor = sweep.make_executor(
+        PointExecutor, doc_raw, hooks_qwen, rows=ROWS, with_cf=True
+    )
+    hooked = _slots(
+        run_hooks_training(hooked_executor.doc, hooked_executor, train_request())
+    )
+    executor = sweep.make_executor(
+        NnterpExecutor, doc_raw, nnterp_qwen, rows=ROWS, with_cf=True
+    )
+    (outcome,) = run_training([executor.doc], [executor], train_request())
+    traced = _slots(outcome)
+    assert hooked.keys() == traced.keys() == {"routed_gate.theta", "shared_gate.theta"}
+    for name in hooked:
+        torch.testing.assert_close(traced[name], hooked[name], atol=0.0, rtol=0.0)
+    # the fit moved them: a document that trains nothing is not two sides
+    # agreeing (the gates start at a constant fill)
+    for value in traced.values():
+        assert len(value.reshape(-1).unique()) > 1
+
+
+def _state_swap_fit_doc() -> dict[str, Any]:
+    """The expert-neuron DBM fit with a per-fire operand added: the layer-0
+    ``deltanet_state`` at chunk 0, read off the original forward and swapped
+    into the trained one. Its plan is a ``FirePlan`` — the one plan whose
+    position axis is the kernel's fire index — and it flows, so it carries a
+    stack into the fit's payload."""
+    raw = expert_dbm_fit_doc()
+    method = raw["method"]
+    method["sites"]["state"] = {"component": "deltanet_state", "layers": [0]}
+    method["reads"]["s"] = {
+        "site": "state",
+        "pos": 0,
+        "model": "original",
+        "input": "base",
+    }
+    method["writes"]["sw"] = {"site": "state", "pos": 0, "do": {"swap": "s"}}
+    method["intervened_models"]["masked"]["writes"].append("sw")
+    return raw
+
+
+def _flows(programs: tuple[Any, ...]) -> list[tuple[str, Any]]:
+    """Every plan of ``programs`` that flows, with its stack — reads served
+    from an op's capture and continuation reads alike."""
+    return [
+        (type(plan).__name__, plan.flow.stack)
+        for program in programs
+        for plan in [p for op in program.ops for p in op.reads] + list(program.steps)
+        if plan.flow is not None
+    ]
+
+
+def test_a_fit_carries_every_flowing_stack_by_name(nnterp_qwen):
+    """A fit's stages are built, stepped and kept where the fit runs, so a
+    flow's stack travels as a :class:`StackRef` — a concrete
+    ``FeaturizerStack`` in a payload is the *client's* initial stage, frozen,
+    in the place the fit's trained one belongs.
+
+    The conversion is keyed on the flow, not on the plan type, which is what
+    the per-fire operand here pins: ``s`` is a ``FirePlan``, and it is the
+    only kind of flowing plan a fit can reach besides a ``ReadPlan`` — a
+    ``StepPlan`` lives in ``program.steps``, which needs a continuation
+    frame, and ``fit_programs`` asserts a fit has none. That combination
+    stays untested for the same reason it is unrepresentable.
+
+    ``s`` reads a state matrix, a face that refuses a featurizer by name, so
+    its flow names no stack at all (``FlowPlan.stack is None``). The two
+    outcomes a fit's payload may hold are therefore a name and nothing; a
+    built stack is the one it may not."""
+    doc_raw = _state_swap_fit_doc()
+    executor = _executor(nnterp_qwen, doc_raw)
+    request = train_request()
+    plan = train_module.plan_fit(executor.doc, executor, request).plan
+    flows = _flows(plan.train + plan.eval)
+    assert {kind for kind, _ in flows} == {"ReadPlan", "FirePlan"}
+    for kind, stack in flows:
+        assert stack is None or isinstance(stack, StackRef), kind
+    assert any(isinstance(stack, StackRef) for _, stack in flows)
+    # and the block resolves them: the fit runs, gates and all
+    executor = _executor(nnterp_qwen, doc_raw)
+    (outcome,) = run_training([executor.doc], [executor], request)
+    assert set(outcome.stages) == {"routed_gate", "shared_gate"}
+    for value in _slots(outcome).values():
+        assert len(value.reshape(-1).unique()) > 1
+
+
+def _drawn(cls, bundle, *, remote: Any = None):
+    """A point executor over a drawn counterfactual role (§2.2 ``draw``): two
+    distinct members per row, as ``resolve_roles`` hands a fit."""
+    from causalab.protocol.validate import validate_document
+
+    doc = dbm_doc()
+    doc["data"]["counterfactual"] = {
+        **doc["data"]["counterfactual"],
+        "field": "counterfactual_inputs",
+        "draw": {"kind": "uniform"},
+    }
+    parsed = parse_document(in_order(doc))
+    validate_document(parsed, engine_is_local=True)
+    rows = [
+        {**row, "counterfactual_inputs": [cf, f"{cf} again"]}
+        for row in ROWS
+        for cf in row["counterfactual_inputs"]
+    ]
+    return cls(
+        parsed,
+        bundle,
+        role_rows={"base": rows, "counterfactual": rows},
+        role_fields={"base": "input", "counterfactual": "counterfactual_inputs[0]"},
+        load_tensors=lambda path: (_ for _ in ()).throw(KeyError(path)),
+        load_table=None,
+        **({} if remote is None else {"remote": remote}),
+    )
+
+
+def test_a_drawn_role_fits_the_same_through_both_engines(hooks_llama, nnterp_llama):
+    """§2.2 ``draw`` on the one path: each later epoch re-plans the step's
+    templates over a fresh draw (``run_fit(redraw=)``), and the fit is the
+    reference engine's — the same members drawn, the same weights."""
+    hooked_executor = _drawn(PointExecutor, hooks_llama)
+    hooked = run_hooks_training(hooked_executor.doc, hooked_executor, train_request())
+    executor = _drawn(NnterpExecutor, nnterp_llama)
+    (traced,) = run_training([executor.doc], [executor], train_request())
+    members = traced.draws["counterfactual"]["members"]
+    assert members == hooked.draws["counterfactual"]["members"]
+    assert len(members) == 3 and len({tuple(epoch) for epoch in members}) > 1
+    for name, value in _slots(hooked).items():
+        torch.testing.assert_close(_slots(traced)[name], value, atol=0.0, rtol=0.0)
+
+
+def test_a_remote_fit_refuses_a_drawn_role(nnterp_llama):
+    executor = _drawn(NnterpExecutor, nnterp_llama, remote="local")
+    with pytest.raises(ProtocolError, match="planning is the client's") as err:
+        run_training([executor.doc], [executor], train_request())
+    assert err.value.code == "P4"
+
+
 # --------------------------------------------------------------------------- #
 # routing
 # --------------------------------------------------------------------------- #
@@ -292,24 +444,34 @@ def test_a_train_document_routes_to_this_engine():
     }.isdisjoint(NnterpEngine.capabilities)
 
 
-def test_a_remote_engine_neither_claims_nor_runs_a_fit():
-    """Training needs the graph of a forward in this process: a remote engine
-    drops ``grad``, so routing passes it over, and refuses a ``train``
-    document handed to it anyway."""
-    engine = NnterpEngine(remote="local")
-    needed = requires(parse_document(in_order(das_doc())))
-    assert "grad" in needed - engine.effective_capabilities
-    with pytest.raises(ProtocolError, match="remote forward returns detached") as err:
-        engine._train([], [], train_request())  # pyright: ignore[reportPrivateUsage]
-    assert err.value.code == "P4"
+@pytest.mark.parametrize("remote", [True, "local"])
+def test_a_remote_engine_claims_a_fit(remote):
+    """A remote engine fits a ``train`` document as one job
+    (``test_remote_fit.py``), so it declares ``grad`` and routing sends the
+    document to it."""
+    from causalab.protocol.engine import choose_engine
+
+    engine = NnterpEngine(remote=remote)
+    doc = parse_document(in_order(das_doc()))
+    assert requires(doc) <= engine.effective_capabilities
+    assert choose_engine(doc, [engine]) is engine
 
 
-def test_a_weight_free_bundle_makes_the_engine_remote_for_training(remote_llama):
-    """``remote=None`` inherits the bundle's: an engine handed a weight-free
-    bundle runs on NDIF, so it drops ``grad`` and refuses a fit the same."""
-    engine = NnterpEngine(bundle=remote_llama)
-    needed = requires(parse_document(in_order(das_doc())))
-    assert "grad" in needed - engine.effective_capabilities
-    with pytest.raises(ProtocolError, match="remote forward returns detached") as err:
-        engine._train([], [], train_request())  # pyright: ignore[reportPrivateUsage]
-    assert err.value.code == "P4"
+def test_a_lone_gradient_forward_is_not_a_remote_job(nnterp_llama):
+    """A gradient-enabled executor plans for any tier — a remote fit's
+    programs are planned on one — but a forward of its own as a job would
+    bring its saves home detached, so running one refuses."""
+    executor = sweep.make_executor(
+        NnterpExecutor,
+        das_doc(),
+        nnterp_llama,
+        rows=ROWS,
+        with_cf=True,
+        remote="local",
+        grad_enabled=True,
+    )
+    assert executor.fit_programs(["logits"])  # planning is fine
+    for run in (lambda: executor.read_value("logits"), executor.run_all):
+        with pytest.raises(ProtocolError, match="remote job of its own") as err:
+            run()
+        assert err.value.code == "P4"

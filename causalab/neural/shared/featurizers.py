@@ -36,10 +36,12 @@ from a CPU generator, so a seeded init stays bit-identical across devices.
 Dtype is *not* forced — every stage casts at the boundary, so featurizers
 stay fp32 against a bf16 backbone.
 
-**Seed.** ``subspace`` is the only kind with a random init, and it draws from a
-*local* generator rather than the global RNG, so its starting rotation cannot
-depend on build order or on whether a train loop ran. :func:`build_stack` takes
-the ``seed``; the executor resolves it from ``train.seed`` (0 when the document
+**Seed.** ``subspace`` is the only kind with a random init, and every draw it
+makes — the starting rotation, and the completion of the ``matrix_exp`` /
+``stiefel`` base, which torch would take from the global RNG — is its own
+*local* generator's, so its rotation cannot depend on build order, on whether
+a train loop ran, or on whoever else shares the process; building one leaves
+the global RNG exactly as it was. :func:`build_stack` takes the ``seed``; the executor resolves it from ``train.seed`` (0 when the document
 declares no fit). ``gate`` inits to zeros, or loads a fitted ``theta``; the rest load from
 files. A ``hard_concrete`` gate is the one stage that draws *during* a fit —
 its training mask is a sample — and it draws only when the train loop hands it
@@ -83,7 +85,14 @@ from causalab.protocol.schema import (
 )
 from causalab.protocol.shapes import FeatureShape
 
-__all__ = ["FeaturizerStack", "Stage", "build_stack", "featurizer_cache"]
+__all__ = [
+    "FeaturizerStack",
+    "Stage",
+    "StageRecipe",
+    "build_recipe",
+    "build_stack",
+    "featurizer_cache",
+]
 
 #: How far ``PᵀP`` may sit from the identity before a saved basis is refused
 #: as a ``subspace`` start (:func:`_init_basis`). Loose enough for the fp32
@@ -142,7 +151,7 @@ def featurizer_cache(*, isolated: bool = False) -> Iterator[None]:
     ``cayley`` map issued more launches per DAS step than the whole MoE
     forward. The train loop opens one scope around a step's eager grad
     forwards and loss, and one around an eval round (an engine's ``train.py``,
-    ``shared/training/loop.py``); a CUDA
+    ``shared/training/executors.py``); a CUDA
     graph capture opens one per captured pass (``cuda_graphs.Replay``).
 
     **What is shared, and why it is exact.** Under ``no_grad`` — the eval
@@ -606,6 +615,8 @@ class Subspace(Stage):
         super().__init__()
         self.k = k
         self.seed = seed
+        self.width = width
+        self.map_name = parametrization
         self.init_identity: dict[str, Any] = dict(init_identity or {})
         generator = torch.Generator().manual_seed(seed)
         if init is None:
@@ -629,20 +640,49 @@ class Subspace(Stage):
             # provides for rectangular orthogonal parametrizations
             "stiefel": "householder",
         }[parametrization]
-        torch.nn.utils.parametrizations.orthogonal(
-            self, "weight", orthogonal_map=orthogonal_map
-        )
-        if init is not None:
-            # torch completed the base from the global RNG; replace it with the
-            # seeded completion so the start is a function of the document alone
-            complement = torch.randn(width, width - k, generator=generator)
-            full = torch.linalg.qr(torch.cat([start, complement], dim=1))[0]
-            self.parametrizations.weight[0].base = torch.cat(
-                [start, full[:, k:]], dim=1
+        # torch completes the d×d base from the **global** RNG. Fork it away
+        # and replace the completion with this generator's, so a rotation is a
+        # function of its document alone — not of build order, nor of whoever
+        # else shares the process (a served model's is another tenant's).
+        with torch.random.fork_rng(devices=[]):  # on CPU, as every stage is
+            torch.nn.utils.parametrizations.orthogonal(
+                self, "weight", orthogonal_map=orthogonal_map
             )
+        complement = torch.randn(width, width - k, generator=generator)
+        full = torch.linalg.qr(torch.cat([start, complement], dim=1))[0]
+        self.parametrizations.weight[0].base = torch.cat([start, full[:, k:]], dim=1)
 
     def identity_fields(self) -> dict[str, Any]:
         return dict(self.init_identity)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Pickle as the constructor's arguments, the free parameter and the
+        rest of the ``state_dict``: torch refuses to pickle a parametrized
+        module whole (its class is made at registration), and these are what
+        a fit moves, so a copy rebuilt from them featurizes bit-identically.
+        The free parameter travels as the object it is, not as a copy — an
+        optimizer pickled beside the stage holds the same object, and must
+        still hold the stage's parameter on the other side. The mode rides
+        along; whether the parameter takes a gradient (a §2.11 phase turns
+        it off) is the parameter's own."""
+        parametrization = self.parametrizations.weight  # type: ignore[union-attr]
+        return (
+            _rebuild_subspace,
+            (
+                self.width,
+                self.k,
+                self.map_name,
+                self.seed,
+                dict(self.init_identity),
+                parametrization.original,
+                {
+                    key: value.detach()
+                    for key, value in self.state_dict().items()
+                    if key != _SUBSPACE_ORIGINAL
+                },
+                self.training,
+            ),
+        )
 
     def _q(self) -> torch.Tensor:
         """The rotation — the parametrization evaluated once per open
@@ -684,6 +724,32 @@ class Subspace(Stage):
 
     def slot_params(self) -> dict[str, torch.Tensor]:
         return {"weight": self._q()}
+
+
+#: the ``state_dict`` key of the tensor an optimizer steps under any of a
+#: subspace's parametrizations
+_SUBSPACE_ORIGINAL = "parametrizations.weight.original"
+
+
+def _rebuild_subspace(
+    width: int,
+    k: int,
+    map_name: str,
+    seed: int,
+    init_identity: Mapping[str, Any],
+    original: torch.nn.Parameter,
+    state: Mapping[str, torch.Tensor],
+    training: bool,
+) -> Subspace:
+    """:meth:`Subspace.__reduce__`'s inverse. The construction's own draws
+    are thrown away by the state that follows, and they are the constructor's
+    own generator's, so unpickling a stage moves no stream a fit reads."""
+    stage = Subspace(width, k, map_name, seed=seed, init_identity=init_identity)
+    stage.to(original.device)
+    stage.load_state_dict(dict(state), strict=False)
+    stage.parametrizations.weight.original = original  # type: ignore[union-attr]
+    stage.train(training)
+    return stage
 
 
 class LoadedLinear(Stage):
@@ -2058,6 +2124,57 @@ def _stage_width(stage: Stage) -> int | None:
     if isinstance(stage, Standardize):
         return int(stage.mu.shape[0])
     return None
+
+
+@dataclasses.dataclass(frozen=True)
+class StageRecipe:
+    """Where a document uses one declared featurizer, as far as building it
+    goes: the width it is sized to (the site's, folded through the stages
+    before it in the chain), the site's shape and component a grouped gate
+    derives its map from, and the addressed window's length a position gate
+    is sized by. Plain data — with the featurizer specs, the seed and the
+    point's coordinates it is everything :func:`build_recipe` needs, so a
+    stage can be built where no executor is."""
+
+    name: str
+    width: int
+    site_shape: FeatureShape | None = None
+    site_component: str | None = None
+    position_width: int | None = None
+
+
+def build_recipe(
+    recipe: StageRecipe,
+    specs: Mapping[str, FeaturizerSpec],
+    *,
+    stage_cache: dict[str, Stage],
+    load_tensors: Any = None,
+    load_table: Any = None,
+    device: str | torch.device = "cpu",
+    seed: int = 0,
+    coords: Mapping[str, Any] | None = None,
+    model_info: ModelInfo | None = None,
+) -> Stage:
+    """The one stage ``recipe`` names, built into ``stage_cache`` (or found
+    there) by :func:`build_stack` — the single construction path, whether an
+    executor asks (``ExecutorBase.stage``) or a fit built from its spec
+    (``training.state.build_stages``)."""
+    build_stack(
+        recipe.name,
+        dict(specs),
+        width=recipe.width,
+        load_tensors=load_tensors,
+        load_table=load_table,
+        stage_cache=stage_cache,
+        device=device,
+        seed=seed,
+        coords=coords,
+        site_shape=recipe.site_shape,
+        site_component=recipe.site_component,
+        model_info=model_info,
+        position_width=recipe.position_width,
+    )
+    return stage_cache[recipe.name]
 
 
 def build_stack(

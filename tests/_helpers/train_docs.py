@@ -1,7 +1,13 @@
-"""The fit documents the train suites drive, on the tiny Llama: a DAS
-rotation (:func:`das_doc`), a DBM gate (:func:`dbm_doc`) and its ``clamp``
-and PID-controlled forms, the ``["rot", "gate"]`` chain and its two-phase
-form — with the rows they are fitted on and the request a runner is handed.
+"""The fit documents the train suites drive.
+
+On the tiny Llama: a DAS rotation (:func:`das_doc`), a DBM gate
+(:func:`dbm_doc`) and its ``clamp`` and PID-controlled forms, the
+``["rot", "gate"]`` chain and its two-phase form. On ``tiny-random/qwen3.5-moe``:
+the expert-neuron DBM (:func:`expert_dbm_doc`) and its fit
+(:func:`expert_dbm_fit_doc`), the tiny twin of the shipped
+``dbm_expert_neuron.json``. With the rows they are fitted on and the request
+a runner is handed.
+
 One home, so every engine's train suite fits the same documents."""
 
 from __future__ import annotations
@@ -14,7 +20,9 @@ __all__ = [
     "ANSWERS",
     "BASES",
     "COUNTERFACTUALS",
+    "MOE_LAYER",
     "TINY_LLAMA",
+    "TINY_QWEN35_MOE",
     "NoDatasets",
     "ROWS",
     "chain_doc",
@@ -22,11 +30,16 @@ __all__ = [
     "controlled_dbm_doc",
     "das_doc",
     "dbm_doc",
+    "expert_dbm_doc",
+    "expert_dbm_fit_doc",
     "phased_chain_doc",
     "train_request",
 ]
 
 TINY_LLAMA = "hf-internal-testing/tiny-random-LlamaForCausalLM"
+TINY_QWEN35_MOE = "tiny-random/qwen3.5-moe"
+#: Every fixture layer of the tiny MoE carries the sparse-MoE block.
+MOE_LAYER = 0
 
 BASES = [
     "the quick brown fox jumps over",
@@ -167,6 +180,176 @@ def controlled_dbm_doc() -> dict:
         }
     }
     return doc
+
+
+def expert_dbm_doc(pos: Any = -1) -> dict[str, Any]:
+    """A DBM-shaped document on one MoE layer: the counterfactual routed
+    interior read through an expert-keyed gate and swapped into the base run
+    through the same gate, a plain gate doing the same on the shared expert,
+    plus the raw reads the hand computation needs (both inputs' activations
+    and routing tables)."""
+    reads = {
+        "routed_cf": {
+            "site": "routed",
+            "pos": pos,
+            "model": "original",
+            "input": "counterfactual",
+            "featurizer": "routed_gate",
+        },
+        "shared_cf": {
+            "site": "shared",
+            "pos": pos,
+            "model": "original",
+            "input": "counterfactual",
+            "featurizer": "shared_gate",
+        },
+        "pre_base": {
+            "site": "routed",
+            "pos": pos,
+            "model": "original",
+            "input": "base",
+        },
+        "pre_cf": {
+            "site": "routed",
+            "pos": pos,
+            "model": "original",
+            "input": "counterfactual",
+        },
+        "idx_base": {"site": "idx", "pos": pos, "model": "original", "input": "base"},
+        "idx_cf": {
+            "site": "idx",
+            "pos": pos,
+            "model": "original",
+            "input": "counterfactual",
+        },
+        "post": {"site": "routed", "pos": pos, "model": "masked", "input": "base"},
+        "shared_base": {
+            "site": "shared",
+            "pos": pos,
+            "model": "original",
+            "input": "base",
+        },
+        "shared_raw_cf": {
+            "site": "shared",
+            "pos": pos,
+            "model": "original",
+            "input": "counterfactual",
+        },
+        "shared_post": {
+            "site": "shared",
+            "pos": pos,
+            "model": "masked",
+            "input": "base",
+        },
+    }
+    return {
+        "header": {"protocol_version": "3"},
+        "model": {"key": "test", "revision": "main"},
+        "data": _data_section(),
+        "method": {
+            "sites": {
+                "routed": {"component": "expert_activation", "layers": [MOE_LAYER]},
+                "shared": {
+                    "component": "shared_expert_activation",
+                    "layers": [MOE_LAYER],
+                },
+                "idx": {"component": "expert_idx", "layers": [MOE_LAYER]},
+            },
+            "featurizers": {
+                "routed_gate": {"kind": "gate", "group": "expert_neuron"},
+                "shared_gate": {"kind": "gate"},
+            },
+            "reads": reads,
+            "writes": {
+                "mask_routed": {
+                    "site": "routed",
+                    "pos": pos,
+                    "featurizer": "routed_gate",
+                    "do": {"swap": "routed_cf"},
+                },
+                "mask_shared": {
+                    "site": "shared",
+                    "pos": pos,
+                    "featurizer": "shared_gate",
+                    "do": {"swap": "shared_cf"},
+                },
+            },
+            "intervened_models": {
+                "masked": {"input": "base", "writes": ["mask_routed", "mask_shared"]}
+            },
+            "save": [
+                {
+                    "value": name,
+                    "model": spec["model"],
+                    "input": spec["input"],
+                    "file_path": f"{name}.safetensors",
+                }
+                for name, spec in reads.items()
+            ],
+        },
+    }
+
+
+def expert_dbm_fit_doc(
+    *, pairs: int = 1, epochs: int = 1, control: bool = False
+) -> dict[str, Any]:
+    """The shipped ``dbm_expert_neuron.json`` fit at tiny scale
+    (``tiny-random/qwen3.5-moe``): :func:`expert_dbm_doc` — a write through an
+    expert-keyed gate at the routed interior and a plain gate on the shared
+    expert — with an ``lm_head`` read, a cross-entropy objective and the one
+    ``l1`` term over both gates. With ``control``, a PID moves the sparsity
+    weight off the two gates' kept-unit counts (§2.11).
+
+    Its read ``routed_cf`` is the whole point: ``expert_activation`` is a
+    routed interior, so the value comes with a routing table and the gate is
+    keyed by it, and a write through that gate joins its slots to the read's
+    by expert. That is the read the nnterp engine could not finish anywhere
+    but on the client, which is why this document could not be trained on
+    it at all.
+    """
+    raw = expert_dbm_doc()
+    method = raw["method"]
+    method["sites"]["lm_head"] = {"component": "lm_head"}
+    method["reads"]["logits"] = {
+        "site": "lm_head",
+        "pos": -1,
+        "model": "masked",
+        "input": "base",
+    }
+    method["metrics"] = {
+        "ce": {
+            "kind": "cross_entropy",
+            "of": "logits",
+            "target": "label",
+            "token_form": "space_prefixed",
+        }
+    }
+    method["train"] = {
+        "objective": {
+            "fit": {"weight": 1.0, "metric": "ce"},
+            "sparsity": {"weight": 0.01, "l1": ["routed_gate", "shared_gate"]},
+        },
+        "params": ["routed_gate", "shared_gate"],
+        "optimizer": {"name": "adamw", "lr": 0.01, "weight_decay": 0.0},
+        "steps": {"epochs": epochs},
+        "batch": {"pairs": pairs},
+        "seed": 0,
+    }
+    if control:
+        method["train"]["control"] = {
+            "train.objective.sparsity.weight": {
+                "kind": "pid",
+                "signal": {"hard_mask_size": ["routed_gate", "shared_gate"]},
+                "setpoint": {"ramp": [16, 0, 1.0]},
+                "gains": {"kp": 0.5, "ki": 0.05},
+            }
+        }
+    method["save"] += [
+        {"value": "ce", "model": "masked", "input": "base", "file_path": "ce.json"},
+        {"value": "routed_gate", "site": "routed", "file_path": "routed.safetensors"},
+        {"value": "shared_gate", "site": "shared", "file_path": "shared.safetensors"},
+    ]
+    return raw
 
 
 def chain_doc(lr) -> dict:

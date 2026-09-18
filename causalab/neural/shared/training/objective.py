@@ -1,5 +1,11 @@
-"""The differentiable side of a ``train.objective`` (spec §2.11): metric
-tensors with a gradient (:func:`metric_tensor`, the objective-side twin of
+"""The objective and the eval score, as **functions of reads** (spec §2.11):
+:func:`step_loss` is one update's loss and :func:`score` one eval pass's
+metrics, each over ``read(name)`` — the dense value of a declared read for
+the rows in play — and the fit's plain data (:mod:`.spec`). Neither knows
+what ran the forward.
+
+Under them, the differentiable side of a ``train.objective``: metric tensors
+with a gradient (:func:`metric_tensor`, the objective-side twin of
 ``metrics.compute_metric``) and the penalties over trained featurizers
 (:func:`regularizer`). Pure torch over the shared featurizer stages — every
 engine's loss is built from these, so an objective means one thing whichever
@@ -7,20 +13,161 @@ engine steps it."""
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
 
 import torch
 
 from causalab.neural.shared.featurizers import Gate, Stage
 from causalab.neural.shared.metrics import (
+    RECORD_KINDS,
+    VocabularySize,
     column_token_ids,
+    compute_metric,
+    gathered_metric,
     js_divergence,
     restrict_token_ids,
 )
+from causalab.neural.shared.training.spec import ScoreSpec
 from causalab.protocol.errors import ProtocolError
-from causalab.protocol.schema import MetricSpec, concrete_str
+from causalab.protocol.schema import (
+    READ_TARGET_METRIC_KINDS,
+    MetricSpec,
+    concrete_str,
+)
 
-__all__ = ["metric_tensor", "regularizer"]
+if TYPE_CHECKING:
+    from causalab.neural.shared.training.spec import FitSpec
+    from causalab.neural.shared.training.state import FitState
+
+__all__ = ["Read", "metric_tensor", "regularizer", "score", "step_loss"]
+
+#: The dense value of one declared read, by name, for the rows in play: a
+#: step's minibatch (with its graph, under ``enable_grad``) or an eval pass's
+#: split. An engine supplies it — its executor's ``dense_value``.
+Read = Callable[[str], torch.Tensor]
+
+
+def step_loss(
+    state: "FitState",
+    spec: "FitSpec",
+    read: Read,
+    *,
+    rows: Sequence[int] | None = None,
+) -> torch.Tensor:
+    """This update's objective for one member, and — on the state — the
+    record of it (``last_loss``, ``term_values``) a checkpoint taken after
+    the update carries. A named term's weight is its *live* value: the
+    authored one until a controller moves it (§2.11).
+
+    ``read`` answers for the minibatch being stepped, whose rows are
+    ``rows`` — indices into the fit's rows; the minibatch the state stands
+    at (``spec.batches[state.order[state.position]]``) when unnamed."""
+    indices = list(spec.batches[state.order[state.position]] if rows is None else rows)
+    index = torch.tensor(indices, dtype=torch.long)
+    loss = torch.zeros(())
+    term_values: dict[str, torch.Tensor | float] = {}
+    for position, term in enumerate(spec.objective):
+        w = float(term.weight) if isinstance(term.weight, (int, float)) else 1.0
+        if term.name is not None:
+            w = state.live_weights.get(term.name, w)  # a controlled weight moves
+        if term.metric is not None:
+            resolved = spec.metrics[term.metric]
+            metric = resolved.metric
+            of_value = read(str(metric.of))
+            target_value = (
+                read(str(metric.fields["target"]))
+                if metric.kind in READ_TARGET_METRIC_KINDS
+                else None
+            )
+            value = metric_tensor(
+                metric,
+                of_value,
+                [resolved.rows[i] for i in indices],
+                VocabularySize(resolved.vocabulary),
+                target_value=target_value,
+                token_ids={
+                    field: ids[index].to(of_value.device)
+                    for field, ids in resolved.token_ids.items()
+                }
+                or None,
+            ).mean()
+        else:
+            assert term.regularizer is not None
+            kind, targets = term.regularizer
+            value = regularizer(
+                kind, targets, state.stages, term.reduce or "mean", term.costs
+            )
+        if term.constraint is not None:
+            # §2.11 `constraint`: λ₁(s − t) + λ₂(s − t)², the duals ascended by
+            # their own optimizer group — the term has no weight
+            assert term.name is not None
+            lam = state.duals[term.name]
+            gap = value - term.constraint.target
+            loss = loss + lam[0] * gap + lam[1] * gap * gap
+            term_values[f"term.{term.name}"] = float(value.detach())
+            term_values[f"lambda1.{term.name}"] = float(lam[0].detach())
+            term_values[f"lambda2.{term.name}"] = float(lam[1].detach())
+            continue
+        loss = loss + w * value
+        term_values[f"term.{term.name or position}"] = value.detach()
+        term_values[f"weight.{term.name or position}"] = w
+    state.last_loss = loss.detach()
+    state.term_values = term_values
+    return loss
+
+
+def score(spec: ScoreSpec, read: Read) -> dict[str, float]:
+    """The declared eval metrics over one pass's reads: each metric's mean
+    over the rows that carry an answer.
+
+    A kind that only selects entries of the projection at the answer ids
+    (``metrics.GATHERED_KINDS`` — the presets' ``iia``) gathers them where
+    the read sits — the device, when the engine keeps the pass's reads there
+    (``ScoreSpec.device_scored``) — and copies the one or two columns, never
+    the vocabulary; every other kind reduces a CPU copy of the whole value in
+    float, one copy per read however many metrics read it. Either way the
+    numbers are the ones the whole-vocabulary CPU path computes over the
+    authored metric and rows, to the bit (``metrics.gathered_metric``,
+    ``metrics.metric_in_ids``). A kind whose per-example value is a record
+    (``metrics.RECORD_KINDS``) has no mean: its score is ``0.0``. A replay's
+    values are graph-owned storage: they are consumed here and released by
+    the caller before the next replay."""
+    scores: dict[str, float] = {}
+    host: dict[str, torch.Tensor] = {}
+
+    def on_host(name: str) -> torch.Tensor:
+        if name not in host:
+            host[name] = read(name).detach().cpu()
+        return host[name]
+
+    for resolved in spec.metrics:
+        metric = resolved.metric
+        if str(metric.kind) in RECORD_KINDS:
+            scores[resolved.name] = 0.0
+            continue
+        vocabulary = VocabularySize(resolved.vocabulary)
+        if resolved.gathered_ids is not None:
+            values = gathered_metric(
+                metric,
+                read(str(metric.of)),
+                resolved.rows,
+                vocabulary,
+                token_ids=resolved.gathered_ids,
+            )
+        else:
+            values = compute_metric(
+                metric,
+                on_host(str(metric.of)),
+                resolved.rows,
+                vocabulary,
+                target_value=on_host(str(metric.fields["target"]))
+                if metric.kind in READ_TARGET_METRIC_KINDS
+                else None,
+                vocab_axis=resolved.vocab_axis,
+            )
+        numeric = [v for v in values if isinstance(v, (int, float))]
+        scores[resolved.name] = sum(numeric) / len(numeric) if numeric else 0.0
+    return scores
 
 
 def metric_tensor(

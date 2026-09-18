@@ -9,15 +9,14 @@ Semantics implemented exactly as declared:
   Init reaches the featurizer as an explicit argument (``executor.seed`` →
   ``build_stack(seed=…)``, a *local* generator) rather than through the
   global RNG, because the same construction runs on apply paths where no
-  loop entry ever executes; the batch order has its own local ``order_rng``;
-  ``torch.manual_seed`` as each fit's stages are built — the one deliberate
-  use of the global RNG — seeds what the init draws beyond the local
-  generator (``matrix_exp``/``stiefel`` complete torch's own
-  orthogonal-parametrization basis from it; the ``cayley`` parametrization
-  draws nothing). Nothing draws from the *global* RNG during the loop itself
-  — the model is in eval mode — which is what lets several fits share one
-  loop: at loop entry the global RNG belongs to the last member prepared, and
-  no member's numbers depend on it. The one draw the loop does make is a
+  loop entry ever executes; the batch order has its own local ``order_rng``.
+  Nothing a fit does draws from the *global* RNG — not building its stages
+  (``matrix_exp``/``stiefel`` complete torch's own orthogonal-parametrization
+  basis from the stage's generator, and the ``cayley`` parametrization draws
+  nothing), not the loop, whose model is in eval mode. That is what lets
+  several fits share one loop, and what lets a fit run in a process it shares
+  with other callers: a served model on NDIF. The one draw the loop does make
+  is a
   ``hard_concrete`` gate's training mask, once per optimizer step from the
   member's own ``mask_rng`` (``Gate.resample``), so a member's samples are a
   function of its own document and seed whatever fits beside it;
@@ -53,52 +52,99 @@ Semantics implemented exactly as declared:
 
 The model's weights are frozen at load; only featurizer slots optimize.
 
-**The engine seam.** :func:`~.loop.fit_loop` steps any number of
-:class:`~.fit.Fit` objects in lockstep and owns every part of an update that
-is not a forward. An engine supplies three things:
+**Spec, state, and what an engine supplies.** A fit is three things, kept
+apart so the loop that steps it never sees what runs a forward:
 
-* an :class:`~.fit.ExecutorFactory` to :func:`~.fit.prepare_fit` — how a
-  minibatch executor (a row selection of the point's frame, gradients on) and
-  the eval executor are built over the point's executor and its stage cache;
-* ``step_forward`` — this step's grad forwards and the backward of each
-  member's :func:`~.loop.step_loss`. The reference engine packs a cohort's
-  members into row-bounded windows, one forward each, or replays a CUDA
-  graph; the nnterp engine runs each member's own traces;
-* ``evaluate`` — the eval pass, ending in :func:`~.loop.record_eval`.
-  :func:`~.loop.evaluate_fits` is the plain one.
+* :class:`~.spec.FitSpec` — the fit as **plain data**, frozen: the seed, the
+  ``train`` section resolved against the point's rows (the minibatch
+  partition as index lists, the update budget, the eval cadence, early stop,
+  the schedules as authored, the checkpoint steps), the objective's terms
+  with their metrics' answers already token ids (:class:`~.spec.
+  ResolvedMetric`, ``metrics.metric_in_ids``), and a recipe per trained stage
+  (``featurizers.StageRecipe``). No executor, document, tokenizer or model;
+  it pickles with :mod:`pickle` in a few kilobytes. :class:`~.spec.ScoreSpec`
+  is the same for one eval pass over one split;
+* :class:`~.state.FitState` — everything the updates **move**: the stages,
+  the optimizer and a constraint's duals, the two seeded generators, the
+  step, epoch, order and position, the live weights, controllers, phases and
+  their traces, the early-stop best and its snapshot, the checkpoints.
+  :func:`~.state.build_fit_state` builds it from the spec — over stages an
+  engine hands it (its point executor's own, so the finish phase sees the
+  fitted objects by identity), or, given none, over stages it builds from
+  the spec's recipes under the same seeding discipline, bit-identical to the
+  executor's (:func:`~.state.build_stages`). It pickles too, a parametrized
+  ``subspace`` included, with the optimizer still holding the stages' own
+  parameters on the other side;
+* the **engine's callbacks** to :func:`~.loop.fit_loop`, each handed member
+  *indices* into the loop's states, so whatever an engine keeps per fit —
+  executors, a graph pool, a store's tallies, the drawn roles — lives in a
+  list of its own beside them: ``step(members)`` runs this update's grad
+  forwards and the backward of each member's :func:`~.objective.step_loss`;
+  ``evaluate(members)`` returns each member's :func:`~.objective.score`;
+  ``on_epoch(members)`` hears of every epoch after the first, where a §2.2
+  ``draw`` is redrawn.
+
+The objective and the score are **functions of reads**: ``step_loss(state,
+spec, read)`` and ``score(score_spec, read)``, where ``read(name)`` is the
+dense value of a declared read for the rows in play — an executor's
+``dense_value`` here, anything that answers elsewhere. The loop owns the
+rest of an update: the epoch order, train mode and mask draws, phases and
+anneals, ``zero_grad``, the lr schedule, the optimizer step, the projection,
+the controllers, the checkpoints, early stop with its snapshot and restore,
+and the outcome. The reference engine plugs in a cohort's row-bounded
+windows or a CUDA-graph replay; the nnterp engine each member's own traces.
+
+:mod:`.executors` is the executor side, shared because every engine does it
+alike: making the spec from a document and its point executor, building the
+stages on the executor's cache, cutting the minibatch executors through the
+engine's :class:`~.executors.ExecutorFactory`, scoring an eval executor.
+Nothing the loop imports reaches it.
 
 | module | holds |
 |---|---|
-| :mod:`.objective` | ``metric_tensor``, ``regularizer`` |
-| :mod:`.fit` | ``Fit``, ``prepare_fit``, ``ExecutorFactory``, the optimizer and a constraint's dual groups |
-| :mod:`.draw` | ``Drawn`` (§2.2 ``draw``), ``slice_rows`` |
-| :mod:`.schedules` | ``control`` / ``anneal`` / ``phases`` / the lr schedule, bound to a fit |
+| :mod:`.spec` | ``FitSpec``, ``ScoreSpec``, ``ResolvedMetric``, ``EarlyStop`` — plain data |
+| :mod:`.state` | ``FitState``, ``build_fit_state``, ``build_stages``, the optimizer and a constraint's dual groups |
+| :mod:`.objective` | ``step_loss``, ``score``, ``metric_tensor``, ``regularizer`` |
+| :mod:`.loop` | ``fit_loop``, ``begin_update``, ``record_eval``, ``read_signals``, ``after_update``, ``finish`` |
+| :mod:`.schedules` | ``control`` / ``anneal`` / ``phases`` / the lr schedule, bound to a fit's state |
 | :mod:`.control` | the PID law, pure Python |
-| :mod:`.loop` | ``fit_loop``, ``step_loss``, ``score``, ``evaluate_fits``, ``record_eval``, ``finish`` |
 | :mod:`.diagnostics` | ``fit_diagnostics``, ``checkpoint``, ``snapshot`` / ``restore`` |
+| :mod:`.executors` | ``fit_spec``, ``score_spec``, ``seeded_stages``, ``minibatch_executors``, ``ExecutorFactory``, ``eval_executor``, ``eval_pass`` — engine-side |
+| :mod:`.draw` | ``Drawn`` (§2.2 ``draw``), ``slice_rows`` — engine-side |
 """
 
 from causalab.neural.shared.training.diagnostics import fit_diagnostics
-from causalab.neural.shared.training.fit import ExecutorFactory, Fit, prepare_fit
-from causalab.neural.shared.training.loop import (
-    evaluate_fits,
-    finish,
-    fit_loop,
-    record_eval,
+from causalab.neural.shared.training.loop import finish, fit_loop, record_eval
+from causalab.neural.shared.training.objective import (
+    metric_tensor,
+    regularizer,
     score,
     step_loss,
 )
-from causalab.neural.shared.training.objective import metric_tensor, regularizer
+from causalab.neural.shared.training.spec import (
+    EarlyStop,
+    FitSpec,
+    ResolvedMetric,
+    ScoreSpec,
+)
+from causalab.neural.shared.training.state import (
+    FitState,
+    build_fit_state,
+    build_stages,
+)
 
 __all__ = [
-    "ExecutorFactory",
-    "Fit",
-    "evaluate_fits",
+    "EarlyStop",
+    "FitSpec",
+    "FitState",
+    "ResolvedMetric",
+    "ScoreSpec",
+    "build_fit_state",
+    "build_stages",
     "finish",
     "fit_diagnostics",
     "fit_loop",
     "metric_tensor",
-    "prepare_fit",
     "record_eval",
     "regularizer",
     "score",

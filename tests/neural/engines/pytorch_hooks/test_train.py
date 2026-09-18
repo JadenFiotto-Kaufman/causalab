@@ -1624,7 +1624,7 @@ def test_all_control_signals_are_read_in_one_host_copy() -> None:
 
 
 def test_checkpoint_steps_space_the_run_and_always_end_on_its_last_update():
-    from causalab.neural.shared.training.fit import checkpoint_steps
+    from causalab.neural.shared.training.executors import checkpoint_steps
     from causalab.protocol.schema import parse_document
 
     from tests.protocol._docs import in_order

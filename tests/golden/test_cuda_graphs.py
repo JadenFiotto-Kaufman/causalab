@@ -23,7 +23,7 @@ from causalab.neural.engines.pytorch_hooks.cuda_graphs import (
 from causalab.neural.engines.pytorch_hooks.executor import ForwardCache, Interning
 from causalab.neural.engines.pytorch_hooks.loading import load_model
 from causalab.neural.shared.featurizers import Gate
-from causalab.neural.shared.training import fit as fit_module
+from causalab.neural.shared.training import state as fit_module
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.resolve import FileArtifacts, ResolutionEnv
 from tests.neural.engines.pytorch_hooks._drive import executor_for
@@ -182,6 +182,70 @@ def test_inference_replay_preserves_outputs_and_forward_cache(bundle, method):
             torch.testing.assert_close(
                 cache.captured[digest][key], value, rtol=0, atol=0
             )
+
+
+def test_a_read_off_a_replay_outlives_the_next_replay(bundle):
+    """A read taken off a replay, kept while the same graph replays again, is
+    still the value it was read as.
+
+    A replay writes storage whose addresses were fixed at capture, so a value
+    that keeps a reference into it is silently the *next* forward's. Three
+    things have to be true for this to be that read and not another:
+
+    * The reads are kept **on the device** (``device_reads``, the eval
+      capture's own mode). A read copied to the host cannot alias anything.
+    * The held read is the **intervened model's**. A fit document's
+      ``original`` groups are frozen sources — run once and deep-cloned
+      (:meth:`GraphExecutor._forward_group`) — so they are served from a
+      clone, never from a graph; only the ``patched`` group's reads come off
+      a replay.
+    * The tokens **do not move**. Restaged tokens are what
+      :meth:`GraphExecutor._check_frozen_inputs` closes the captures for, so
+      a pass that rolls them replays nothing: the featurizer parameter is
+      moved instead, which is what a fit's own replays vary.
+
+    The last two are asserted, not assumed: the graphs are there, they have
+    replayed, and the held reads moved over the replay that came after them.
+    """
+    raw = document("das")
+    point = executor(
+        raw,
+        bundle,
+        graphs=True,
+        base=BASES[:2],
+        cf=COUNTERFACTUALS[:2],
+        answers=ANSWERS[:2],
+    )
+    assert isinstance(point, GraphExecutor)
+    point.device_reads = True
+    stage = point.stage(next(iter(point.doc.featurizers)))
+    parameter = next(stage.parameters())
+    replayed = [
+        name for name, read in point.doc.reads.items() if read.model != "original"
+    ]
+    assert replayed
+    held: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+    latest: dict[str, torch.Tensor] = {}
+    # the first pass is eager (`inference_capture_after`), the second captures
+    # and replays, the third replays under a parameter the second never saw
+    for step in range(3):
+        with torch.no_grad():
+            parameter.add_(0.02)
+        point.reset_reads()
+        latest = {name: point.dense_value(name) for name in point.doc.reads}
+        assert all(value.device.type == "cuda" for value in latest.values())
+        if step == 1:
+            held = {name: (latest[name], latest[name].clone()) for name in replayed}
+    graphs = [replay for replay, _ in point._inference_graphs.values()]
+    assert graphs and all(replay.replays >= 2 for replay in graphs)
+    for name in replayed:
+        assert not torch.equal(latest[name], held[name][1]), (
+            f"read {name!r} did not move over the later replay: nothing was held across"
+        )
+        value, taken = held[name]
+        torch.testing.assert_close(
+            value, taken, rtol=0, atol=0, msg=f"read {name!r} was overwritten"
+        )
 
 
 class Datasets:

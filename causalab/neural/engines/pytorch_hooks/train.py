@@ -3,8 +3,11 @@ fit, under the shared loop.
 
 What a ``train`` section means — seed, objective, schedules, eval, early
 stop, checkpoints — is :mod:`causalab.neural.shared.training`'s, and so is
-the update loop (``fit_loop``). This module is how *this* engine runs a
-step's forwards and an eval pass, and what it adds around them.
+the update loop (``fit_loop``), which advances each fit's ``FitState``
+against its ``FitSpec`` and never sees an executor. This module is how
+*this* engine runs a step's forwards and an eval pass — the loop's ``step``
+and ``evaluate`` callbacks — and what it keeps per fit beside the loop's
+state to do so (:class:`_Fit`).
 
 **Cohorts** (§4). The loop fits several points **together**: the points of
 one cohort (:func:`~causalab.protocol.plan.fit_cohorts` — one realization,
@@ -44,26 +47,27 @@ from causalab.neural.engines.pytorch_hooks.cohort import (
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
 from causalab.neural.shared.encoding import EncodedBatch
 from causalab.neural.shared.execution import TrainOutcome
+from causalab.neural.shared.executor_base import ForwardCache
 from causalab.neural.shared.featurizers import Stage, featurizer_cache
 from causalab.neural.shared.mechanisms import operand_names
 from causalab.neural.shared.metrics import column_token_ids
 from causalab.neural.shared.services import input_roles
 
-# the shared loop's pieces this module's forwards and eval passes call, under
-# the names its call sites use
-from causalab.neural.shared.training.fit import Fit, prepare_fit
-from causalab.neural.shared.training.loop import (
+from causalab.neural.shared.training.draw import Drawn
+from causalab.neural.shared.training.executors import (
     device_scored,
-    fit_loop,
     eval_reads as _eval_reads,
-    finish as _finish,
+    fit_spec,
     fresh_for_eval as _fresh_for_eval,
-    record_eval,
-    score as _score,
-    step_loss as _loss,
+    minibatch_executors,
+    score_executor as _score,
+    seeded_stages,
 )
-from causalab.neural.shared.training.objective import metric_tensor
+from causalab.neural.shared.training.loop import fit_loop
+from causalab.neural.shared.training.objective import metric_tensor, step_loss
 from causalab.neural.shared.training.objective import regularizer as _regularizer
+from causalab.neural.shared.training.spec import FitSpec
+from causalab.neural.shared.training.state import FitState, build_fit_state
 from causalab.protocol.engine import ExecutionRequest
 from causalab.protocol.errors import ProtocolError
 from causalab.protocol.schema import (
@@ -122,7 +126,7 @@ def _inner_executor(
     drawn: bool = False,
     stage_cache: dict[str, Stage] | None = None,
 ) -> PointExecutor:
-    """This engine's ``ExecutorFactory`` (``shared/training/fit.py``): a fit's
+    """This engine's ``ExecutorFactory`` (``shared/training/executors.py``): a fit's
     minibatch or eval executor over the point's ``executor``.
 
     A minibatch's rows are a *slice* of the campaign's, so its captures live
@@ -166,13 +170,22 @@ def _inner_executor(
 # --------------------------------------------------------------------------- #
 
 
-@dataclasses.dataclass
-class _Fit(Fit):
-    """A fit on this engine: the shared record over this engine's executors,
-    plus what the captured paths keep per fit."""
+@dataclasses.dataclass(eq=False)
+class _Fit:
+    """One point's fit on this engine: the loop's ``spec`` and ``state``, and
+    beside them everything that runs a forward — the point's executor, one
+    executor per minibatch, the drawn roles, what the captured paths keep per
+    fit, and the store's tallies. The loop sees none of it; this module's
+    callbacks reach it by the member's index."""
 
-    executor: PointExecutor  # pyright: ignore[reportIncompatibleVariableOverride]
-    minibatch_executors: list[PointExecutor]  # pyright: ignore[reportIncompatibleVariableOverride]
+    doc: Document
+    executor: PointExecutor
+    spec: FitSpec
+    state: FitState
+    minibatch_executors: list[PointExecutor]
+    #: §2.2 ``draw``: the fit's drawn roles (``None`` when no role draws) —
+    #: each new epoch rebuilds the minibatch executors over a fresh draw
+    drawn: Drawn | None = None
     #: the pool the fit's held-out inference replays capture into — the
     #: cohort's, or the solo bank's — handed to the eval executor when it is
     #: built; None when the fit runs eagerly
@@ -181,22 +194,56 @@ class _Fit(Fit):
     graph_objectives: "dict[PointExecutor, TrainingObjective]" = dataclasses.field(
         default_factory=dict
     )
+    #: what this fit's inner passes paid for constant groups and were served
+    run: int = 0
+    served: int = 0
+    #: the block each forward this fit took part in resumed at
+    resumed: list[int] = dataclasses.field(default_factory=list)
 
-    def minibatches_rebuilt(self) -> None:
-        # a redraw's captured objectives (keyed by executor) fall with the
-        # executors it replaced
+    @property
+    def stages(self) -> dict[str, Stage]:
+        return self.state.stages
+
+    @property
+    def optimizer(self) -> torch.optim.Optimizer:
+        return self.state.optimizer
+
+    @property
+    def store(self) -> ForwardCache | None:
+        return self.executor.interning.cache if self.executor.interning else None
+
+    @property
+    def indices(self) -> tuple[int, ...]:
+        """The rows of the minibatch the fit stands at."""
+        return self.spec.batches[self.state.order[self.state.position]]
+
+    @property
+    def minibatch(self) -> PointExecutor:
+        """The executor of the minibatch the fit stands at."""
+        return self.minibatch_executors[self.state.order[self.state.position]]
+
+    def redraw(self) -> None:
+        """§2.2 ``draw``: a new member per row for a new epoch — the
+        minibatch executors rebuilt over it, and the captured objectives
+        (keyed by executor) dropped with the ones they replaced."""
+        assert self.drawn is not None
+        self.minibatch_executors = self.drawn.minibatches()  # type: ignore[assignment]  # this engine's factory built them
         self.graph_objectives.clear()
 
 
 def _prepare_fit(doc: Document, executor: PointExecutor) -> _Fit:
-    """``prepare_fit`` with this engine's executors, after the two routings a
-    captured fit depends on are checked: ``cuda_graphs.unsupported_reason``
-    sends a drawn document and a constrained one down the eager path, as it
-    does ``control`` and ``phases``. The cohort and single-fit graphs map
+    """One point's fit, ready to step, after the two routings a captured fit
+    depends on are checked: ``cuda_graphs.unsupported_reason`` sends a drawn
+    document and a constrained one down the eager path, as it does
+    ``control`` and ``phases``. The cohort and single-fit graphs map
     optimizer parameters onto worker stages by identity, and a dual is no
     stage's parameter; a drawn point's minibatch executors are rebuilt every
     epoch. The first is asserted as the invariant it is, the second refused
-    as a backstop."""
+    as a backstop.
+
+    Then, per member and in one breath: the fit's plain data, its stages —
+    seeded and built on the point's own cache — its state, and its minibatch
+    executors (this engine's :func:`_inner_executor`)."""
     train = doc.train
     assert train is not None
     if executor.cuda_graphs and executor.fit_cuda_graphs:
@@ -212,12 +259,39 @@ def _prepare_fit(doc: Document, executor: PointExecutor) -> _Fit:
                 "duals step on the eager loop — this run captures fit graphs "
                 "(fit_cuda_graphs); run it eager",
             )
-    return prepare_fit(
+    spec = fit_spec(doc, executor)
+    state = build_fit_state(
+        spec, stages=seeded_stages(spec, executor), device=executor.bundle.device
+    )
+    minibatches, drawn = minibatch_executors(
         doc,
         executor,
-        executor_factory=_inner_executor,  # type: ignore[arg-type]  # PointExecutor in, as built
-        fit_type=_Fit,
+        spec,
+        _inner_executor,  # type: ignore[arg-type]  # PointExecutor in, as built
     )
+    return _Fit(
+        doc=doc,
+        executor=executor,
+        spec=spec,
+        state=state,
+        minibatch_executors=minibatches,  # type: ignore[arg-type]  # as built
+        drawn=drawn,
+    )
+
+
+def _loss(fit: _Fit, minibatch: PointExecutor) -> torch.Tensor:
+    """One member's objective over ``minibatch``'s reads (``step_loss``). In
+    a step that is the minibatch the fit stands at; any other of the fit's
+    minibatch executors is scored over its own rows of the partition."""
+    state = fit.state
+    rows = None  # the state's own
+    if state.position >= len(state.order) or minibatch is not fit.minibatch:
+        rows = next(
+            fit.spec.batches[i]
+            for i, candidate in enumerate(fit.minibatch_executors)
+            if candidate is minibatch
+        )
+    return step_loss(state, fit.spec, minibatch.dense_value, rows=rows)
 
 
 class TrainingObjective:
@@ -447,7 +521,7 @@ def run_cohort_training(
     # the floor of a measured bound: the smallest minibatch any member will
     # ever step — known before the loop, so it does not depend on which
     # minibatch the shuffle draws first (an epoch's last one is a remainder)
-    unit = min((len(batch) for fit in fits for batch in fit.batches), default=None)
+    unit = min((len(batch) for fit in fits for batch in fit.spec.batches), default=None)
     cohort_graphs: CohortGraphs | None = None
     evaluation_graphs: EvaluationGraphs | None = None
     # one allocator pool for every graph the fit captures (GraphPool): a
@@ -474,7 +548,7 @@ def run_cohort_training(
                         for group in fit.optimizer.param_groups
                         for p in group["params"]
                     ],
-                    objective_reads=fit.objective_reads,
+                    objective_reads=fit.spec.objective_reads,
                     pairs=pairs,
                 )
                 for fit, pairs in zip(fits, slot_rows, strict=True)
@@ -504,21 +578,36 @@ def run_cohort_training(
         fits[0].graph_pool = graphs.pool
     try:
 
-        def step_forward(current: Sequence[tuple[Fit, Any]]) -> None:
+        def step(members: Sequence[int]) -> None:
+            current = [(fits[i], fits[i].minibatch) for i in members]
+            for _fit, minibatch in current:
+                minibatch.reset_reads()
             _run_step_windows(
-                current,  # type: ignore[arg-type]  # this engine's fits and executors
-                budget,
-                unit,
-                graphs=graphs,
-                cohort_graphs=cohort_graphs,
+                current, budget, unit, graphs=graphs, cohort_graphs=cohort_graphs
             )
 
-        def evaluate(due: Sequence[Fit]) -> None:
+        def evaluate(members: Sequence[int]) -> list[dict[str, float]]:
             nonlocal eval_budget
             eval_budget = _advance_eval_budget(batch_rows, budget, eval_budget)
-            _evaluate(due, request, eval_budget, graphs=evaluation_graphs)  # type: ignore[arg-type]
+            return _evaluate(
+                [fits[i] for i in members],
+                request,
+                eval_budget,
+                graphs=evaluation_graphs,
+            )
 
-        fit_loop(fits, step_forward=step_forward, evaluate=evaluate)
+        def on_epoch(members: Sequence[int]) -> None:
+            for fit in (fits[i] for i in members):
+                if fit.drawn is not None:
+                    fit.redraw()
+
+        finished = fit_loop(
+            [fit.state for fit in fits],
+            [fit.spec for fit in fits],
+            step=step,
+            evaluate=evaluate,
+            on_epoch=on_epoch,
+        )
         # the bound reported is the one every window of the fit ran under — the
         # grad budget's, or the eval budget's once an eval window shrank below it
         # — so the number an author pins is one no window of the run refused; an
@@ -543,11 +632,22 @@ def run_cohort_training(
         shrinks = budget.shrinks + (
             eval_budget.shrinks if eval_budget is not None else 0
         )
+        # what only this engine knows about the fit goes onto the loop's
+        # outcome here: the store's tallies, a drawn role's members, the bound
         outcomes = [
             dataclasses.replace(
-                _finish(fit), fit_rows=reported, fit_rows_shrinks=shrinks
+                outcome,
+                fit_forwards=(
+                    {"run": fit.run, "served": fit.served}
+                    if fit.store is not None
+                    else None
+                ),
+                resumed=tuple(fit.resumed),
+                draws=fit.drawn.record() if fit.drawn is not None else {},
+                fit_rows=reported,
+                fit_rows_shrinks=shrinks,
             )
-            for fit in fits
+            for fit, outcome in zip(fits, finished)
         ]
 
         success = True
@@ -651,7 +751,7 @@ def _run_step_windows(
             items.append(
                 WindowItem(
                     key=id(fit),
-                    indices=fit.batches[fit.order[fit.position]],
+                    indices=fit.indices,
                     minibatch=minibatch,
                     objective=fit.graph_objectives[minibatch],
                 )
@@ -677,7 +777,10 @@ def _run_step_windows(
                 return
         with featurizer_cache():
             _run_batched(
-                [(fit, minibatch, fit.objective_reads) for fit, minibatch in window]
+                [
+                    (fit, minibatch, fit.spec.objective_reads)
+                    for fit, minibatch in window
+                ]
             )
             loss = torch.zeros(())
             for fit, minibatch in window:
@@ -687,7 +790,7 @@ def _run_step_windows(
 
     def abandon(window: Sequence[tuple[_Fit, PointExecutor]]) -> None:
         for fit, minibatch in window:
-            fit.optimizer.zero_grad()
+            fit.state.optimizer.zero_grad()
             minibatch.reset_reads()
 
     _run_windows(current, budget, body, abandon, unit)
@@ -816,9 +919,9 @@ def _evaluate(
     budget: RowBudget,
     *,
     graphs: EvaluationGraphs | None = None,
-) -> None:
-    """One eval pass for every fit in ``due`` (§2.11), then each fit's
-    early-stop bookkeeping. One fit runs its own pass (:func:`_run_eval`);
+) -> list[dict[str, float]]:
+    """One eval pass for every fit in ``due`` (§2.11): each fit's scores, in
+    order — the loop records them. One fit runs its own pass (:func:`_run_eval`);
     several run the trained groups batched across the fits whose split
     agrees, packed under ``budget`` (:func:`_advance_eval_budget`), and are
     scored on the result.
@@ -832,8 +935,7 @@ def _evaluate(
     scores: dict[int, dict[str, float]] = {}
     if len(due) == 1 and (graphs is None or graphs.bank is None):
         fit = due[0]
-        assert fit.train.eval is not None
-        split = concrete_str(fit.train.eval["split"], "train.eval.split")
+        split = _eval_split(fit)
         with _tally(fit):
             if fit.graph_pool is not None:
                 # build the fit's eval executor on the fit's pool first; the
@@ -846,8 +948,7 @@ def _evaluate(
         prepared: list[tuple[_Fit, PointExecutor]] = []
         by_split: dict[str, list[tuple[_Fit, PointExecutor]]] = {}
         for fit in due:
-            assert fit.train.eval is not None
-            split = concrete_str(fit.train.eval["split"], "train.eval.split")
+            split = _eval_split(fit)
             eval_executor = _eval_executor(
                 fit.doc, fit.executor, request, split, pool=fit.graph_pool
             )
@@ -858,12 +959,12 @@ def _evaluate(
         def members_of(
             window: Sequence[tuple[_Fit, PointExecutor]],
         ) -> list[tuple[PointExecutor, Sequence[str]]]:
-            return [(executor, _eval_reads(fit)) for fit, executor in window]
+            return [(executor, _eval_reads(fit.doc)) for fit, executor in window]
 
         def body(window: Sequence[tuple[_Fit, PointExecutor]]) -> None:
             _run_batched(
                 [
-                    (fit, eval_executor, _eval_reads(fit))
+                    (fit, eval_executor, _eval_reads(fit.doc))
                     for fit, eval_executor in window
                 ],
                 frames=graphs.frames_for(members_of(window))
@@ -918,8 +1019,12 @@ def _evaluate(
             # (cuda_graphs.Replay, ``pool``)
             for _fit, eval_executor in prepared:
                 eval_executor.reset_reads()
-    for fit in due:
-        record_eval(fit, scores[id(fit)])
+    return [scores[id(fit)] for fit in due]
+
+
+def _eval_split(fit: _Fit) -> str:
+    assert fit.spec.eval_split is not None
+    return fit.spec.eval_split
 
 
 def _run_eval(

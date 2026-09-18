@@ -762,11 +762,13 @@ block-shaped taps, and an interior its `.source` address table has no row for
 is refused by name. A continuation read runs the group as one
 `model.generate` trace. The same program runs **remotely on NDIF**
 (`NnterpEngine(remote=True)`, a Python-API option): a whole point is one
-session, operands flowing between its traces on the server, against a
-weight-free client bundle. Remote mode needs a trusted, in-process NDIF
+session, every operand flowing between its traces on the server whatever
+kind of read it is, against a weight-free client bundle. A whole fit is one
+session too, and one job. Remote mode needs a trusted, in-process NDIF
 deployment with the same `causalab` installed server-side, and a remote
-engine neither declares `grad` nor fits a `train` document — a remote
-forward returns detached saves.
+*forward of its own* neither declares `grad` nor comes back attached — which
+is why a fit runs whole inside its session rather than as a sequence of
+jobs.
 
 The two engines' answers are asserted to agree over the whole shared vocabulary,
 read and written, at both test tiers —
