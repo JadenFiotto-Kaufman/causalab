@@ -106,6 +106,17 @@ class FlowPlan:
     read: ReadSpec
 
 
+# Three read plans, not one. They share a name, a `flow` and nothing else:
+# a `ReadPlan` is served from one captured op at positions the client
+# resolved and is the only one that can name a derived component; a
+# `FirePlan` is served from the same capture but at positions only the
+# kernel's fire count decides; a `StepPlan` is served from a per-step sink
+# keyed by `TapKey` — not from an op of `ops` at all — at positions the
+# decode's own continuation frame decides. One type would carry four
+# mutually exclusive address fields and a key meaningful for one of them,
+# and `select_rows` would have to ask which.
+
+
 @dataclasses.dataclass(frozen=True)
 class ReadPlan:
     """One prompt-frame read, reduced inside the forward.
