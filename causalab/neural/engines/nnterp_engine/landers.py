@@ -24,7 +24,9 @@ The NDIF rules the structure enforces:
   is ``rows × positions × width``, not the contract tensor. Values are
   detached, and moved to the CPU when the program says the forward is in
   another process; a gradient-enabled program keeps device tensors and
-  their graph.
+  their graph, flowing values included — inside a fit
+  (:mod:`.fit`) the graph of a step spans its traces, and ``backward()``
+  runs between them.
 * **the eager switch happens in the block**, on the module the model's
   envoy resolves to where the block runs, before any operation, and is
   reversed in a ``finally`` once the forward has finished or been stopped:
@@ -34,9 +36,18 @@ The NDIF rules the structure enforces:
 * **the forward runs no further than it is read.** A plain forward is
   stopped after its group's last operation (``tracer.stop()``); a generate
   consumes its whole run, and a gradient-enabled forward runs whole.
-* **operands stay on the server.** Inside a session, a read a later group
-  consumes is finished into ``flow`` (its feature tail applied from the
-  shipped stack) and the later group's write looks it up there.
+* **operands stay on the server.** Inside a session, a read a later
+  consumer needs — a later group's write, a fit's objective — is finished
+  into ``flow`` and looked up there. Finished *whole*: the block calls the
+  same :func:`~causalab.neural.shared.executor_base.finalize_read` the
+  client calls, over the rows the capture already reduced, so every kind of
+  read flows and none has to come home first. A routed-interior read's
+  routing table travels in ``flow`` beside its value
+  (:func:`routing_slot`), because the expert-keyed write that consumes it
+  joins its slots on that table.
+* **a remote run is checked before it is submitted.** Every function here
+  that takes ``remote`` first holds the server's ``causalab`` and ``nnterp``
+  to this client's (:mod:`.versions`).
 
 Two landings, one schedule. A **module boundary** lands on the envoy's
 ``input`` / ``output``. An **interior** lands on an op of the anchor envoy's
@@ -52,19 +63,23 @@ import dataclasses
 import functools
 import math
 import operator
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import torch
 
 from causalab.neural.engines.nnterp_engine.program import (
     Entries,
     FirePlan,
+    FlowPlan,
     GroupProgram,
     Op,
     Order,
     ReadPlan,
+    SlotRef,
+    StackRef,
     WritePlan,
 )
+from causalab.neural.engines.nnterp_engine.versions import ensure_server_matches
 from causalab.neural.engines.nnterp_engine.sources import (
     AddressResolutionError,
     SourceAddress,
@@ -86,11 +101,12 @@ from causalab.neural.shared.executor_base import (
     WriteServices,
     _derive,
     apply_writes_to_contract,
+    finalize_read,
     gather_rows,
-    read_features,
+    identity_stack,
     read_operand,
 )
-from causalab.neural.shared.featurizers import FeaturizerStack
+from causalab.neural.shared.featurizers import FeaturizerStack, Stage
 from causalab.neural.shared.layout import (
     from_contract,
     rebuild_payload,
@@ -105,7 +121,9 @@ __all__ = [
     "execute",
     "fire_ops",
     "present_native",
+    "refuse_meta",
     "routing",
+    "routing_slot",
     "run_program",
     "run_session",
 ]
@@ -133,7 +151,8 @@ class Navigation:
 def run_program(
     model: Any,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None = None,
     *,
     remote: bool | str = False,
 ) -> dict[str, Any]:
@@ -145,12 +164,19 @@ def run_program(
     job; inside :func:`run_session` it is called on the server with
     ``remote`` unset, because the session already is the job.
 
+    ``stages`` is a fit's stage table (:mod:`.fit`), which the program's
+    :class:`StackRef` and :class:`SlotRef` names resolve against where the
+    stages live. Every other forward passes none, and a program naming a
+    stack or a slot then refuses (:func:`_stack_on`). A fit's forwards never
+    ship — they run inside its session — so the table is never in a payload.
+
     Either run method traces only as the ``with`` expression on the ``with``
     line itself (nnsight parses the call site); a call bound to a name first
     just runs the model.
     """
     import nnsight
 
+    ensure_server_matches(remote)
     with torch.set_grad_enabled(program.grad):
         if program.depth:
             # depth+1 forwards give every generated position its
@@ -166,7 +192,7 @@ def run_program(
                 remote=remote,
             ) as tracer:
                 out = nnsight.save({})
-                execute(model, tracer, program, flow, out)
+                execute(model, tracer, program, flow, stages, out)
         else:
             # the cache is on only where a decode consumes it — the reference
             # engine's rule (``use_cache=depth > 0``). A prompt-only forward
@@ -182,7 +208,7 @@ def run_program(
                 remote=remote,
             ) as tracer:
                 out = nnsight.save({})
-                execute(model, tracer, program, flow, out)
+                execute(model, tracer, program, flow, stages, out)
     return out
 
 
@@ -195,8 +221,11 @@ def run_session(
     group's saved container, by the group's label."""
     import nnsight
 
+    ensure_server_matches(remote)
     with model.session(remote=remote):
         results = nnsight.save({})
+        # unannotated on purpose: a name a session body reads is pickled into
+        # the payload, and an annotation reads `dict` and `Any`
         flow = {}
         for program in programs:
             results[program.label] = run_program(model, program, flow)
@@ -207,7 +236,8 @@ def execute(
     model: Any,
     tracer: Any,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
 ) -> None:
     """The body of one trace: the eager switch, every operation in forward
@@ -216,7 +246,7 @@ def execute(
     forward is stopped after its last operation, which ends the block."""
     out.update(reads={}, routing={}, fired=[], mismatch={}, steps={})
     module = model._module
-    _refuse_meta(module, program)
+    refuse_meta(module, program)
     previous = switch_to_eager(module) if program.needs_eager else None
     try:
         if previous is not None:
@@ -225,17 +255,17 @@ def execute(
         pending: dict[TapKey, torch.Tensor] = {}
         for op in program.ops:
             if op.order is Order.READ:
-                _land_read(op, tracer, nav, program, flow, out)
+                _land_read(op, tracer, nav, program, flow, stages, out)
             elif op.order is Order.WRITE and op.address is not None:
-                _land_source_write(op, tracer, nav, program, flow, out)
+                _land_source_write(op, tracer, nav, program, flow, stages, out)
             elif op.order is Order.WRITE:
-                delta = _land(op, program, flow, out)
+                delta = _land(op, program, flow, stages, out)
                 if delta is not None:
                     pending[op.key] = delta
             else:
                 _land_writeback(op.site, pending.pop(op.key))
         if program.depth:
-            _decode(model, tracer, program, out)
+            _decode(model, tracer, program, flow, stages, out)
         out["mismatch"] = {
             key: (_offload(missing, program), per_example)
             for key, (missing, per_example) in out["mismatch"].items()
@@ -260,7 +290,7 @@ def execute(
             restore_attention(module, previous)
 
 
-def _refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
+def refuse_meta(module: torch.nn.Module, program: GroupProgram) -> None:
     """Refuse a block that was handed a weight-free model.
 
     The block works on the model its envoy resolves to where it runs: it
@@ -308,11 +338,38 @@ def _over(
     return fn(value)
 
 
-def _stack_on(stack: FeaturizerStack, device: torch.device) -> FeaturizerStack:
+def _stack_on(
+    stack: "FeaturizerStack | StackRef | None",
+    device: torch.device,
+    stages: Mapping[str, Stage] | None,
+) -> FeaturizerStack:
     """``stack`` with its stages where the activation is. A no-op in one
     process (the stack was built on the bundle's device); on a server the
     shipped stages arrive on the CPU and the activation is wherever the
-    server put the model — a device the client cannot know."""
+    server put the model — a device the client cannot know.
+
+    ``None`` is a face that refuses a featurizer by name: the finisher
+    returns before it would reach a stack, so the identity is built here
+    rather than travelling.
+
+    A stack still named (:class:`StackRef`) belongs to a fit: it resolves
+    here against ``stages``, the fit's own table, **as the table stands at
+    this forward** — a trained stage moves with every update. A forward
+    outside a fit carries no table and refuses."""
+    if stack is None:
+        return identity_stack()
+    if isinstance(stack, StackRef):
+        if stages is None:
+            raise ProtocolError(
+                "P4",
+                f"a program names the featurizer stack {list(stack.names)} "
+                "instead of carrying it: by-name stacks resolve against a "
+                "fit's stage table (nnterp_engine/fit.py) and this forward "
+                "runs outside one",
+            )
+        if not stack.names:
+            return identity_stack()
+        stack = FeaturizerStack(stack.names, tuple(stages[n] for n in stack.names))
     for stage in stack.stages:
         if any(p.device != device for p in stage.parameters()) or any(
             b.device != device for b in stage.buffers()
@@ -341,7 +398,8 @@ def _land_read(
     tracer: Any,
     nav: Navigation,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
 ) -> None:
     """Capture one tap and reduce every read served from it."""
@@ -366,11 +424,75 @@ def _land_read(
     for plan in op.reads:
         if isinstance(plan, FirePlan):
             positions = _fire_positions(plan, contract.shape[1], contract.shape[0])
-            out["reads"][plan.rname] = _offload(
-                _flat(gather_rows(contract, positions)), program
-            )
+            gathered = gather_rows(contract, positions)
+            out["reads"][plan.rname] = _offload(_flat(gathered), program)
+            if plan.flow is not None:
+                _flow(
+                    plan.flow,
+                    plan.rname,
+                    gathered,
+                    positions,
+                    None,
+                    program,
+                    flow,
+                    stages,
+                )
         else:
-            _reduce(plan, contract, idx, program, flow, out)
+            _reduce(plan, contract, idx, program, flow, stages, out)
+
+
+def routing_slot(rname: str) -> tuple[str, str]:
+    """Where a flowing read's routing table sits in the session's ``flow``:
+    its own key beside the value's. One table, two key spaces, so the routing
+    ids a later group's expert-keyed write joins its slots on cross the
+    session exactly as the value does — and no function between the capture
+    and the write grows a second parameter for them."""
+    return (rname, "routing")
+
+
+def _flow(
+    plan: FlowPlan,
+    rname: str,
+    gathered: "torch.Tensor | RaggedValue",
+    positions: list[list[int]] | None,
+    idx: "torch.Tensor | RaggedValue | None",
+    program: GroupProgram,
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
+) -> None:
+    """One read finished where the forward ran, into the session's flow.
+
+    The whole finisher runs here, over the rows the capture already reduced
+    (:func:`~causalab.neural.shared.executor_base.finalize_read` with
+    ``pregathered``): the ragged ``expert:`` selection, a state matrix's head
+    slice, a whole native tensor, and the ordinary feature tail — head slice,
+    featurizer stack, ``dims`` — against the routing table the tap was read
+    beside. Under ``grad`` the value keeps its graph and its device (a fit's
+    write operand, its objective); otherwise it is detached, and it never
+    moves to the CPU: its consumer is on this server.
+
+    The read's own side facts stay here. An empty selector is a fact of the
+    consuming forward, not a result cell, and the routing table goes into the
+    flow beside the value (:func:`routing_slot`); the client records its own
+    from the slice that comes home, as it does for a read nobody consumes.
+    """
+    notes: dict[str, Any] = {}
+    flow[rname] = finalize_read(
+        rname,
+        plan.read,
+        plan.site,
+        gathered,
+        positions,
+        _stack_on(plan.stack, _flat(gathered).device, stages),
+        expert_idx=idx,
+        grad_enabled=program.grad,
+        to_cpu=False,
+        pregathered=True,
+        notes=notes,
+    )
+    table = notes.get("routing")
+    if table is not None:
+        flow[routing_slot(rname)] = table
 
 
 def _reduce(
@@ -378,16 +500,21 @@ def _reduce(
     contract: torch.Tensor,
     idx: torch.Tensor | None,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
 ) -> None:
     """One read's slice of a captured tensor into the saved container: the
     gather at its positions, then what needs the model's modules (the head's
     projection, a derived component). The rest of the read — the head's
-    slice, the featurizer stack, ``dims`` — needs only the document, and is
-    the client's (``ExecutorBase._finalize_read(pregathered=True)``)."""
+    slice, the featurizer stack, ``dims`` — needs only the document, and the
+    client finishes it from the slice
+    (``ExecutorBase._finalize_read(pregathered=True)``); a read a later group
+    of this session consumes is finished here as well (:func:`_flow`)."""
     if plan.positions is None:  # no contract form: the whole native tensor
         out["reads"][plan.rname] = _offload(contract, program)
+        if plan.flow is not None:
+            _flow(plan.flow, plan.rname, contract, None, None, program, flow, stages)
         return
     gathered = gather_rows(contract, plan.positions)
     if plan.project is not None:
@@ -397,18 +524,21 @@ def _reduce(
             gathered, functools.partial(_derive_as, plan.derive, plan.rname)
         )
     out["reads"][plan.rname] = _offload(_flat(gathered), program)
+    idx_gathered = None
     if idx is not None:
-        out["routing"][plan.rname] = _offload(
-            _flat(gather_rows(idx, plan.positions)), program
-        )
+        idx_gathered = gather_rows(idx, plan.positions)
+        out["routing"][plan.rname] = _offload(_flat(idx_gathered), program)
     if plan.flow is not None:
-        value = _flat(gathered)
-        flow[plan.rname] = read_features(
-            value,
-            plan.flow.site,
-            _stack_on(plan.flow.stack, value.device),
-            plan.flow.dims,
-        ).detach()
+        _flow(
+            plan.flow,
+            plan.rname,
+            gathered,
+            plan.positions,
+            idx_gathered,
+            program,
+            flow,
+            stages,
+        )
 
 
 def _derive_as(site: ResolvedSite, rname: str, value: torch.Tensor) -> torch.Tensor:
@@ -436,7 +566,8 @@ def _fire_positions(plan: FirePlan, n_fires: int, n_rows: int) -> list[list[int]
 
 def _services(
     write: WritePlan,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     device: torch.device,
     out: dict[str, Any],
 ) -> WriteServices:
@@ -444,13 +575,31 @@ def _services(
     twin of ``ExecutorBase._write_services``, with operands moved to the
     device of the tensor being written (the only device a block can know)."""
 
+    def held(value: str) -> Any:
+        """One operand the plan carries, as it stands now: a slot still named
+        (:class:`SlotRef`) is a fit's, and resolves against its stage table
+        like a stack — at this forward, a trained slot having moved with the
+        last update."""
+        operand = write.operands[value]
+        if not isinstance(operand, SlotRef):
+            return operand
+        if stages is None:
+            raise ProtocolError(
+                "P4",
+                f"operand {value!r} names the slot {operand.slot!r} of "
+                f"featurizer {operand.featurizer!r} instead of carrying it: "
+                "by-name slots resolve against a fit's stage table "
+                "(nnterp_engine/fit.py) and this forward runs outside one",
+            )
+        return stages[operand.featurizer].slot_params()[operand.slot]
+
     def lookup(
         value: Any, *, rows: RowWindow | None = None, ragged: Any = None
     ) -> torch.Tensor | float:
         if not isinstance(value, str):
             return float(value)
         if value in write.read_operands:
-            stored = write.operands[value] if value in write.operands else flow[value]
+            stored = held(value) if value in write.operands else flow[value]
             return read_operand(
                 value,
                 stored,
@@ -461,18 +610,28 @@ def _services(
             )
         if value not in write.operands:
             raise ProtocolError("P2", f"operand {value!r} did not resolve at run time")
-        return write.operands[value]
+        return held(value)
 
     def routing_of(value: Any, rows: RowWindow | None) -> torch.Tensor | None:
-        if not isinstance(value, str) or value not in write.operand_routing:
+        """The routing table the operand was read beside: the one the client
+        shipped for a read that came home, else the one the read left in the
+        session's flow (:func:`routing_slot`) when it was finished here."""
+        if not isinstance(value, str):
             return None
-        table = write.operand_routing[value].to(device)
+        table = write.operand_routing.get(value)
+        if table is None:
+            table = flow.get(routing_slot(value))
+        if table is None:
+            return None
+        table = table.to(device)
         return table if rows is None or rows.whole else table[rows.index]
 
     return WriteServices(
         positions_of=lambda ename, _write: write.positions[ename],
         lookup=lookup,
-        stack_of=lambda ename, _write, _site: _stack_on(write.stacks[ename], device),
+        stack_of=lambda ename, _write, _site: _stack_on(
+            write.stacks[ename], device, stages
+        ),
         routing_of=routing_of,
         reads=write.read_operands,
         code=write.code,
@@ -485,7 +644,8 @@ def _rewrite(
     site: ResolvedSite,
     write: WritePlan,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
     *,
     entries: Entries | None = None,
@@ -504,7 +664,7 @@ def _rewrite(
     apply_writes_to_contract(
         write.entries if entries is None else entries,
         contract,
-        _services(write, flow, contract.device, out),
+        _services(write, flow, stages, contract.device, out),
         per_row=per_row,
         routing=routing,
     )
@@ -517,7 +677,11 @@ def _rewrite(
 
 
 def _land(
-    op: Op, program: GroupProgram, flow: dict[str, torch.Tensor], out: dict[str, Any]
+    op: Op,
+    program: GroupProgram,
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
+    out: dict[str, Any],
 ) -> torch.Tensor | None:
     """Apply every write at one module boundary and assign the result back.
     An input tap with a declared write-back returns its delta for the
@@ -529,11 +693,11 @@ def _land(
     if site.kind == "out":
         payload = envoy.output
         original = tap_tensor(payload, site.tuple_index)
-        new = _rewrite(original, site, write, program, flow, out)
+        new = _rewrite(original, site, write, program, flow, stages, out)
         envoy.output = rebuild_payload(payload, site.tuple_index, new)
     else:
         original = envoy.input
-        new = _rewrite(original, site, write, program, flow, out)
+        new = _rewrite(original, site, write, program, flow, stages, out)
         envoy.input = new
         if site.writeback is not None:
             delta = new - original
@@ -557,7 +721,8 @@ def _land_source_write(
     tracer: Any,
     nav: Navigation,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
 ) -> None:
     """Apply every write at one interior address and assign the result
@@ -566,7 +731,7 @@ def _land_source_write(
     site, address, write = op.site, op.address, op.write
     assert address is not None and write is not None
     if address.fires == "per_chunk":
-        _land_per_fire_writes(op, tracer, nav, program, flow, out)
+        _land_per_fire_writes(op, tracer, nav, program, flow, stages, out)
         return
     idx = routing(site, nav, program.batch_size) if address.expert_rows else None
     perm = _perm(site, address, nav) if address.align is not None else None
@@ -576,6 +741,7 @@ def _land_source_write(
         write,
         program,
         flow,
+        stages,
         out,
         routing=idx,
     )
@@ -598,7 +764,8 @@ def _land_per_fire_writes(
     tracer: Any,
     nav: Navigation,
     program: GroupProgram,
-    flow: dict[str, torch.Tensor],
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
     out: dict[str, Any],
 ) -> None:
     """Land writes on specific fires — one ``tracer.iter[k]`` body per
@@ -620,6 +787,7 @@ def _land_per_fire_writes(
                 write,
                 program,
                 flow,
+                stages,
                 out,
                 entries=members,
                 per_row=[[0]] * program.batch_size,
@@ -807,7 +975,12 @@ def _eos_ids(model: Any) -> tuple[int, ...]:
 
 
 def _decode(
-    model: Any, tracer: Any, program: GroupProgram, out: dict[str, Any]
+    model: Any,
+    tracer: Any,
+    program: GroupProgram,
+    flow: dict[Any, Any],
+    stages: Mapping[str, Stage] | None,
+    out: dict[str, Any],
 ) -> None:
     """Walk the decode steps, then reduce every continuation read against
     the continuation the decode produced.
@@ -867,5 +1040,7 @@ def _decode(
             gathered = _over(gathered, step.project)
         out["reads"][step.rname] = _offload(_flat(gathered), program)
         out["steps"][step.rname] = per_row
+        if step.flow is not None:
+            _flow(step.flow, step.rname, gathered, per_row, None, program, flow, stages)
     out["generated"] = generated
     out["widths"] = widths

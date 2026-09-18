@@ -20,9 +20,17 @@ payload:
   runs, so it stays importable);
 * run the **restored** tracer on its **restored** frame, bracketed in a trace
   scope, and collect the block variables marked by ``nnsight.save`` by
-  identity — NDIF's ``execute_traced_block``;
+  identity — NDIF's ``execute_traced_block`` — with what the block prints
+  kept per job, as NDIF sends each printed line to the waiting client as a
+  log;
 * send the saves home through ``torch.save`` / ``torch.load`` onto the CPU —
   the result blob.
+
+The server also answers ``/env``: the environment nnsight caches per host is
+seeded (``nnsight.ndif.set_remote_env``) with this process's own ``causalab``
+and ``nnterp`` — the matching deployment the engine's version guard
+(``nnterp_engine/versions.py``) requires — unless a test says otherwise
+(``packages=``, :meth:`FaithfulServer.serve_env`).
 
 So a block that reads a client object, mutates one, saves into a slot no
 block variable names, or flips the client's config instead of the server's
@@ -31,10 +39,13 @@ fails here as it fails on NDIF.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import importlib.metadata
 import io
 import linecache
-from typing import Any
+import sys
+from typing import Any, Mapping
 
 import pytest
 import torch
@@ -45,11 +56,13 @@ __all__ = ["FaithfulServer", "Job"]
 @dataclasses.dataclass(frozen=True)
 class Job:
     """One request the server ran: the payload's size as pickled and as
-    NDIF's zstd level compresses it, and the names that came back."""
+    NDIF's zstd level compresses it, the names that came back, and the lines
+    the block printed."""
 
     raw_bytes: int
     zstd_bytes: int
     returned: tuple[str, ...]
+    logs: tuple[str, ...] = ()
 
 
 class FaithfulServer:
@@ -57,13 +70,29 @@ class FaithfulServer:
 
     ``model`` is the server's nnsight model (a bundle's ``.model``), loaded
     apart from whatever the client holds. ``jobs`` records each request.
+    ``packages`` overrides what the server's ``/env`` reports, by import
+    name; ``None`` is a package the server does not have.
     """
 
-    def __init__(self, model: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(
+        self,
+        model: Any,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        packages: Mapping[str, str | None] | None = None,
+    ) -> None:
+        import nnsight.ndif as ndif
         from nnsight.intervention.backends import local, remote
+
+        from causalab.neural.engines.nnterp_engine import versions
 
         self.model = model
         self.jobs: list[Job] = []
+        # this test's own environment cache and guard memo: nothing seeded
+        # here outlives the test, and no earlier test's verdict is reused
+        monkeypatch.setattr(ndif, "_REMOTE_ENVS", {})
+        monkeypatch.setattr(versions, "_MATCHED", set())
+        self.serve_env(packages)
         monkeypatch.setattr(
             local, "_SERVER_MODULES", {*local._SERVER_MODULES, "causalab"}
         )
@@ -73,6 +102,28 @@ class FaithfulServer:
             return server.run(backend, tracer)
 
         monkeypatch.setattr(remote.RemoteBackend, "request", request)
+
+    @staticmethod
+    def serve_env(
+        packages: Mapping[str, str | None] | None = None, *, host: str | None = None
+    ) -> None:
+        """Answer ``/env`` for ``host`` (the configured one when unnamed): the
+        client's own versions of what the engine guards, then ``packages``."""
+        import nnsight.ndif as ndif
+
+        from causalab.neural.engines.nnterp_engine.versions import GUARDED
+
+        served: dict[str, str | None] = {
+            name: importlib.metadata.version(name) for name in GUARDED
+        }
+        served.update(packages or {})
+        ndif.set_remote_env(
+            {
+                "python_version": sys.version,
+                "packages": {k: v for k, v in served.items() if v is not None},
+            },
+            host=host,
+        )
 
     def run(self, backend: Any, tracer: Any) -> dict[str, Any]:
         """What a model actor does with one request."""
@@ -102,9 +153,11 @@ class FaithfulServer:
             else:
                 linecache.cache.pop(filename, None)
 
+        printed = io.StringIO()
         inc()
         try:
-            restored.execute(restored.info.code)
+            with contextlib.redirect_stdout(printed):
+                restored.execute(restored.info.code)
             saves = _saves()
             saved = {
                 name: value
@@ -123,6 +176,7 @@ class FaithfulServer:
                 raw_bytes=len(raw),
                 zstd_bytes=len(zstandard.ZstdCompressor(level=6).compress(raw)),
                 returned=tuple(sorted(result)),
+                logs=tuple(printed.getvalue().splitlines()),
             )
         )
         return result

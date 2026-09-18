@@ -36,10 +36,12 @@ from a CPU generator, so a seeded init stays bit-identical across devices.
 Dtype is *not* forced — every stage casts at the boundary, so featurizers
 stay fp32 against a bf16 backbone.
 
-**Seed.** ``subspace`` is the only kind with a random init, and it draws from a
-*local* generator rather than the global RNG, so its starting rotation cannot
-depend on build order or on whether a train loop ran. :func:`build_stack` takes
-the ``seed``; the executor resolves it from ``train.seed`` (0 when the document
+**Seed.** ``subspace`` is the only kind with a random init, and every draw it
+makes — the starting rotation, and the completion of the ``matrix_exp`` /
+``stiefel`` base, which torch would take from the global RNG — is its own
+*local* generator's, so its rotation cannot depend on build order, on whether
+a train loop ran, or on whoever else shares the process; building one leaves
+the global RNG exactly as it was. :func:`build_stack` takes the ``seed``; the executor resolves it from ``train.seed`` (0 when the document
 declares no fit). ``gate`` inits to zeros, or loads a fitted ``theta``; the rest load from
 files. A ``hard_concrete`` gate is the one stage that draws *during* a fit —
 its training mask is a sample — and it draws only when the train loop hands it
@@ -638,17 +640,17 @@ class Subspace(Stage):
             # provides for rectangular orthogonal parametrizations
             "stiefel": "householder",
         }[parametrization]
-        torch.nn.utils.parametrizations.orthogonal(
-            self, "weight", orthogonal_map=orthogonal_map
-        )
-        if init is not None:
-            # torch completed the base from the global RNG; replace it with the
-            # seeded completion so the start is a function of the document alone
-            complement = torch.randn(width, width - k, generator=generator)
-            full = torch.linalg.qr(torch.cat([start, complement], dim=1))[0]
-            self.parametrizations.weight[0].base = torch.cat(
-                [start, full[:, k:]], dim=1
+        # torch completes the d×d base from the **global** RNG. Fork it away
+        # and replace the completion with this generator's, so a rotation is a
+        # function of its document alone — not of build order, nor of whoever
+        # else shares the process (a served model's is another tenant's).
+        with torch.random.fork_rng(devices=[]):  # on CPU, as every stage is
+            torch.nn.utils.parametrizations.orthogonal(
+                self, "weight", orthogonal_map=orthogonal_map
             )
+        complement = torch.randn(width, width - k, generator=generator)
+        full = torch.linalg.qr(torch.cat([start, complement], dim=1))[0]
+        self.parametrizations.weight[0].base = torch.cat([start, full[:, k:]], dim=1)
 
     def identity_fields(self) -> dict[str, Any]:
         return dict(self.init_identity)
@@ -740,11 +742,9 @@ def _rebuild_subspace(
     training: bool,
 ) -> Subspace:
     """:meth:`Subspace.__reduce__`'s inverse. The construction's own draws
-    are thrown away by the state that follows, and torch's ``orthogonal``
-    takes one from the global RNG — forked here, so unpickling a stage moves
-    no stream a fit reads."""
-    with torch.random.fork_rng(devices=[]):
-        stage = Subspace(width, k, map_name, seed=seed, init_identity=init_identity)
+    are thrown away by the state that follows, and they are the constructor's
+    own generator's, so unpickling a stage moves no stream a fit reads."""
+    stage = Subspace(width, k, map_name, seed=seed, init_identity=init_identity)
     stage.to(original.device)
     stage.load_state_dict(dict(state), strict=False)
     stage.parametrizations.weight.original = original  # type: ignore[union-attr]

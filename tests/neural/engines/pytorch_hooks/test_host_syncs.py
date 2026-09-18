@@ -42,10 +42,6 @@ from causalab.protocol.errors import ProtocolError
 
 from tests.neural.engines.pytorch_hooks._drive import executor_for
 from tests.neural.engines.pytorch_hooks.conftest import TINY_LLAMA, TINY_QWEN35_MOE
-from tests.neural.engines.pytorch_hooks.test_featurizer_groups import (
-    MOE_LAYER,
-    _expert_dbm_doc,
-)
 from tests.neural.engines.pytorch_hooks.test_fit_cohort import (
     _campaign,
     _request,
@@ -55,6 +51,8 @@ from tests._helpers.train_docs import (
     ANSWERS,
     BASES,
     COUNTERFACTUALS,
+    MOE_LAYER,
+    expert_dbm_fit_doc,
     das_doc,
 )
 
@@ -288,61 +286,12 @@ def moe() -> ModelBundle:
     return load_model(TINY_QWEN35_MOE)
 
 
-def _dbm_doc(pairs: int, *, control: bool) -> dict[str, Any]:
-    """The expert-neuron DBM fit on the tiny MoE: the fixture's document
-    (a write through an expert-keyed gate at the routed interior and a plain
-    gate on the shared expert) with an ``lm_head`` read, a cross-entropy
-    objective and an ``l1`` term — and, with ``control``, a PID moving the
-    sparsity weight off the two gates' kept-unit counts (§2.11)."""
-    raw = _expert_dbm_doc()
-    method = raw["method"]
-    method["sites"]["lm_head"] = {"component": "lm_head"}
-    method["reads"]["logits"] = {
-        "site": "lm_head",
-        "pos": -1,
-        "model": "masked",
-        "input": "base",
-    }
-    method["metrics"] = {
-        "ce": {
-            "kind": "cross_entropy",
-            "of": "logits",
-            "target": "label",
-            "token_form": "space_prefixed",
-        }
-    }
-    method["train"] = {
-        "objective": {
-            "fit": {"weight": 1.0, "metric": "ce"},
-            "sparsity": {"weight": 0.01, "l1": ["routed_gate", "shared_gate"]},
-        },
-        "params": ["routed_gate", "shared_gate"],
-        "optimizer": {"name": "adamw", "lr": 0.01, "weight_decay": 0.0},
-        "steps": {"epochs": 1},
-        "batch": {"pairs": pairs},
-        "seed": 0,
-    }
-    if control:
-        method["train"]["control"] = {
-            "train.objective.sparsity.weight": {
-                "kind": "pid",
-                "signal": {"hard_mask_size": ["routed_gate", "shared_gate"]},
-                "setpoint": {"ramp": [16, 0, 1.0]},
-                "gains": {"kp": 0.5, "ki": 0.05},
-            }
-        }
-    method["save"] += [
-        {"value": "ce", "model": "masked", "input": "base", "file_path": "ce.json"},
-        {"value": "routed_gate", "site": "routed", "file_path": "routed.safetensors"},
-        {"value": "shared_gate", "site": "shared", "file_path": "shared.safetensors"},
-    ]
-    return raw
-
-
 def _dbm_reads(
     moe: ModelBundle, *, rows: int, pairs: int, control: bool
 ) -> tuple[Counter[str], PointExecutor]:
-    executor = _executor(_dbm_doc(pairs, control=control), moe, rows=rows)
+    executor = _executor(
+        expert_dbm_fit_doc(pairs=pairs, control=control), moe, rows=rows
+    )
     with counting_host_reads() as counts:
         run_training(executor.doc, executor, _request())
     return counts, executor

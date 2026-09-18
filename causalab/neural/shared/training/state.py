@@ -153,15 +153,20 @@ def build_stages(
     (``ExecutorBase.stage``) — so a spec-built stage starts bit-identical to
     the one the point's executor would have built.
 
-    The discipline that makes it so: ``torch.manual_seed(seed)`` first — the
-    one deliberate use of the global RNG, which torch's ``orthogonal``
-    parametrization completes a ``matrix_exp`` / ``stiefel`` base from —
-    then the trained featurizers in ``train.params`` order, each through
+    The discipline that makes it so: the trained featurizers in
+    ``train.params`` order, each through
     :func:`~causalab.neural.shared.featurizers.build_recipe` with the seed as
     its explicit init seed, and after each one every budget pool linked
     (:func:`~causalab.neural.shared.featurizers.link_budget_pools`), which
-    builds a pool's other members in name order. The returned map holds
-    every stage built, pool co-members included.
+    builds a pool's other members in name order, then every other recipe the
+    spec carries, in recipe order. The returned map holds every stage built,
+    pool co-members included.
+
+    Nothing global is touched: every draw a stage makes is its own seeded
+    generator's (``featurizers.Subspace``), so building a fit's stages leaves
+    the process's RNG — the CPU's and every device's — exactly as it was.
+    That matters where the process is shared: a served model on NDIF fits for
+    one caller after another.
 
     ``load_tensors`` / ``load_table`` open the bundles a featurizer's
     ``init`` or ``file_path`` names; a spec that names none needs neither,
@@ -178,7 +183,6 @@ def build_stages(
 
     load_tensors = load_tensors or no_loader  # a missing table loader is
     # `build_stack`'s own refusal
-    torch.manual_seed(spec.seed)
     recipes = {recipe.name: recipe for recipe in spec.recipes}
     cache: dict[str, Stage] = {}
 
@@ -204,6 +208,11 @@ def build_stages(
 
     for pname in spec.params:
         build(pname.partition(".")[0])
+    for recipe in spec.recipes:
+        # what the spec carries beyond the trained stages and their pools —
+        # an engine that builds every stage its forwards name from the spec
+        # lists them after those, and they are built in that order
+        build(recipe.name)
     return cache
 
 

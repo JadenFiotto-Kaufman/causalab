@@ -621,7 +621,7 @@ class PointExecutor(ExecutorBase):
         """
         capture: dict[TapKey, torch.Tensor] = {}
         # the routing table alongside each experts-interface capture — what the
-        # `expert:` sub-axis joins on (executor_base._expert_selected)
+        # `expert:` sub-axis joins on (executor_base.expert_selected)
         idx_capture: dict[TapKey, torch.Tensor] = {}
         with contextlib.ExitStack() as hooks:
             # a model off CUDA runs transformers' torch kernels whatever the

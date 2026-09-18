@@ -136,6 +136,12 @@ class FitSpec:
     eval_metrics: tuple[str, ...] = ()
     eval_every_epochs: int | None = None
     early_stop: EarlyStop | None = None
+    #: the eval pass itself, for an engine that resolves it when it plans the
+    #: fit rather than at the first pass — a fit that runs where the model is
+    #: carries its metrics with it (:func:`.executors.score_spec`). The
+    #: reference engine resolves the same pass on its eval executor, lazily
+    #: (:func:`.executors.eval_pass`), and leaves this ``None``
+    score: ScoreSpec | None = None
     #: ``train.anneal`` / ``train.control`` / ``train.phases`` as authored;
     #: :func:`build_fit_state` binds them to the stages
     anneal: Mapping[str, AnnealSchedule] | None = None

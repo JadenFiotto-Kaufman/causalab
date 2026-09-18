@@ -39,6 +39,7 @@ from causalab.neural.shared.training import (
 )
 from causalab.neural.shared.training.draw import Drawn
 from causalab.neural.shared.training.executors import fit_spec, seeded_stages
+from causalab.neural.shared.training.state import build_stages
 from causalab.protocol.schema import (
     Document,
     FeaturizerSpec,
@@ -226,9 +227,9 @@ def test_a_pickled_state_holds_its_own_stages_parameters(bundle, name):
 @pytest.mark.parametrize("name", ALL_DOCS)
 def test_spec_built_stages_are_the_executors_to_the_bit(bundle, name):
     """``build_fit_state(spec)`` with no stages handed over builds them from
-    the spec — the seed, then ``train.params`` order — and they start exactly
-    where the point executor's own do, the global-RNG completion of a
-    ``stiefel`` base included. The global RNG is left elsewhere on purpose
+    the spec — ``train.params`` order, then every other recipe — and they
+    start exactly where the point executor's own do, the completion of a
+    ``stiefel`` base included. The global RNG is left somewhere different
     before each build: the init must not depend on it."""
     executor = _executor(bundle, name)
     spec = pickle.loads(pickle.dumps(fit_spec(executor.doc, executor)))
@@ -250,6 +251,27 @@ def test_spec_built_stages_are_the_executors_to_the_bit(bundle, name):
     if name == "pooled":
         assert pools[0] is not None and all(pool is pools[0] for pool in pools)
         assert pools[0].units == theirs["gate"].pool.units  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("name", ALL_DOCS)
+def test_building_a_fit_s_stages_moves_no_global_rng(bundle, name):
+    """Every draw a stage makes is its own seeded generator's, so building a
+    fit's stages leaves the process's RNG exactly as it was — the CPU's and
+    every CUDA device's. The process is shared where it matters: a served
+    model on NDIF fits for one caller after another, and a reseed there is
+    another caller's stream."""
+    executor = _executor(bundle, name)
+    spec = fit_spec(executor.doc, executor)
+    torch.manual_seed(1234)
+    cpu = torch.random.get_rng_state()
+    cuda = [torch.cuda.get_rng_state(i) for i in range(torch.cuda.device_count())]
+
+    build_stages(spec)
+    seeded_stages(spec, executor)
+
+    assert torch.equal(torch.random.get_rng_state(), cpu)
+    for index, before in enumerate(cuda):
+        assert torch.equal(torch.cuda.get_rng_state(index), before), index
 
 
 def _imports(path: Path) -> set[str]:

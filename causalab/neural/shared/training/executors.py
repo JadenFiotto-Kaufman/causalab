@@ -287,16 +287,18 @@ def seeded_stages(spec: FitSpec, executor: ExecutorBase) -> dict[str, Stage]:
     shared with every inner executor and with the finish phase after the fit,
     so what they evaluate are the fitted objects.
 
-    Seeded per member, right before its stages are built
-    (``torch.manual_seed(seed)``, then ``train.params`` order): a member's
-    init is a function of its own document, whatever fitted beside it — the
-    discipline ``state.build_stages`` repeats, so a stage built from the spec
-    alone starts bit-identical to the one built here."""
-    torch.manual_seed(spec.seed)
-    return {
+    Built in ``train.params`` order, then every other recipe — the discipline
+    ``state.build_stages`` repeats, so a stage built from the spec alone
+    starts bit-identical to the one built here. Every draw is the stage's own
+    seeded generator's, so a member's init is a function of its own document
+    whatever fitted beside it, and no global RNG moves."""
+    trained = {
         fname: executor.stage(fname)
         for fname in dict.fromkeys(pname.partition(".")[0] for pname in spec.params)
     }
+    for recipe in spec.recipes:
+        executor.stage(recipe.name)  # `build_stages`' order: every other recipe
+    return trained
 
 
 def minibatch_executors(

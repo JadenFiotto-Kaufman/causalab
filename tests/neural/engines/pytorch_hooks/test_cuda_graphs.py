@@ -19,6 +19,7 @@ from causalab.neural.engines.pytorch_hooks.cuda_graphs import (
     unsupported_reason,
 )
 from causalab.neural.engines.pytorch_hooks.executor import PointExecutor
+from causalab.neural.shared.sites import resolve_site
 from causalab.neural.shared.featurizers import Gate
 from causalab.protocol.schema import PositionSpec, parse_document
 from tests.neural.engines.pytorch_hooks._drive import executor_for
@@ -894,3 +895,55 @@ def test_eval_executor_joins_the_fits_pool(llama_bundle, monkeypatch):
     # the pool travels to the eval executor explicitly; the point executor,
     # which never captures during a fit, carries none
     assert point.graph_pool is None
+
+
+# --------------------------------------------------------------------------- #
+# the gather a capture reads through
+
+
+def test_a_captured_read_gathers_through_the_executors_own_override(llama_bundle):
+    """``GraphExecutor._gather`` is where a read off a replay is reduced, and
+    the value it returns owns its storage.
+
+    Both halves are the contract. A read taken off a CUDA-graph replay is a
+    view of the graph's *static output buffer* unless it is copied, and the
+    next replay writes that buffer again — so a value sharing storage with it
+    is silently the next forward's. And the override is only worth anything if
+    the finisher actually dispatches through it, which is what the positions
+    below pin: they are deliberately *not* the last position, so the returned
+    rows say which gather ran. Under a real capture ``_positions`` yields the
+    last position for every row, so the two agree there; here they must not.
+    """
+    reference = executor_for(das_doc(), llama_bundle, base_texts=BASES[:2])
+    point = GraphExecutor(
+        reference.doc,
+        llama_bundle,
+        role_rows=reference.role_rows,
+        role_fields=reference.role_fields,
+        load_tensors=reference.load_tensors,
+    )
+    read = point.doc.reads["logits"]
+    site = resolve_site(llama_bundle, point.doc.sites[str(read.site)])
+    # the stand-in for a graph's static output buffer: two rows, three
+    # positions, and a first position that differs from the last
+    capture = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
+    value = point._finalize_read(  # pyright: ignore[reportPrivateUsage]
+        "logits",
+        read,
+        site,
+        capture,
+        point._batch("base"),  # pyright: ignore[reportPrivateUsage]
+        "base",
+        per_row=[[0], [0]],
+    )
+    assert isinstance(value, torch.Tensor)
+    # the override ignores the positions and takes the last one: the module
+    # level `gather_rows` would have returned `capture[:, :1, :]`
+    torch.testing.assert_close(value, capture[:, -1:, :], rtol=0, atol=0)
+    # own storage, both ways it can be asked
+    assert value.untyped_storage().data_ptr() != capture.untyped_storage().data_ptr()
+    assert value._base is None
+    # what the next replay does to the buffer
+    capture.zero_()
+    assert value.abs().sum() > 0
+    point.close()
