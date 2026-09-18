@@ -32,7 +32,7 @@ from causalab.neural.shared.executor_base import RaggedValue, TapKey, tap_key
 from causalab.neural.shared.featurizers import FeaturizerStack
 from causalab.neural.shared.sites import ResolvedSite
 from causalab.protocol.plan import COMPONENT_RANK
-from causalab.protocol.schema import PositionSpec, WriteSpec
+from causalab.protocol.schema import PositionSpec, ReadSpec, WriteSpec
 
 __all__ = [
     "PATTERN",
@@ -89,15 +89,21 @@ class SlotRef:
 
 @dataclasses.dataclass(frozen=True)
 class FlowPlan:
-    """How a read's gathered rows become the value a later consumer of the
+    """How a read's captured rows become the value a later consumer of the
     same session reads, without leaving the server — a later group's write
-    operand, a fit's objective, an eval metric: the feature tail of the read
-    (``site``'s head slice, ``stack``, ``dims``). ``stack`` is the stack
+    operand, a fit's objective, an eval metric.
+
+    The whole finisher runs there
+    (:func:`~causalab.neural.shared.executor_base.finalize_read`), which is
+    why this carries the read itself rather than its ``dims`` alone: the
+    ragged ``expert:`` face, a state matrix and a whole native tensor each
+    decide what they are from ``site`` and refuse a featurizer or ``dims``
+    by name, and all three now finish on the server. ``stack`` is the stack
     itself (an inference point ships it) or its names (a fit)."""
 
     site: ResolvedSite
     stack: "FeaturizerStack | StackRef"
-    dims: Any
+    read: ReadSpec
 
 
 @dataclasses.dataclass(frozen=True)
@@ -129,6 +135,7 @@ class FirePlan:
 
     rname: str
     index: int | None
+    flow: FlowPlan | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -192,6 +199,7 @@ class StepPlan:
     key: TapKey
     spec: PositionSpec
     project: Any = None
+    flow: FlowPlan | None = None
 
 
 @dataclasses.dataclass(frozen=True)

@@ -344,9 +344,8 @@ def test_a_remote_bundle_holds_no_weights_and_still_plans():
     assert executor.remote is True  # the bundle's own
     order = executor._group_order()
     assert order == [("original", "counterfactual"), ("patched", "base")]
-    assert executor._flowable("v_cf")
-    ((groups, flowing),) = executor._segments(order)  # one session
-    assert groups == order and flowing == {"v_cf"}
+    flowing = executor._flowing(order)  # one session, the operand flowing in it
+    assert flowing == {"v_cf"}
     plans = [executor._plan(*group, flowing=flowing) for group in order]
     assert all(plan.program.offload for plan in plans)
     source, target = (plan.program for plan in plans)

@@ -13,7 +13,9 @@ the two ends of a forward group, and nothing in between:
 * **after the trace — finalization** (:meth:`NnterpExecutor._finalize`):
   replay the fires the block reported and check them, and finish each read
   from the slice the block gathered (the featurizer stack and ``dims``, the
-  part that needs only the document).
+  part that needs only the document). The finisher is a function, not a
+  method (:func:`~causalab.neural.shared.executor_base.finalize_read`), so
+  the block runs it too for a read the session's own later groups consume.
 
 The trace itself is :func:`~causalab.neural.engines.nnterp_engine.landers.run_program`,
 module-level functions over the program. **No trace body in this package
@@ -61,13 +63,17 @@ bundle) runs the forwards on NDIF against a weight-free bundle.
 :meth:`NnterpExecutor.run_all` plans every group on the client, once, before
 any job is spent, and runs the point as **one session**: the groups in
 dependency order inside one ``model.session(remote=…)``, a read a later
-group writes with flowing between the traces on the server (its feature tail
-applied there from the shipped stack) instead of round-tripping through the
-client. An operand the server cannot finish — a ragged read, the ragged
-``expert:`` face, a routed-interior read (its routing table travels with
-it), a state or per-fire read, a continuation read — comes home first: the
-session is cut in front of the group that consumes it, which ships the
-operand by value, and the operands around it still flow. A lazy
+group writes with flowing between the traces on the server instead of
+round-tripping through the client. **Every** kind of read flows. The block
+runs the same finisher the client does
+(:func:`~causalab.neural.shared.executor_base.finalize_read`) over the rows
+its capture reduced, so a ragged read keeps its per-row widths, the ragged
+``expert:`` face is selected there, a state matrix keeps its native layout,
+a per-fire read is gathered at the fires the kernel ran, a whole native
+tensor travels whole, and a routed-interior read's routing table flows
+beside its value for the expert-keyed write that joins on it
+(:func:`~causalab.neural.engines.nnterp_engine.landers.routing_slot`).
+Nothing cuts the session. A lazy
 :meth:`~causalab.neural.shared.executor_base.ExecutorBase.read_value` before
 ``run_all`` runs one job per group. A plain forward stops after its group's
 last operation, so a shallow read does not pay for the layers above it.
@@ -75,7 +81,9 @@ Remote mode refuses what cannot cross: a gradient-enabled forward as a job of
 its own (saved values come back detached — a fit runs whole inside one
 session instead, :mod:`.fit`, on programs :meth:`NnterpExecutor.fit_programs`
 plans here), a ``pytorch_fn`` write (its code is the caller's, not the
-server's), and a weight-free bundle asked to run in this process.
+server's), and a weight-free bundle asked to run in this process. It refuses
+nothing about a *read*: what a fit's forwards are not — the continuation
+frame — is refused a layer up, by §5 rule 16, on every engine.
 
 What remote mode requires of the server, and what it does not promise:
 
@@ -143,6 +151,8 @@ from causalab.neural.shared.executor_base import (
     ExecutorBase,
     RaggedValue,
     TapKey,
+    featurizable,
+    identity_stack,
     refuse_unstackable,
     tap_key,
     whole_native_tensor,
@@ -290,77 +300,38 @@ class NnterpExecutor(ExecutorBase):
     def run_all(self) -> None:
         """Run every group the document implies. Locally that is the lazy
         per-group run. Remotely every group is planned here, once, before
-        any job is spent, and the groups run in dependency order as sessions
-        (:func:`~causalab.neural.engines.nnterp_engine.landers.run_session`)
-        — one where every operand can flow between the traces on the server,
-        which is the usual point. An operand the server cannot finish
-        (:meth:`_flowable`) has to come home first, so the session is cut in
-        front of the group that consumes it and that group's program is
-        bound to the finished value; the operands around it still flow."""
+        any job is spent, and the point runs as **one session**
+        (:func:`~causalab.neural.engines.nnterp_engine.landers.run_session`),
+        its groups in dependency order, every operand flowing between the
+        traces on the server. Nothing cuts it: the block finishes a read the
+        way the client does (:func:`~causalab.neural.shared.executor_base.
+        finalize_read`), so there is no kind of read whose consumer has to
+        wait for a download first."""
         if not self.remote:
             super().run_all()
             return
         self._refuse_remote_grad()
         self._preflight()
-        segments = self._segments(self._group_order())
-        plans = [
-            [self._plan(*group, flowing=flowing) for group in groups]
-            for groups, flowing in segments
-        ]
-        for segment in plans:
-            programs = tuple(self._bound(plan.program) for plan in segment)
-            with self._kernel_path():
-                results = run_session(self.bundle.model, programs, remote=self.remote)
-            for plan in segment:
-                self._finalize(plan, results[plan.program.label])
-
-    def _segments(self, order: list[Group]) -> list[tuple[list[Group], frozenset[str]]]:
-        """``order`` cut into sessions, each with the reads that flow inside
-        it: a group that consumes an unflowable read of the running session
-        opens the next one."""
-        segments: list[tuple[list[Group], set[str]]] = [([], set())]
-        produced: set[str] = set()
-        for group in order:
-            local = [name for name in self._operand_reads(group[0]) if name in produced]
-            if any(not self._flowable(name) for name in local):
-                segments.append(([], set()))
-                produced, local = set(), []
-            segments[-1][0].append(group)
-            segments[-1][1].update(local)
-            produced |= {
-                rname
-                for rname, read in self.doc.reads.items()
-                if (str(read.model), str(read.input)) == group
-            }
+        order = self._group_order()
         # a point with nothing left to run is no session, not an empty job
-        return [(groups, frozenset(flowing)) for groups, flowing in segments if groups]
+        if not order:
+            return
+        flowing = self._flowing(order)
+        plans = [self._plan(*group, flowing=flowing) for group in order]
+        programs = tuple(self._bound(plan.program) for plan in plans)
+        with self._kernel_path():
+            results = run_session(self.bundle.model, programs, remote=self.remote)
+        for plan in plans:
+            self._finalize(plan, results[plan.program.label])
 
-    def _flowable(self, rname: str) -> bool:
-        """Whether the server can finish read ``rname`` into a session's
-        flow: a dense, positioned prompt-frame read off no routing table.
-        A ragged read, the ragged ``expert:`` face, a routed-interior read
-        (its routing table travels with it), a state or per-fire read, a
-        whole-native read and a continuation read are finished here."""
-        read = self.doc.reads[rname]
-        if generated_budget(self.doc, read.pos):
-            return False
-        model, input_role = str(read.model), str(read.input)
-        tap = self._read_taps(model, input_role, [(rname, read)])[rname]
-        site = tap.site
-        address = self._address(f"read {rname!r}", tap.capture)
-        if (
-            not site.shape.has_contract_form
-            or site.expert is not None
-            or site.shape.state_axes
-            or (
-                address is not None and (address.expert_rows or address.fires != "once")
-            )
-        ):
-            return False
-        per_row = self._positions(
-            read.pos, self._batch(input_role), input_role, cell=rname
+    def _flowing(self, order: Sequence[Group]) -> frozenset[str]:
+        """The reads ``order``'s writes consume — what gets the plan that
+        finishes it on the server. A read nobody consumes is not planned to
+        flow: its stack would ship for nothing, and a full-rank rotation is
+        the biggest thing in a payload."""
+        return frozenset(
+            operand for group in order for operand in self._operand_reads(group[0])
         )
-        return len({len(row) for row in per_row}) == 1
 
     def fit_programs(self, reads: Sequence[str]) -> tuple[GroupProgram, ...]:
         """The forwards of a fit's step (or of its eval pass) as programs of
@@ -374,8 +345,14 @@ class NnterpExecutor(ExecutorBase):
         objective's or the eval metrics' — finished where the forward ran.
         Featurizer stacks and slot operands are carried **by name**
         (:class:`StackRef`, :class:`SlotRef`): the fit's stages are built and
-        stepped where it runs. A read the block cannot finish
-        (:meth:`_flowable`) refuses the fit by name."""
+        stepped where it runs.
+
+        Nothing is refused here. The block finishes every kind of read the
+        way the client does, and the one frame a fit's forwards are not — the
+        continuation frame — is refused a layer up, for a better reason than
+        this engine could give: §5 rule 16 refuses ``train`` beside any
+        generated position on any engine, because a greedy decode is an
+        argmax chain with no gradient path."""
         self._preflight()
         order: list[Group] = []
 
@@ -390,25 +367,7 @@ class NnterpExecutor(ExecutorBase):
         for rname in reads:
             read = self.doc.reads[rname]
             visit((str(read.model), str(read.input)))
-        flowing = frozenset(reads) | {
-            operand for group in order for operand in self._operand_reads(group[0])
-        }
-        for rname in sorted(flowing):
-            if not self._flowable(rname):
-                raise ProtocolError(
-                    "P4",
-                    f"read {rname!r} feeds this fit — its objective, an eval "
-                    "metric, or a write of the trained forward — and is not a "
-                    "dense, positioned prompt-frame read off no routing table: "
-                    "a ragged, routed-interior, state, per-fire, whole-tensor "
-                    "or continuation read is finished on the client, and a "
-                    "fit's forwards run whole where its stages live "
-                    "(nnterp_engine/fit.py). The reference engine "
-                    "(neural/engines/pytorch_hooks) fits this document — in "
-                    "this process, against a locally loaded model: it has no "
-                    "remote mode, so a document whose fit reads this way "
-                    "cannot be trained on NDIF at all.",
-                )
+        flowing = frozenset(reads) | self._flowing(order)
         return tuple(
             self._by_name(
                 dataclasses.replace(
@@ -574,7 +533,7 @@ class NnterpExecutor(ExecutorBase):
             tally.declare(plan.members, 1)
             writes.append((site, address, plan))
 
-        steps, step_plans, step_captures = self._step_plans(decode)
+        steps, step_plans, step_captures = self._step_plans(decode, flowing)
         ops = schedule(captures, writes)
         step_ops = schedule(step_captures, [])
         # build every anchor's `.source` before the trace opens: the block
@@ -674,41 +633,49 @@ class NnterpExecutor(ExecutorBase):
         flows: bool,
     ) -> tuple[ReadPlan | FirePlan, list[list[int]] | None]:
         """How the block reduces one prompt-frame read, and the positions it
-        gathers at. A read a later group of the session consumes (``flows``,
-        which :meth:`_flowable` admitted) also gets the plan that finishes
-        it on the server."""
+        gathers at. A read a later group of the session consumes (``flows``)
+        also gets the plan that finishes it on the server — every kind of
+        read, since the finisher runs there."""
         site = tap.site
+        flow = self._flow_plan(rname, read, site) if flows else None
         if address is not None and address.fires == "per_chunk":
-            return self._fire_plan(rname, read.pos), None
+            return self._fire_plan(rname, read.pos, flow), None
         if not site.shape.has_contract_form:
             # the tap's own refusals (positions, featurizer, dims) before the
             # forward, as a write's are: remotely the whole (rows, heads,
             # query, key) tensor would otherwise be a job and a download
-            # spent on a read ``_finalize_read`` then refuses
+            # spent on a read ``finalize_read`` then refuses
             whole_native_tensor(rname, read, None, site)
-            return ReadPlan(rname, None), None
+            return ReadPlan(rname, None, flow=flow), None
         per_row = self._positions(read.pos, batch, input_role, cell=rname)
         plan = ReadPlan(
             rname,
             per_row,
             project=tap.project,
             derive=site if site.derivation is not None else None,
-            flow=(
-                FlowPlan(site, self._read_stack(read, site), read.dims)
-                if flows
-                else None
-            ),
+            flow=flow,
         )
         return plan, per_row
 
-    def _fire_plan(self, rname: str, pos: Any) -> FirePlan:
+    def _flow_plan(self, rname: str, read: ReadSpec, site: ResolvedSite) -> FlowPlan:
+        """What the block needs to finish one read where the forward ran: the
+        site, the read, and the featurizer stack — the identity stack on a
+        face that refuses a featurizer by name, which is also the only stack
+        those faces could legally carry."""
+        return FlowPlan(
+            site,
+            self._read_stack(read, site) if featurizable(site) else identity_stack(),
+            read,
+        )
+
+    def _fire_plan(self, rname: str, pos: Any, flow: FlowPlan | None) -> FirePlan:
         """Positions on a fire axis: ``all``, or one integer index (negative
         counts from the last fire, resolved against the count in the block).
         Anything anchored refuses — there is no text on a chunk axis."""
         spec = self._spec(pos)
         anchored = _anchored(spec)
         if not anchored and getattr(spec, "all", None) is True:
-            return FirePlan(rname, None)
+            return FirePlan(rname, None, flow=flow)
         index = spec.index if isinstance(spec.index, int) else None
         if anchored or index is None:
             raise ProtocolError(
@@ -718,7 +685,7 @@ class NnterpExecutor(ExecutorBase):
                 '"all" or a plain integer index resolves there — text '
                 "anchors and spans have nothing to resolve against.",
             )
-        return FirePlan(rname, index)
+        return FirePlan(rname, index, flow=flow)
 
     def _write_groups(
         self, write_names: tuple[str, ...]
@@ -835,7 +802,9 @@ class NnterpExecutor(ExecutorBase):
             fires[ename] = index
         return fires
 
-    def _step_plans(self, decode: list[tuple[str, ReadSpec]]) -> tuple[Any, Any, Any]:
+    def _step_plans(
+        self, decode: list[tuple[str, ReadSpec]], flowing: frozenset[str]
+    ) -> tuple[Any, Any, Any]:
         """Each continuation read's tap: an ``lm_head`` read captures
         ``ln_final`` per step and is projected at its addressed steps (the
         reference engine's own trick, so both serve the same value); a read
@@ -859,6 +828,9 @@ class NnterpExecutor(ExecutorBase):
                     tap_key(capture, address),
                     self._spec(read.pos),
                     project=head_module(self.bundle) if projected else None,
+                    flow=(
+                        self._flow_plan(rname, read, site) if rname in flowing else None
+                    ),
                 )
             )
             captures.append((capture, address, ()))
