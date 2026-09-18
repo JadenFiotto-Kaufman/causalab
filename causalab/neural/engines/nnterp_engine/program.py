@@ -98,11 +98,13 @@ class FlowPlan:
     why this carries the read itself rather than its ``dims`` alone: the
     ragged ``expert:`` face, a state matrix and a whole native tensor each
     decide what they are from ``site`` and refuse a featurizer or ``dims``
-    by name, and all three now finish on the server. ``stack`` is the stack
-    itself (an inference point ships it) or its names (a fit)."""
+    by name, and all three finish on the server. ``stack`` is the stack
+    itself (an inference point ships it) or its names (a fit) — and ``None``
+    on exactly those three faces, which return before a stack could act, so
+    nothing stands in a payload for a featurizer that cannot run."""
 
     site: ResolvedSite
-    stack: "FeaturizerStack | StackRef"
+    stack: "FeaturizerStack | StackRef | None"
     read: ReadSpec
 
 
@@ -112,9 +114,10 @@ class FlowPlan:
 # `FirePlan` is served from the same capture but at positions only the
 # kernel's fire count decides; a `StepPlan` is served from a per-step sink
 # keyed by `TapKey` — not from an op of `ops` at all — at positions the
-# decode's own continuation frame decides. One type would carry four
-# mutually exclusive address fields and a key meaningful for one of them,
-# and `select_rows` would have to ask which.
+# decode's own continuation frame decides. One type would carry three
+# mutually exclusive address fields (positions, a fire index, a position
+# spec) and a key meaningful for one of them, and `select_rows` would have
+# to ask which.
 
 
 @dataclasses.dataclass(frozen=True)

@@ -103,9 +103,10 @@ from causalab.neural.shared.executor_base import (
     apply_writes_to_contract,
     finalize_read,
     gather_rows,
+    identity_stack,
     read_operand,
 )
-from causalab.neural.shared.featurizers import FeaturizerStack, Identity, Stage
+from causalab.neural.shared.featurizers import FeaturizerStack, Stage
 from causalab.neural.shared.layout import (
     from_contract,
     rebuild_payload,
@@ -338,7 +339,7 @@ def _over(
 
 
 def _stack_on(
-    stack: "FeaturizerStack | StackRef",
+    stack: "FeaturizerStack | StackRef | None",
     device: torch.device,
     stages: Mapping[str, Stage] | None,
 ) -> FeaturizerStack:
@@ -347,10 +348,16 @@ def _stack_on(
     shipped stages arrive on the CPU and the activation is wherever the
     server put the model — a device the client cannot know.
 
+    ``None`` is a face that refuses a featurizer by name: the finisher
+    returns before it would reach a stack, so the identity is built here
+    rather than travelling.
+
     A stack still named (:class:`StackRef`) belongs to a fit: it resolves
     here against ``stages``, the fit's own table, **as the table stands at
     this forward** — a trained stage moves with every update. A forward
     outside a fit carries no table and refuses."""
+    if stack is None:
+        return identity_stack()
     if isinstance(stack, StackRef):
         if stages is None:
             raise ProtocolError(
@@ -361,7 +368,7 @@ def _stack_on(
                 "runs outside one",
             )
         if not stack.names:
-            return FeaturizerStack(names=(), stages=(Identity(),))
+            return identity_stack()
         stack = FeaturizerStack(stack.names, tuple(stages[n] for n in stack.names))
     for stage in stack.stages:
         if any(p.device != device for p in stage.parameters()) or any(

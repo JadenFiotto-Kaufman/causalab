@@ -402,8 +402,9 @@ def test_the_tap_declares_two_position_axes_and_so_has_no_contract(
 def test_the_forms_the_shape_cannot_support_are_refused(
     qwen35moe_bundle, kwargs, needle
 ):
-    """Each of these would silently read the wrong axis: ``_gather`` would index
-    heads with positions, and ``dims`` would select key positions as features.
+    """Each of these would silently read the wrong axis: ``gather_rows`` would
+    index heads with positions, and ``dims`` would select key positions as
+    features.
 
     Every message is *generated* from the tap's declared axes rather than
     written per component, so each one quotes the shape it is refusing on

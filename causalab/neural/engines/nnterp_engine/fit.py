@@ -310,7 +310,7 @@ def fit_body(
     def forward(programs: tuple[GroupProgram, ...], rows: Sequence[int] | None):
         """One pass over ``programs`` in order, each its own trace; the reads
         the pass is for, by name."""
-        flow: dict[str, torch.Tensor] = {}
+        flow: dict[Any, Any] = {}
         for program in programs:
             if rows is not None:
                 program = select_rows(program, rows)

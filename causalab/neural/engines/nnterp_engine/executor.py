@@ -152,7 +152,6 @@ from causalab.neural.shared.executor_base import (
     RaggedValue,
     TapKey,
     featurizable,
-    identity_stack,
     refuse_unstackable,
     tap_key,
     whole_native_tensor,
@@ -407,11 +406,11 @@ class NnterpExecutor(ExecutorBase):
         def flows_by_name(plan: Any) -> Any:
             if plan.flow is None:
                 return plan
+            stack = plan.flow.stack
+            if stack is None:  # a face with no stack to name
+                return plan
             return dataclasses.replace(
-                plan,
-                flow=dataclasses.replace(
-                    plan.flow, stack=StackRef(plan.flow.stack.names)
-                ),
+                plan, flow=dataclasses.replace(plan.flow, stack=StackRef(stack.names))
             )
 
         def named(op: Any) -> Any:
@@ -686,12 +685,12 @@ class NnterpExecutor(ExecutorBase):
 
     def _flow_plan(self, rname: str, read: ReadSpec, site: ResolvedSite) -> FlowPlan:
         """What the block needs to finish one read where the forward ran: the
-        site, the read, and the featurizer stack — the identity stack on a
-        face that refuses a featurizer by name, which is also the only stack
-        those faces could legally carry."""
+        site, the read, and the featurizer stack — ``None`` on a face that
+        refuses a featurizer by name, since the finisher returns there before
+        a stack could act."""
         return FlowPlan(
             site,
-            self._read_stack(read, site) if featurizable(site) else identity_stack(),
+            self._read_stack(read, site) if featurizable(site) else None,
             read,
         )
 

@@ -347,7 +347,12 @@ def test_a_fit_carries_every_flowing_stack_by_name(nnterp_qwen):
     only kind of flowing plan a fit can reach besides a ``ReadPlan`` — a
     ``StepPlan`` lives in ``program.steps``, which needs a continuation
     frame, and ``fit_programs`` asserts a fit has none. That combination
-    stays untested for the same reason it is unrepresentable."""
+    stays untested for the same reason it is unrepresentable.
+
+    ``s`` reads a state matrix, a face that refuses a featurizer by name, so
+    its flow names no stack at all (``FlowPlan.stack is None``). The two
+    outcomes a fit's payload may hold are therefore a name and nothing; a
+    built stack is the one it may not."""
     doc_raw = _state_swap_fit_doc()
     executor = _executor(nnterp_qwen, doc_raw)
     request = train_request()
@@ -355,7 +360,8 @@ def test_a_fit_carries_every_flowing_stack_by_name(nnterp_qwen):
     flows = _flows(plan.train + plan.eval)
     assert {kind for kind, _ in flows} == {"ReadPlan", "FirePlan"}
     for kind, stack in flows:
-        assert isinstance(stack, StackRef), kind
+        assert stack is None or isinstance(stack, StackRef), kind
+    assert any(isinstance(stack, StackRef) for _, stack in flows)
     # and the block resolves them: the fit runs, gates and all
     executor = _executor(nnterp_qwen, doc_raw)
     (outcome,) = run_training([executor.doc], [executor], request)

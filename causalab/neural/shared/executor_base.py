@@ -915,6 +915,9 @@ def finalize_read(
         # later write through one aligns this read's slots to its own by
         idx_gathered = expert_idx if pregathered else gather(expert_idx, per_row)
         if isinstance(idx_gathered, RaggedValue):
+            # the featurizer stack below is keyed by it, but no *later* write
+            # is: a ragged read has no aligned shape to pair into one and
+            # rule 19 refuses it as an operand, so the table is not recorded
             routing = idx_gathered.flat
         else:
             routing = idx_gathered

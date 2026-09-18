@@ -26,7 +26,7 @@ swap of a counterfactual read into ``block_output``, a logits read):
 The pinned document is dense — one position per row, a ``swap`` on
 ``block_output`` — so the ragged landings (and the ``padded_masked``
 landing's former boolean-mask select), the scalar operands of ``scale`` /
-``clamp``, and a read through the ``expert:`` face (``_expert_selected``
+``clamp``, and a read through the ``expert:`` face (``expert_selected``
 selects its hits with a boolean mask and counts them per row; the width
 there is data-dependent) are not under this census.
 
