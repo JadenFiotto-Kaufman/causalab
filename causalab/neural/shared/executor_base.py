@@ -831,6 +831,7 @@ def finalize_read(
     to_cpu: bool = True,
     pregathered: bool = False,
     notes: "dict[str, Any] | None" = None,
+    gather: "Callable[..., torch.Tensor | RaggedValue]" = gather_rows,
 ) -> "torch.Tensor | RaggedValue":
     """One read's value: gather at ``per_row``, then featurize — **the whole
     finisher, as a function**, so whoever holds the raw tensor can finish the
@@ -842,6 +843,13 @@ def finalize_read(
     anything else, which is how an ``lm_head`` continuation read is served
     from kept ``ln_final`` activations: the vocabulary projection happens at
     the addressed positions and nowhere else.
+
+    ``gather`` is how the raw tensor is reduced to its addressed rows,
+    :func:`gather_rows` unless the caller's executor gathers differently —
+    :meth:`ExecutorBase._finalize_read` passes its own
+    (:meth:`ExecutorBase._gather`), which is what a CUDA-graph executor
+    overrides so a read off a replay does not alias the graph's static
+    output buffer. ``pregathered`` never calls it.
 
     ``pregathered`` says the forward reduced already: ``raw`` (and
     ``expert_idx``) arrive gathered at ``per_row`` — a dense ``(rows, width,
@@ -874,8 +882,9 @@ def finalize_read(
             to_cpu=to_cpu,
             pregathered=pregathered,
             notes=notes,
+            gather=gather,
         )
-    gathered = raw if pregathered else gather_rows(raw, per_row)
+    gathered = raw if pregathered else gather(raw, per_row)
     if project is not None:
         if isinstance(gathered, RaggedValue):
             gathered = RaggedValue(flat=project(gathered.flat), widths=gathered.widths)
@@ -904,7 +913,7 @@ def finalize_read(
         # the routing table at the same rows and positions as the value —
         # what an expert-keyed gate keys its parameters by, and what a
         # later write through one aligns this read's slots to its own by
-        idx_gathered = expert_idx if pregathered else gather_rows(expert_idx, per_row)
+        idx_gathered = expert_idx if pregathered else gather(expert_idx, per_row)
         if isinstance(idx_gathered, RaggedValue):
             routing = idx_gathered.flat
         else:
@@ -941,6 +950,7 @@ def expert_selected(
     to_cpu: bool = True,
     pregathered: bool = False,
     notes: "dict[str, Any] | None" = None,
+    gather: "Callable[..., torch.Tensor | RaggedValue]" = gather_rows,
 ) -> RaggedValue:
     """The ragged face of the routed interior: the (position, slot) pairs
     the router sent to ``site.expert``, as flat ``(selected, d)`` rows plus
@@ -988,8 +998,8 @@ def expert_selected(
     if pregathered:
         gathered, idx_gathered = raw, expert_idx
     else:
-        gathered = gather_rows(raw, per_row)
-        idx_gathered = gather_rows(expert_idx, per_row)
+        gathered = gather(raw, per_row)
+        idx_gathered = gather(expert_idx, per_row)
     if isinstance(gathered, RaggedValue):
         assert isinstance(idx_gathered, RaggedValue)
         flat_value, pos_widths = gathered.flat, gathered.widths
@@ -2901,6 +2911,18 @@ class ExecutorBase:
                 reason, detail, cell_key(rname, self.coords)
             )
 
+    @staticmethod
+    def _gather(
+        tensor: torch.Tensor, per_row: Sequence[Sequence[int]]
+    ) -> "torch.Tensor | RaggedValue":
+        """How this executor reduces a captured tensor to a read's addressed
+        rows — :func:`gather_rows`, and the one dispatch point an executor
+        whose tensors are not ordinary overrides
+        (:meth:`~causalab.neural.engines.pytorch_hooks.cuda_graphs.
+        GraphExecutor._gather`, whose value must own its storage because the
+        next replay overwrites the graph's static output buffer)."""
+        return gather_rows(tensor, per_row)
+
     def _read_stack(
         self, read: ReadSpec | WriteSpec, site: ResolvedSite
     ) -> FeaturizerStack:
@@ -2980,6 +3002,7 @@ class ExecutorBase:
             to_cpu=(not self.device_reads) if to_cpu is None else to_cpu,
             pregathered=pregathered,
             notes=notes,
+            gather=self._gather,
         )
         self._record_read_notes(rname, notes)
         return value
